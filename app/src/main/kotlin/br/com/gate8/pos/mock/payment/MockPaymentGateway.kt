@@ -1,0 +1,28 @@
+package br.com.gate8.pos.mock.payment
+
+import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.PaymentGateway
+import br.com.gate8.pos.payment.PaymentResult
+import kotlinx.coroutines.delay
+import java.util.UUID
+import kotlin.random.Random
+
+class MockPaymentGateway : PaymentGateway {
+    override suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult {
+        delay(800)
+        val nsu = Random.nextInt(100000, 999999).toString()
+        val auth = Random.nextInt(100000, 999999).toString()
+        return PaymentResult(
+            method = method,
+            nsu = nsu,
+            authorization = auth,
+            brand = when (method) {
+                PaymentMethodApi.CREDIT -> "Visa"
+                PaymentMethodApi.DEBIT -> "Mastercard"
+                PaymentMethodApi.PIX -> "Pix"
+                else -> "MOCK"
+            },
+            transactionId = "mock-stone-${UUID.randomUUID()}",
+        )
+    }
+}

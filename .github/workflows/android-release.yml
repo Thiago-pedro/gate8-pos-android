@@ -1,0 +1,61 @@
+name: Android mockDebug Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build mockDebug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: :app:assembleMockDebug --no-daemon --stacktrace
+
+      - name: Prepare release asset
+        run: |
+          APK=$(find app/build/outputs/apk/mock/debug -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "APK not found"
+            find app/build/outputs -name "*.apk"
+            exit 1
+          fi
+          cp "$APK" gate8-pos-mock-debug.apk
+          ls -la gate8-pos-mock-debug.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Gate8 POS mockDebug — build ${{ github.run_number }}
+          body: |
+            APK gerado automaticamente (flavor **mock**, buildType **debug**).
+
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+            - Workflow: ${{ github.run_id }}
+
+            Instale na maquininha e configure `g8pos_...` em **Configuração**.
+          files: gate8-pos-mock-debug.apk
+          make_latest: true
+          generate_release_notes: false
