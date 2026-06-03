@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "br.com.gate8.pos"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "br.com.gate8.pos.terminal"
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
