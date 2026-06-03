@@ -5,7 +5,7 @@ import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.ReceiptPrinter
 
 class MockPrinterProvider : ReceiptPrinter {
-    fun printReceipt(
+    override fun printReceipt(
         lines: List<CartLine>,
         total: Double,
         paymentLabel: String,
@@ -22,7 +22,7 @@ class MockPrinterProvider : ReceiptPrinter {
         Log.i(TAG, sb.toString())
     }
 
-    fun printTicketQr(code: String, holder: String?, description: String) {
+    override fun printTicketQr(code: String, holder: String?, description: String) {
         Log.i(TAG, "QR INGRESSO (conteúdo=$code) $description holder=$holder")
     }
 
