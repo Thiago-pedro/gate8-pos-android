@@ -8,6 +8,8 @@ import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
+import br.com.gate8.pos.data.remote.dto.EventCatalogDto
+import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
 import br.com.gate8.pos.data.remote.dto.StonePaymentDto
@@ -28,6 +30,7 @@ import kotlinx.serialization.json.Json
 data class PdvUiState(
     val loading: Boolean = false,
     val catalog: CatalogResponseDto? = null,
+    val selectedEventId: String? = null,
     val cart: List<CartLine> = emptyList(),
     val message: String? = null,
     val error: String? = null,
@@ -52,11 +55,42 @@ class PdvViewModel(
         refreshCatalog()
     }
 
+    fun selectEvent(eventId: String) {
+        _state.update { it.copy(selectedEventId = eventId, message = null, error = null) }
+    }
+
+    fun clearSelectedEvent() {
+        _state.update { it.copy(selectedEventId = null) }
+    }
+
+    fun selectedEvent(): EventCatalogDto? {
+        val id = _state.value.selectedEventId ?: return null
+        return _state.value.catalog?.events?.firstOrNull { it.id == id }
+    }
+
+    fun productsForSelectedEvent(): List<ProductDto> {
+        val eventId = _state.value.selectedEventId ?: return emptyList()
+        return _state.value.catalog?.products.orEmpty().filter { p ->
+            p.eventId == null || p.eventId == eventId
+        }
+    }
+
     fun refreshCatalog() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             runCatching { catalogRepository.fetchAndCache() }
-                .onSuccess { catalog -> _state.update { it.copy(loading = false, catalog = catalog) } }
+                .onSuccess { catalog ->
+                    _state.update { s ->
+                        val keepSelection = s.selectedEventId?.let { id ->
+                            catalog.events.any { it.id == id }
+                        } ?: false
+                        s.copy(
+                            loading = false,
+                            catalog = catalog,
+                            selectedEventId = if (keepSelection) s.selectedEventId else null,
+                        )
+                    }
+                }
                 .onFailure { e ->
                     val cached = catalogRepository.getCached()
                     _state.update {
