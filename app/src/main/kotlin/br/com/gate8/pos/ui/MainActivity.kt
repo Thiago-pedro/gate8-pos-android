@@ -16,6 +16,7 @@ import br.com.gate8.pos.ui.home.HomeScreen
 import br.com.gate8.pos.ui.navigation.Routes
 import br.com.gate8.pos.ui.pending.PendingScreen
 import br.com.gate8.pos.ui.pdv.PdvScreen
+import br.com.gate8.pos.ui.products.ProductsScreen
 import br.com.gate8.pos.ui.theme.Gate8Theme
 import org.koin.androidx.compose.koinViewModel
 
@@ -40,12 +41,14 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.Home) {
                             HomeScreen(
                                 onPdv = { nav.navigate(Routes.Pdv) },
+                                onProducts = { nav.navigate(Routes.Products) },
                                 onCheckin = { nav.navigate(Routes.Checkin) },
                                 onPending = { nav.navigate(Routes.Pending) },
                                 onSetup = { nav.navigate(Routes.Setup) },
                             )
                         }
                         composable(Routes.Pdv) { PdvScreen(onBack = { nav.popBackStack() }) }
+                        composable(Routes.Products) { ProductsScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.Checkin) { CheckinScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.Pending) { PendingScreen(onBack = { nav.popBackStack() }) }
                     }

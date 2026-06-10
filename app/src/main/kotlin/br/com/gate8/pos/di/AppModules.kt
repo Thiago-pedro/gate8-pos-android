@@ -23,6 +23,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import okhttp3.MediaType.Companion.toMediaType
 import br.com.gate8.pos.ui.config.SetupViewModel
 import br.com.gate8.pos.ui.pdv.PdvViewModel
+import br.com.gate8.pos.ui.products.ProductsViewModel
 import br.com.gate8.pos.ui.checkin.CheckinViewModel
 import br.com.gate8.pos.ui.pending.PendingViewModel
 import java.util.concurrent.TimeUnit
@@ -79,6 +80,7 @@ val appModule = module {
 
     viewModel { SetupViewModel(get()) }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
 }

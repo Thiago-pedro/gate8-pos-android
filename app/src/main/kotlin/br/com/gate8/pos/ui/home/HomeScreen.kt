@@ -16,6 +16,7 @@ import br.com.gate8.pos.R
 @Composable
 fun HomeScreen(
     onPdv: () -> Unit,
+    onProducts: () -> Unit,
     onCheckin: () -> Unit,
     onPending: () -> Unit,
     onSetup: () -> Unit,
@@ -25,7 +26,8 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Gate8 POS")
-        Button(onClick = onPdv, modifier = Modifier.fillMaxWidth()) { Text("PDV — Vendas") }
+        Button(onClick = onPdv, modifier = Modifier.fillMaxWidth()) { Text("PDV — Ingressos") }
+        Button(onClick = onProducts, modifier = Modifier.fillMaxWidth()) { Text("Produtos — Itens") }
         Button(onClick = onCheckin) { Text("Check-in") }
         Button(onClick = onPending) { Text("Vendas pendentes") }
         Button(onClick = onSetup) { Text("Configuração") }

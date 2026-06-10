@@ -4,6 +4,7 @@ object Routes {
     const val Setup = "setup"
     const val Home = "home"
     const val Pdv = "pdv"
+    const val Products = "products"
     const val Checkin = "checkin"
     const val Pending = "pending"
 }

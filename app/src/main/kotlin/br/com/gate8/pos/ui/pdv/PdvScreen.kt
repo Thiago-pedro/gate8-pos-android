@@ -29,7 +29,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
-import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import coil.compose.AsyncImage
@@ -69,8 +68,6 @@ fun PdvScreen(
         } else {
             PdvEventSales(
                 event = selectedEvent,
-                products = vm.productsForSelectedEvent(),
-                onAddProduct = { id, name, price -> vm.addProduct(id, name, price) },
                 onAddTicket = { batchId, eventId, name, price ->
                     vm.addTicket(batchId, eventId, name, price)
                 },
@@ -190,8 +187,6 @@ private fun EventPickerCard(
 @Composable
 private fun PdvEventSales(
     event: EventCatalogDto,
-    products: List<ProductDto>,
-    onAddProduct: (String, String, Double) -> Unit,
     onAddTicket: (String, String, String, Double) -> Unit,
 ) {
     Text(
@@ -205,21 +200,6 @@ private fun PdvEventSales(
             .weight(1f)
             .fillMaxWidth(),
     ) {
-        if (products.isNotEmpty()) {
-            item { Text("Produtos", modifier = Modifier.padding(vertical = 8.dp)) }
-            items(products, key = { it.id }) { p ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(p.name)
-                            Text("R$ ${"%.2f".format(p.price)} · est: ${p.stockQuantity}")
-                        }
-                        Button(onClick = { onAddProduct(p.id, p.name, p.price) }) { Text("+") }
-                    }
-                }
-            }
-        }
-
         item { Text("Ingressos", modifier = Modifier.padding(vertical = 8.dp)) }
 
         if (event.ticketBatches.isEmpty()) {
