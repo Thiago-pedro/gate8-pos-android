@@ -3,6 +3,8 @@ package br.com.gate8.pos.ui.products
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.core.network.ApiException
+import br.com.gate8.pos.core.network.isStockOrProductError
+import br.com.gate8.pos.core.network.saleErrorMessage
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
@@ -52,11 +54,15 @@ class ProductsViewModel(
         refreshCatalog()
     }
 
+    /** Lista filtrada pelo backend conforme `device.event_id` (globais + do evento). */
     fun products(): List<ProductDto> = _state.value.catalog?.products.orEmpty()
 
     val cartItemCount: Int get() = _state.value.cart.sumOf { it.quantity }
 
     val cartTotal: Double get() = _state.value.cart.sumOf { it.lineTotal }
+
+    fun quantityInCart(productId: String): Int =
+        _state.value.cart.firstOrNull { it.productId == productId }?.quantity ?: 0
 
     fun refreshCatalog() {
         viewModelScope.launch {
@@ -64,6 +70,7 @@ class ProductsViewModel(
             runCatching { catalogRepository.fetchAndCache() }
                 .onSuccess { catalog ->
                     _state.update { it.copy(loading = false, catalog = catalog) }
+                    trimCartToStock()
                 }
                 .onFailure { e ->
                     val cached = catalogRepository.getCached()
@@ -79,6 +86,17 @@ class ProductsViewModel(
     }
 
     fun addProduct(product: ProductDto) {
+        if (product.stockQuantity <= 0) {
+            _state.update { it.copy(error = "${product.name} sem estoque") }
+            return
+        }
+        val inCart = quantityInCart(product.id)
+        if (inCart >= product.stockQuantity) {
+            _state.update {
+                it.copy(error = "Estoque máximo: ${product.stockQuantity} (${product.name})")
+            }
+            return
+        }
         _state.update { s ->
             val existing = s.cart.indexOfFirst { it.productId == product.id }
             val newCart = if (existing >= 0) {
@@ -95,7 +113,23 @@ class ProductsViewModel(
                     unitPrice = product.price,
                 )
             }
-            s.copy(cart = newCart, message = "${product.name} adicionado")
+            s.copy(cart = newCart, message = "${product.name} adicionado", error = null)
+        }
+    }
+
+    fun removeProduct(productId: String) {
+        _state.update { s ->
+            val idx = s.cart.indexOfFirst { it.productId == productId }
+            if (idx < 0) return@update s
+            val line = s.cart[idx]
+            val newCart = if (line.quantity <= 1) {
+                s.cart.filterNot { it.productId == productId }
+            } else {
+                s.cart.mapIndexed { i, l ->
+                    if (i == idx) l.copy(quantity = l.quantity - 1) else l
+                }
+            }
+            s.copy(cart = newCart, message = if (newCart.isEmpty()) null else "Item removido")
         }
     }
 
@@ -115,13 +149,10 @@ class ProductsViewModel(
         _state.update { it.copy(cart = emptyList(), showCheckout = false) }
     }
 
-    fun dismissMessage() {
-        _state.update { it.copy(message = null, error = null) }
-    }
-
     fun checkout(method: PaymentMethodApi) {
         val cart = _state.value.cart
         if (cart.isEmpty()) return
+        if (!validateCartStock()) return
 
         val total = cart.sumOf { it.lineTotal }
         val clientRef = ClientReferenceGenerator.newReference(
@@ -187,24 +218,79 @@ class ProductsViewModel(
                             },
                         )
                     }
+                    refreshCatalog()
                 }
                 .onFailure { e ->
-                    val msg = when (e) {
-                        is ApiException -> {
-                            val avail = e.available?.let { " (disp: $it)" } ?: ""
-                            "${e.message}$avail"
-                        }
-                        else -> e.message ?: "Falha na API — venda na fila offline"
-                    }
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    handleCheckoutFailure(e, cart, total, method, pay.nsu, pay.authorization, clientRef)
+                }
+        }
+    }
+
+    private fun validateCartStock(): Boolean {
+        for (line in _state.value.cart) {
+            val product = products().firstOrNull { it.id == line.productId } ?: continue
+            if (line.quantity > product.stockQuantity) {
+                _state.update {
+                    it.copy(error = "Estoque insuficiente para ${product.name}. Disponível: ${product.stockQuantity}")
+                }
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun trimCartToStock() {
+        _state.update { s ->
+            val trimmed = s.cart.mapNotNull { line ->
+                val product = products().firstOrNull { it.id == line.productId } ?: return@mapNotNull null
+                val qty = line.quantity.coerceAtMost(product.stockQuantity)
+                if (qty <= 0) null else line.copy(quantity = qty)
+            }
+            s.copy(cart = trimmed)
+        }
+    }
+
+    private fun handleCheckoutFailure(
+        e: Throwable,
+        cart: List<CartLine>,
+        total: Double,
+        method: PaymentMethodApi,
+        nsu: String?,
+        authorization: String?,
+        clientRef: String,
+    ) {
+        when (e) {
+            is ApiException -> {
+                if (e.isStockOrProductError()) {
                     _state.update {
                         it.copy(
                             loading = false,
-                            error = msg,
+                            error = e.saleErrorMessage(),
+                            message = null,
+                        )
+                    }
+                    refreshCatalog()
+                } else {
+                    printer.printReceipt(cart, total, method.apiValue, nsu, authorization)
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            error = e.saleErrorMessage(),
                             message = "Pagamento OK (mock). Venda salva para sync: $clientRef",
                         )
                     }
                 }
+            }
+            else -> {
+                printer.printReceipt(cart, total, method.apiValue, nsu, authorization)
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        error = e.message ?: "Falha na API — venda na fila offline",
+                        message = "Pagamento OK (mock). Venda salva para sync: $clientRef",
+                    )
+                }
+            }
         }
     }
 }

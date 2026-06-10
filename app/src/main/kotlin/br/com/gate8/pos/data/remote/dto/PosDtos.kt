@@ -143,6 +143,7 @@ data class CheckinTicketDto(
 @Serializable
 data class ApiErrorDto(
     val error: String? = null,
+    @SerialName("product_id") val productId: String? = null,
     val available: Int? = null,
     val details: JsonElement? = null,
 )

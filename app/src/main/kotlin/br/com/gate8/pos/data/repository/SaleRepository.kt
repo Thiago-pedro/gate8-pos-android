@@ -64,6 +64,7 @@ class SaleRepository(
             message = parsed?.error ?: "Erro na venda",
             errorCode = parsed?.error,
             available = parsed?.available,
+            productId = parsed?.productId,
         )
     }
 }

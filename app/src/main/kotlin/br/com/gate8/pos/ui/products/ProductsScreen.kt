@@ -150,7 +150,11 @@ fun ProductsScreen(
                     modifier = Modifier.weight(1f),
                 ) {
                     items(vm.products(), key = { it.id }) { product ->
-                        ProductGridCard(product = product, onAdd = { vm.addProduct(product) })
+                        ProductGridCard(
+                            product = product,
+                            inCart = vm.quantityInCart(product.id),
+                            onAdd = { vm.addProduct(product) },
+                        )
                     }
                 }
             }
@@ -206,6 +210,7 @@ fun ProductsScreen(
                     total = vm.cartTotal,
                     cart = state.cart,
                     loading = state.loading,
+                    onRemove = { vm.removeProduct(it) },
                     onPayCredit = { vm.checkout(PaymentMethodApi.CREDIT) },
                     onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
                     onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
@@ -243,13 +248,17 @@ private fun ProductsTopBar(onMenu: () -> Unit, onRefresh: () -> Unit) {
 @Composable
 private fun ProductGridCard(
     product: ProductDto,
+    inCart: Int,
     onAdd: () -> Unit,
 ) {
+    val outOfStock = product.stockQuantity <= 0
     Column(
         Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface)
-            .clickable(onClick = onAdd),
+            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f))
+            .then(
+                if (outOfStock) Modifier else Modifier.clickable(onClick = onAdd),
+            ),
     ) {
         Box {
             if (!product.imageUrl.isNullOrBlank()) {
@@ -342,10 +351,18 @@ private fun ProductGridCard(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "est: ${product.stockQuantity}",
-                color = Gate8Colors.TextSecondary,
+                if (outOfStock) "Esgotado" else "est: ${product.stockQuantity}",
+                color = if (outOfStock) Gate8Colors.Error else Gate8Colors.TextSecondary,
                 fontSize = 9.sp,
             )
+            if (inCart > 0) {
+                Text(
+                    "No carrinho: $inCart",
+                    color = Gate8Colors.Success,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
@@ -356,6 +373,7 @@ private fun CheckoutSheetContent(
     total: Double,
     cart: List<CartLine>,
     loading: Boolean,
+    onRemove: (String) -> Unit,
     onPayCredit: () -> Unit,
     onPayPix: () -> Unit,
     onPayCash: () -> Unit,
@@ -376,11 +394,34 @@ private fun CheckoutSheetContent(
         )
 
         cart.forEach { line ->
-            Text(
-                "${line.quantity}x ${line.description} — R$ ${"%.2f".format(line.lineTotal)}",
-                color = Gate8Colors.TextPrimary,
-                fontSize = 13.sp,
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        line.description,
+                        color = Gate8Colors.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "${line.quantity}x R$ ${"%.2f".format(line.unitPrice)} = R$ ${"%.2f".format(line.lineTotal)}",
+                        color = Gate8Colors.TextSecondary,
+                        fontSize = 12.sp,
+                    )
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Gate8Colors.CardSurfaceElevated)
+                        .clickable { line.productId?.let(onRemove) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text("−", color = Gate8Colors.TextPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))
