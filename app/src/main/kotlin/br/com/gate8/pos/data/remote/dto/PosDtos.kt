@@ -147,3 +147,20 @@ data class ApiErrorDto(
     val available: Int? = null,
     val details: JsonElement? = null,
 )
+
+@Serializable
+data class LoginRequestDto(
+    val token: String,
+    val fingerprint: String,
+    val label: String? = null,
+)
+
+@Serializable
+data class LoginResponseDto(
+    val status: String,
+    @SerialName("device_token") val deviceToken: String? = null,
+    @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("device_name") val deviceName: String? = null,
+    @SerialName("producer_name") val producerName: String? = null,
+    val error: String? = null,
+)

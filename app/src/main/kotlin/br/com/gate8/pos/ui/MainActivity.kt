@@ -5,38 +5,67 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import br.com.gate8.pos.core.session.SessionEvents
+import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.config.SetupScreen
-import br.com.gate8.pos.ui.config.SetupViewModel
 import br.com.gate8.pos.ui.home.HomeScreen
+import br.com.gate8.pos.ui.login.LoginPendingScreen
+import br.com.gate8.pos.ui.login.LoginScreen
 import br.com.gate8.pos.ui.navigation.Routes
 import br.com.gate8.pos.ui.pending.PendingScreen
 import br.com.gate8.pos.ui.pdv.PdvScreen
 import br.com.gate8.pos.ui.products.ProductsScreen
 import br.com.gate8.pos.ui.theme.Gate8Theme
-import org.koin.androidx.compose.koinViewModel
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+    private val configStore: DeviceConfigStore by inject()
+    private val sessionEvents: SessionEvents by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configStore.ensureDefaultBaseUrl()
+
         setContent {
             Gate8Theme {
                 val nav = rememberNavController()
-                val setupVm: SetupViewModel = koinViewModel()
-                val start = if (setupVm.isConfigured()) Routes.Home else Routes.Setup
+                val start = if (configStore.isLoggedIn()) Routes.Home else Routes.Login
+
+                LaunchedEffect(Unit) {
+                    sessionEvents.unauthorized.collect {
+                        nav.navigate(Routes.Login) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
 
                 Surface(Modifier.fillMaxSize()) {
                     NavHost(navController = nav, startDestination = start) {
-                        composable(Routes.Setup) {
-                            SetupScreen(onDone = {
-                                nav.navigate(Routes.Home) {
-                                    popUpTo(Routes.Setup) { inclusive = true }
-                                }
-                            })
+                        composable(Routes.Login) {
+                            LoginScreen(
+                                onHome = {
+                                    nav.navigate(Routes.Home) {
+                                        popUpTo(Routes.Login) { inclusive = true }
+                                    }
+                                },
+                                onPending = { nav.navigate(Routes.LoginPending) },
+                            )
+                        }
+                        composable(Routes.LoginPending) {
+                            LoginPendingScreen(
+                                onBackToLogin = { nav.popBackStack() },
+                                onHome = {
+                                    nav.navigate(Routes.Home) {
+                                        popUpTo(Routes.Login) { inclusive = true }
+                                    }
+                                },
+                            )
                         }
                         composable(Routes.Home) {
                             HomeScreen(
@@ -45,6 +74,16 @@ class MainActivity : ComponentActivity() {
                                 onCheckin = { nav.navigate(Routes.Checkin) },
                                 onPending = { nav.navigate(Routes.Pending) },
                                 onSetup = { nav.navigate(Routes.Setup) },
+                            )
+                        }
+                        composable(Routes.Setup) {
+                            SetupScreen(
+                                onDone = { nav.popBackStack() },
+                                onLogout = {
+                                    nav.navigate(Routes.Login) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                },
                             )
                         }
                         composable(Routes.Pdv) { PdvScreen(onBack = { nav.popBackStack() }) }

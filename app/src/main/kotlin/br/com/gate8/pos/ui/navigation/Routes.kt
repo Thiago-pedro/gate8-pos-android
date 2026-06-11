@@ -1,6 +1,8 @@
 package br.com.gate8.pos.ui.navigation
 
 object Routes {
+    const val Login = "login"
+    const val LoginPending = "login_pending"
     const val Setup = "setup"
     const val Home = "home"
     const val Pdv = "pdv"

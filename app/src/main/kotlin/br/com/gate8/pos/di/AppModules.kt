@@ -9,12 +9,15 @@ import br.com.gate8.pos.data.remote.interceptor.AuthInterceptor
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.CheckinRepository
 import br.com.gate8.pos.data.repository.SaleRepository
+import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.core.time.ServerClock
+import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.mock.di.mockFlavorModule
 import br.com.gate8.pos.stone.di.stoneFlavorModule
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
@@ -22,6 +25,7 @@ import retrofit2.Retrofit
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
 import br.com.gate8.pos.ui.config.SetupViewModel
+import br.com.gate8.pos.ui.login.LoginViewModel
 import br.com.gate8.pos.ui.pdv.PdvViewModel
 import br.com.gate8.pos.ui.products.ProductsViewModel
 import br.com.gate8.pos.ui.checkin.CheckinViewModel
@@ -37,6 +41,7 @@ private val json = Json {
 val appModule = module {
     single { json }
     single { ServerClock() }
+    single { SessionEvents() }
     single { DeviceConfigStore(androidContext()) }
 
     single {
@@ -45,7 +50,7 @@ val appModule = module {
             else HttpLoggingInterceptor.Level.NONE
         }
         OkHttpClient.Builder()
-            .addInterceptor(AuthInterceptor(get()))
+            .addInterceptor(AuthInterceptor(get(), get()))
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -77,7 +82,9 @@ val appModule = module {
     single { CatalogRepository(get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
     single { CheckinRepository(get()) }
+    single { LoginRepository(get()) }
 
+    viewModel { LoginViewModel(androidApplication(), get(), get()) }
     viewModel { SetupViewModel(get()) }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
