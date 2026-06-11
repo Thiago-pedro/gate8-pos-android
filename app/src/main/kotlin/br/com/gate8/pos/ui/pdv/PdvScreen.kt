@@ -62,11 +62,13 @@ fun PdvScreen(
 
         if (selectedEvent == null) {
             PdvEventPicker(
+                modifier = Modifier.weight(1f),
                 events = state.catalog?.events.orEmpty(),
                 onSelect = { vm.selectEvent(it) },
             )
         } else {
             PdvEventSales(
+                modifier = Modifier.weight(1f),
                 event = selectedEvent,
                 onAddTicket = { batchId, eventId, name, price ->
                     vm.addTicket(batchId, eventId, name, price)
@@ -99,6 +101,7 @@ private fun PdvTopBar(
 
 @Composable
 private fun PdvEventPicker(
+    modifier: Modifier = Modifier,
     events: List<EventCatalogDto>,
     onSelect: (String) -> Unit,
 ) {
@@ -117,9 +120,7 @@ private fun PdvEventPicker(
     }
 
     LazyColumn(
-        Modifier
-            .weight(1f)
-            .fillMaxWidth(),
+        modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(events, key = { it.id }) { event ->
@@ -186,6 +187,7 @@ private fun EventPickerCard(
 
 @Composable
 private fun PdvEventSales(
+    modifier: Modifier = Modifier,
     event: EventCatalogDto,
     onAddTicket: (String, String, String, Double) -> Unit,
 ) {
@@ -196,9 +198,7 @@ private fun PdvEventSales(
     )
 
     LazyColumn(
-        Modifier
-            .weight(1f)
-            .fillMaxWidth(),
+        modifier.fillMaxWidth(),
     ) {
         item { Text("Ingressos", modifier = Modifier.padding(vertical = 8.dp)) }
 
