@@ -14,7 +14,7 @@ import retrofit2.http.POST
 
 interface PosApiService {
     @POST("api/public/pos/login")
-    suspend fun login(@Body body: LoginRequestDto): LoginResponseDto
+    suspend fun login(@Body body: LoginRequestDto): retrofit2.Response<LoginResponseDto>
 
     @GET("api/public/pos/catalog")
     suspend fun getCatalog(): CatalogResponseDto

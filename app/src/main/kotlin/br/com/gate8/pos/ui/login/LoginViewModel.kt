@@ -140,6 +140,8 @@ class LoginViewModel(
         "invalid_token" -> "Token do produtor inválido."
         "invalid_token_format" -> "Formato do token inválido (6 caracteres)."
         "invalid_fingerprint" -> "Identificador do aparelho inválido."
-        else -> "Erro: $code"
+        "function gen_random_bytes(integer) does not exist" ->
+            "Erro no servidor (banco). Peça ao Lovable habilitar extensão pgcrypto no Supabase."
+        else -> if (code.length > 80) "Erro no servidor: ${code.take(80)}…" else "Erro: $code"
     }
 }

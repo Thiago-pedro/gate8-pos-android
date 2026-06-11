@@ -82,7 +82,7 @@ val appModule = module {
     single { CatalogRepository(get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
     single { CheckinRepository(get()) }
-    single { LoginRepository(get()) }
+    single { LoginRepository(get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get()) }
     viewModel { SetupViewModel(get()) }
