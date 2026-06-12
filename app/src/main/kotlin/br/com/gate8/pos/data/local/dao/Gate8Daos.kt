@@ -30,6 +30,6 @@ interface PendingSaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: PendingSaleEntity)
 
-    @Query("DELETE FROM pending_sales WHERE clientReference = :ref")
-    suspend fun delete(ref: String)
+    @Query("DELETE FROM pending_sales WHERE status = :status")
+    suspend fun deleteByStatus(status: String)
 }

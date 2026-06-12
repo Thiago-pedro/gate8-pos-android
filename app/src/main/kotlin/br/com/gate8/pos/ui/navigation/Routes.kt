@@ -8,5 +8,7 @@ object Routes {
     const val Pdv = "pdv"
     const val Products = "products"
     const val Checkin = "checkin"
+    const val Refund = "refund"
+    const val Reports = "reports"
     const val Pending = "pending"
 }

@@ -12,6 +12,8 @@ interface ReceiptPrinter {
     )
 
     fun printTicketQr(code: String, holder: String?, description: String)
+
+    fun printReportSummary(payload: ReportPrintPayload)
 }
 
 class NoOpReceiptPrinter : ReceiptPrinter {
@@ -24,4 +26,6 @@ class NoOpReceiptPrinter : ReceiptPrinter {
     ) = Unit
 
     override fun printTicketQr(code: String, holder: String?, description: String) = Unit
+
+    override fun printReportSummary(payload: ReportPrintPayload) = Unit
 }

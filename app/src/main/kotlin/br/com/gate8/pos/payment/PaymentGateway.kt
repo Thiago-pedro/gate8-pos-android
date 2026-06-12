@@ -10,6 +10,19 @@ data class PaymentResult(
     val transactionId: String,
 )
 
+data class VoidResult(
+    val success: Boolean,
+    val message: String,
+)
+
 interface PaymentGateway {
     suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult
+
+    /** Estorno/cancelamento na adquirente (Stone ou mock). */
+    suspend fun voidTransaction(
+        transactionId: String,
+        nsu: String?,
+        amount: Double,
+        method: PaymentMethodApi,
+    ): VoidResult
 }

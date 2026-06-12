@@ -3,6 +3,7 @@ package br.com.gate8.pos.mock.payment
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
+import br.com.gate8.pos.payment.VoidResult
 import kotlinx.coroutines.delay
 import java.util.UUID
 import kotlin.random.Random
@@ -23,6 +24,19 @@ class MockPaymentGateway : PaymentGateway {
                 else -> "MOCK"
             },
             transactionId = "mock-stone-${UUID.randomUUID()}",
+        )
+    }
+
+    override suspend fun voidTransaction(
+        transactionId: String,
+        nsu: String?,
+        amount: Double,
+        method: PaymentMethodApi,
+    ): VoidResult {
+        delay(600)
+        return VoidResult(
+            success = true,
+            message = "Estorno mock OK · NSU $nsu · R$ ${"%.2f".format(amount)} ($method)",
         )
     }
 }

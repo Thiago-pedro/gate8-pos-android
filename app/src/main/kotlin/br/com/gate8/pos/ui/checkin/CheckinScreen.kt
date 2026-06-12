@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import br.com.gate8.pos.domain.model.CheckinOutcome
+import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.theme.CheckinInvalid
 import br.com.gate8.pos.ui.theme.CheckinOk
 import br.com.gate8.pos.ui.theme.CheckinUsed
@@ -34,6 +35,7 @@ fun CheckinScreen(onBack: () -> Unit, vm: CheckinViewModel = koinViewModel()) {
         else -> Color.Transparent
     }
 
+    Gate8ScreenBackground {
     Column(
         Modifier.fillMaxSize().background(bg).padding(16.dp),
     ) {
@@ -53,5 +55,6 @@ fun CheckinScreen(onBack: () -> Unit, vm: CheckinViewModel = koinViewModel()) {
         Spacer(Modifier.height(16.dp))
         Text(state.message)
         state.holderName?.let { Text("Titular: $it") }
+    }
     }
 }

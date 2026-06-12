@@ -3,7 +3,10 @@ package br.com.gate8.pos.di
 import androidx.room.Room
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.data.local.db.Gate8Database
+import br.com.gate8.pos.core.sale.PendingSaleSync
+import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.prefs.LastSaleStore
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.interceptor.AuthInterceptor
 import br.com.gate8.pos.data.repository.CatalogRepository
@@ -12,6 +15,7 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
+import br.com.gate8.pos.data.repository.ReportsRepository
 import br.com.gate8.pos.mock.di.mockFlavorModule
 import br.com.gate8.pos.stone.di.stoneFlavorModule
 import kotlinx.serialization.json.Json
@@ -30,6 +34,9 @@ import br.com.gate8.pos.ui.pdv.PdvViewModel
 import br.com.gate8.pos.ui.products.ProductsViewModel
 import br.com.gate8.pos.ui.checkin.CheckinViewModel
 import br.com.gate8.pos.ui.pending.PendingViewModel
+import br.com.gate8.pos.ui.refund.RefundViewModel
+import br.com.gate8.pos.ui.reports.ReportsViewModel
+import android.content.Context
 import java.util.concurrent.TimeUnit
 
 private val json = Json {
@@ -43,6 +50,14 @@ val appModule = module {
     single { ServerClock() }
     single { SessionEvents() }
     single { DeviceConfigStore(androidContext()) }
+    single {
+        LastSaleStore(
+            androidContext().getSharedPreferences("gate8_pos_last_sale", Context.MODE_PRIVATE),
+            get(),
+        )
+    }
+    single { SaleAdminService(get(), get(), get()) }
+    single { PendingSaleSync(get(), get()) }
 
     single {
         val logging = HttpLoggingInterceptor().apply {
@@ -83,11 +98,14 @@ val appModule = module {
     single { SaleRepository(get(), get(), get()) }
     single { CheckinRepository(get()) }
     single { LoginRepository(get(), get()) }
+    single { ReportsRepository(get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get()) }
-    viewModel { SetupViewModel(get()) }
-    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
-    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { SetupViewModel(get(), get(), get(), get()) }
+    viewModel { RefundViewModel(get()) }
+    viewModel { ReportsViewModel(get(), get(), get()) }
+    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
 }

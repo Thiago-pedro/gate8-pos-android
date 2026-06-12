@@ -7,16 +7,20 @@ import br.com.gate8.pos.data.remote.dto.CheckinRequestDto
 import br.com.gate8.pos.data.remote.dto.CheckinResponseDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleResponseDto
+import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 interface PosApiService {
     @POST("api/public/pos/login")
     suspend fun login(@Body body: LoginRequestDto): retrofit2.Response<LoginResponseDto>
 
     @GET("api/public/pos/catalog")
+    @Headers("Cache-Control: no-cache")
     suspend fun getCatalog(): CatalogResponseDto
 
     @POST("api/public/pos/sales")
@@ -24,4 +28,10 @@ interface PosApiService {
 
     @POST("api/public/pos/checkin")
     suspend fun checkin(@Body body: CheckinRequestDto): Response<CheckinResponseDto>
+
+    @GET("api/public/pos/reports/summary")
+    suspend fun getReportsSummary(
+        @Query("from") from: String,
+        @Query("to") to: String,
+    ): Response<ReportsSummaryDto>
 }

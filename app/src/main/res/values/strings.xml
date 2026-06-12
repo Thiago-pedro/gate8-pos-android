@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Gate8 POS</string>
-    <string name="fale_conosco">Fale Conosco: suporte@gate8.club</string>
+    <string name="app_name">Gate8</string>
+    <string name="fale_conosco">Fale Conosco: contato@gate8.club</string>
 </resources>

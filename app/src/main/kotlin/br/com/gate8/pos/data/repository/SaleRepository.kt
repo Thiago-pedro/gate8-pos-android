@@ -22,6 +22,24 @@ class SaleRepository(
     suspend fun listPending(): List<PendingSaleEntity> =
         pendingSaleDao.listAll()
 
+    suspend fun discardPendingQueue(): Int {
+        val pending = pendingSaleDao.listByStatus(PendingSaleStatus.PENDING_SYNC)
+        pendingSaleDao.deleteByStatus(PendingSaleStatus.PENDING_SYNC)
+        return pending.size
+    }
+
+    suspend fun markSyncFailed(clientReference: String, error: String?) {
+        val entity = pendingSaleDao.getByReference(clientReference) ?: return
+        pendingSaleDao.upsert(
+            entity.copy(
+                status = PendingSaleStatus.PENDING_SYNC,
+                lastAttemptAt = System.currentTimeMillis(),
+                attemptCount = entity.attemptCount + 1,
+                lastError = error?.take(500),
+            ),
+        )
+    }
+
     suspend fun submitSale(request: CreateSaleRequestDto): SaleSuccess {
         val response = api.createSale(request)
         when (response.code()) {

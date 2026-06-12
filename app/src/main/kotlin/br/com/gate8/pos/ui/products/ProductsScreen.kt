@@ -14,14 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.LocationOn
@@ -30,25 +29,34 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.data.remote.dto.ProductDto
-import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.domain.model.canAddMore
+import br.com.gate8.pos.domain.model.isOutOfStock
+import br.com.gate8.pos.domain.model.tracksStock
+import br.com.gate8.pos.ui.common.Gate8CartLineUi
+import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
+import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+import br.com.gate8.pos.ui.common.Gate8CartSheet
+import br.com.gate8.pos.ui.common.Gate8QuantitySelector
+import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
 import org.koin.androidx.compose.koinViewModel
@@ -60,15 +68,18 @@ fun ProductsScreen(
     vm: ProductsViewModel = koinViewModel(),
 ) {
     val state by vm.state.collectAsState()
+    val products = state.catalog?.products.orEmpty()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val cartItemCount = state.cart.sumOf { it.quantity }
+    val cartTotal = state.cart.sumOf { it.lineTotal }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Gate8Colors.ScreenGradient),
-    ) {
+    Gate8ScreenBackground {
+    Gate8CartScreenRoot(
+        showCart = state.showCart,
+        modifier = Modifier.fillMaxSize(),
+        background = {
         Column(Modifier.fillMaxSize()) {
-            ProductsTopBar(onMenu = onBack, onRefresh = { vm.refreshCatalog() })
+            Gate8ScreenTopBar(onMenu = onBack, onAction = { vm.refreshCatalog() })
 
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Row(
@@ -129,11 +140,11 @@ fun ProductsScreen(
                 )
             }
 
-            if (state.loading && vm.products().isEmpty()) {
+            if (state.loading && products.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Gate8Colors.AccentBlue)
                 }
-            } else if (vm.products().isEmpty()) {
+            } else if (products.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Nenhum produto no catálogo.\nCadastre itens no painel Gate8.",
@@ -142,55 +153,98 @@ fun ProductsScreen(
                     )
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 100.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    items(vm.products(), key = { it.id }) { product ->
-                        ProductGridCard(
-                            product = product,
-                            inCart = vm.quantityInCart(product.id),
-                            onAdd = { vm.addProduct(product) },
-                        )
+                Box(Modifier.weight(1f)) {
+                    key(state.catalogVersion) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            contentPadding = PaddingValues(
+                                start = 12.dp,
+                                end = 12.dp,
+                                bottom = if (cartItemCount > 0) 108.dp else 16.dp,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(
+                                products,
+                                key = { "${it.id}-${it.tracksStock}-${it.stockQuantity}-${it.price}" },
+                            ) { product ->
+                                val inCart = state.cart.firstOrNull { it.productId == product.id }?.quantity ?: 0
+                                ProductGridCard(
+                                    product = product,
+                                    quantity = inCart,
+                                    onIncrement = { vm.addProduct(product) },
+                                    onDecrement = { vm.removeProduct(product.id) },
+                                )
+                            }
+                        }
+                    }
+                    if (state.loading) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = Gate8Colors.AccentBlue)
+                        }
                     }
                 }
             }
         }
 
-        if (vm.cartItemCount > 0) {
+        if (cartItemCount > 0) {
             FloatingActionButton(
-                onClick = { vm.openCheckout() },
+                onClick = { vm.openCart() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 24.dp)
-                    .fillMaxWidth(0.88f)
-                    .height(52.dp),
+                    .fillMaxWidth(0.9f)
+                    .height(56.dp),
                 containerColor = Gate8Colors.AccentBlue,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(28.dp),
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.size(10.dp))
-                        Text("Ir p/ pagamentos", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            Icons.Filled.ShoppingCart,
+                            contentDescription = "Carrinho",
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "Ver carrinho",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                            )
+                            Text(
+                                "R$ ${"%.2f".format(cartTotal)}",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.85f),
+                            )
+                        }
                     }
                     Box(
                         Modifier
-                            .size(28.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.25f)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            vm.cartItemCount.toString(),
+                            cartItemCount.toString(),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                         )
@@ -198,67 +252,61 @@ fun ProductsScreen(
                 }
             }
         }
-
-        if (state.showCheckout) {
+        },
+        sheet = {
+            val cartLines = state.cart.mapNotNull { line ->
+                val productId = line.productId ?: return@mapNotNull null
+                val product = products.firstOrNull { it.id == productId }
+                Gate8CartLineUi(
+                    id = productId,
+                    description = line.description,
+                    quantity = line.quantity,
+                    unitPrice = line.unitPrice,
+                    lineTotal = line.lineTotal,
+                    canIncrement = product?.let { !it.isOutOfStock && it.canAddMore(line.quantity) } ?: false,
+                )
+            }
             ModalBottomSheet(
-                onDismissRequest = { vm.closeCheckout() },
+                onDismissRequest = { vm.closeCart() },
                 sheetState = sheetState,
-                containerColor = Gate8Colors.CardSurface,
+                containerColor = Color.Transparent,
             ) {
-                CheckoutSheetContent(
-                    itemCount = vm.cartItemCount,
-                    total = vm.cartTotal,
-                    cart = state.cart,
+                Gate8CartSheet(
+                    itemCount = cartItemCount,
+                    total = cartTotal,
+                    lines = cartLines,
                     loading = state.loading,
-                    onRemove = { vm.removeProduct(it) },
+                    onIncrement = { productId ->
+                        products.firstOrNull { it.id == productId }?.let { vm.addProduct(it) }
+                    },
+                    onDecrement = { vm.removeProduct(it) },
+                    onPayDebit = { vm.checkout(PaymentMethodApi.DEBIT) },
                     onPayCredit = { vm.checkout(PaymentMethodApi.CREDIT) },
                     onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
                     onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
                     onClear = { vm.clearCart() },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ProductsTopBar(onMenu: () -> Unit, onRefresh: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        IconButton(onClick = onMenu) {
-            Icon(Icons.Filled.Menu, contentDescription = "Voltar", tint = Gate8Colors.TextPrimary)
-        }
-        Text(
-            "gate8 tickets",
-            color = Gate8Colors.TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        IconButton(onClick = onRefresh) {
-            Icon(Icons.Filled.Search, contentDescription = "Buscar", tint = Gate8Colors.TextPrimary)
-        }
+        },
+    )
     }
 }
 
 @Composable
 private fun ProductGridCard(
     product: ProductDto,
-    inCart: Int,
-    onAdd: () -> Unit,
+    quantity: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
 ) {
-    val outOfStock = product.stockQuantity <= 0
+    val outOfStock = product.isOutOfStock
+    val canIncrement = !outOfStock && product.canAddMore(quantity)
+
     Column(
         Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f))
-            .then(
-                if (outOfStock) Modifier else Modifier.clickable(onClick = onAdd),
-            ),
+            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f)),
     ) {
         Box {
             if (!product.imageUrl.isNullOrBlank()) {
@@ -287,176 +335,62 @@ private fun ProductGridCard(
                     )
                 }
             }
-
-            Box(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Gate8Colors.BadgeBlue)
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    product.category?.take(8)?.uppercase() ?: "ITEM",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
-            }
-
-            Icon(
-                Icons.Outlined.FavoriteBorder,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(16.dp),
-            )
         }
 
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .height(104.dp),
+        ) {
             Text(
                 product.name,
                 color = Gate8Colors.TextPrimary,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                lineHeight = 14.sp,
             )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Outlined.LocationOn,
-                    contentDescription = null,
-                    tint = Gate8Colors.TextSecondary,
-                    modifier = Modifier.size(11.dp),
-                )
-                Spacer(Modifier.size(2.dp))
-                Text(
-                    product.category ?: "Geral",
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.height(4.dp))
+            Text(
+                product.category ?: "Geral",
+                color = Gate8Colors.TextSecondary,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 "R$ ${"%.2f".format(product.price)}",
                 color = Gate8Colors.AccentBlue,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 2.dp),
             )
-            Text(
-                if (outOfStock) "Esgotado" else "est: ${product.stockQuantity}",
-                color = if (outOfStock) Gate8Colors.Error else Gate8Colors.TextSecondary,
-                fontSize = 9.sp,
-            )
-            if (inCart > 0) {
+            if (product.tracksStock) {
                 Text(
-                    "No carrinho: $inCart",
-                    color = Gate8Colors.Success,
+                    if (outOfStock) "Esgotado" else "est: ${product.stockQuantity ?: 0}",
+                    color = if (outOfStock) Gate8Colors.Error else Gate8Colors.TextSecondary,
+                    fontSize = 8.sp,
+                    maxLines = 1,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            if (outOfStock) {
+                Text(
+                    "Indisponível",
+                    color = Gate8Colors.Error,
                     fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                Gate8QuantitySelector(
+                    quantity = quantity,
+                    canIncrement = canIncrement,
+                    compact = true,
+                    onIncrement = onIncrement,
+                    onDecrement = onDecrement,
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CheckoutSheetContent(
-    itemCount: Int,
-    total: Double,
-    cart: List<CartLine>,
-    loading: Boolean,
-    onRemove: (String) -> Unit,
-    onPayCredit: () -> Unit,
-    onPayPix: () -> Unit,
-    onPayCash: () -> Unit,
-    onClear: () -> Unit,
-) {
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).padding(bottom = 32.dp)) {
-        Text(
-            "Pagamento",
-            color = Gate8Colors.TextPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "$itemCount item(ns) · Total R$ ${"%.2f".format(total)}",
-            color = Gate8Colors.TextSecondary,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-
-        cart.forEach { line ->
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        line.description,
-                        color = Gate8Colors.TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        "${line.quantity}x R$ ${"%.2f".format(line.unitPrice)} = R$ ${"%.2f".format(line.lineTotal)}",
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 12.sp,
-                    )
-                }
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Gate8Colors.CardSurfaceElevated)
-                        .clickable { line.productId?.let(onRemove) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text("−", color = Gate8Colors.TextPrimary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        if (loading) {
-            CircularProgressIndicator(color = Gate8Colors.AccentBlue)
-        } else {
-            PaymentButton("Crédito", onPayCredit)
-            Spacer(Modifier.height(8.dp))
-            PaymentButton("Pix", onPayPix)
-            Spacer(Modifier.height(8.dp))
-            PaymentButton("Dinheiro", onPayCash)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Limpar carrinho",
-                color = Gate8Colors.TextSecondary,
-                modifier = Modifier
-                    .clickable(onClick = onClear)
-                    .padding(8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun PaymentButton(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.AccentBlue)
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }

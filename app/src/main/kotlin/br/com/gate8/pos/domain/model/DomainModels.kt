@@ -6,6 +6,20 @@ enum class PaymentMethodApi(val apiValue: String) {
     PIX("pix"),
     CASH("cash"),
     OTHER("other"),
+    ;
+
+    fun displayLabel(): String = when (this) {
+        CREDIT -> "Crédito"
+        DEBIT -> "Débito"
+        PIX -> "Pix"
+        CASH -> "Dinheiro"
+        OTHER -> "Outro"
+    }
+
+    companion object {
+        fun fromApiValue(value: String): PaymentMethodApi =
+            entries.firstOrNull { it.apiValue == value } ?: OTHER
+    }
 }
 
 enum class ItemType(val apiValue: String) {

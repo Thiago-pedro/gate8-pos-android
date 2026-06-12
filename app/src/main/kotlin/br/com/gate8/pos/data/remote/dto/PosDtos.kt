@@ -65,7 +65,13 @@ data class ProductDto(
     val sku: String? = null,
     val category: String? = null,
     val price: Double,
-    @SerialName("stock_quantity") val stockQuantity: Int = 0,
+    /** `null` quando o painel desliga "Controlar estoque deste produto". */
+    @SerialName("stock_quantity") val stockQuantity: Int? = null,
+    @SerialName("track_stock") val trackStock: Boolean? = null,
+    @SerialName("manage_stock") val manageStock: Boolean? = null,
+    @SerialName("stock_control") val stockControl: Boolean? = null,
+    @SerialName("track_inventory") val trackInventory: Boolean? = null,
+    @SerialName("manage_inventory") val manageInventory: Boolean? = null,
     @SerialName("image_url") val imageUrl: String? = null,
     @SerialName("event_id") val eventId: String? = null,
 )

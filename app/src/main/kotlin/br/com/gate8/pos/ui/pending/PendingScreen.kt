@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.pending
 
 import androidx.compose.foundation.layout.Column
+import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun PendingScreen(onBack: () -> Unit, vm: PendingViewModel = koinViewModel()) {
     val state by vm.state.collectAsState()
+    Gate8ScreenBackground {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Button(onClick = onBack) { Text("Voltar") }
         Button(onClick = { vm.syncAll() }) { Text("Sincronizar pendentes") }
@@ -24,5 +26,6 @@ fun PendingScreen(onBack: () -> Unit, vm: PendingViewModel = koinViewModel()) {
         LazyColumn {
             items(state.items) { line -> Text(line, modifier = Modifier.padding(8.dp)) }
         }
+    }
     }
 }

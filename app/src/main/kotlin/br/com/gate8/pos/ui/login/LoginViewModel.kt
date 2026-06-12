@@ -16,6 +16,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 data class LoginUiState(
     val loading: Boolean = false,
@@ -97,7 +101,7 @@ class LoginViewModel(
             }.onSuccess { result ->
                 handleLoginResult(result, token)
             }.onFailure { e ->
-                _state.update { it.copy(loading = false, error = e.message ?: "Falha de conexão") }
+                _state.update { it.copy(loading = false, error = friendlyConnectionError(e)) }
             }
         }
     }
@@ -133,6 +137,26 @@ class LoginViewModel(
                     it.copy(loading = false, error = errorMessage(result.code))
                 }
             }
+        }
+    }
+
+    private fun friendlyConnectionError(e: Throwable): String {
+        val msg = e.message.orEmpty()
+        val root = generateSequence(e) { it.cause }.last()
+        return when {
+            root is UnknownHostException ||
+                msg.contains("Unable to resolve host", ignoreCase = true) ->
+                "Sem conexão com o servidor. Verifique a internet do aparelho."
+            root is ConnectException ||
+                msg.contains("Failed to connect", ignoreCase = true) ->
+                "Não foi possível conectar ao servidor. Tente novamente."
+            root is SocketTimeoutException ||
+                msg.contains("timeout", ignoreCase = true) ->
+                "Tempo esgotado. Verifique a conexão e tente novamente."
+            root is IOException ->
+                "Falha de conexão. Verifique a rede e tente novamente."
+            msg.isNotBlank() -> msg
+            else -> "Falha de conexão. Tente novamente."
         }
     }
 

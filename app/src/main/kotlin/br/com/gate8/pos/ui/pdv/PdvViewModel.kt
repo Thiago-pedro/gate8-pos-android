@@ -2,6 +2,8 @@ package br.com.gate8.pos.ui.pdv
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.core.sale.PendingSaleSync
+import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
@@ -9,6 +11,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
+import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
 import br.com.gate8.pos.data.remote.dto.StonePaymentDto
@@ -29,12 +32,14 @@ import kotlinx.serialization.json.Json
 data class PdvUiState(
     val loading: Boolean = false,
     val catalog: CatalogResponseDto? = null,
+    val catalogVersion: Int = 0,
     val selectedEventId: String? = null,
     val cart: List<CartLine> = emptyList(),
     val message: String? = null,
     val error: String? = null,
     val lastSaleId: String? = null,
     val lastTicketCodes: List<String> = emptyList(),
+    val showCart: Boolean = false,
 )
 
 class PdvViewModel(
@@ -42,6 +47,8 @@ class PdvViewModel(
     private val saleRepository: SaleRepository,
     private val paymentGateway: PaymentGateway,
     private val printer: ReceiptPrinter,
+    private val saleAdmin: SaleAdminService,
+    private val pendingSaleSync: PendingSaleSync,
     private val configStore: DeviceConfigStore,
     private val json: Json,
     private val isDebug: Boolean,
@@ -49,6 +56,8 @@ class PdvViewModel(
 
     private val _state = MutableStateFlow(PdvUiState())
     val state: StateFlow<PdvUiState> = _state.asStateFlow()
+
+    private var catalogFetchGeneration = 0
 
     init {
         refreshCatalog()
@@ -68,9 +77,13 @@ class PdvViewModel(
     }
 
     fun refreshCatalog() {
+        val generation = ++catalogFetchGeneration
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching { catalogRepository.fetchAndCache() }
+            val result = runCatching { catalogRepository.fetchAndCache() }
+            if (generation != catalogFetchGeneration) return@launch
+
+            result
                 .onSuccess { catalog ->
                     _state.update { s ->
                         val keepSelection = s.selectedEventId?.let { id ->
@@ -79,7 +92,9 @@ class PdvViewModel(
                         s.copy(
                             loading = false,
                             catalog = catalog,
+                            catalogVersion = s.catalogVersion + 1,
                             selectedEventId = if (keepSelection) s.selectedEventId else null,
+                            cart = trimCart(s.cart, catalog.events),
                         )
                     }
                 }
@@ -96,26 +111,87 @@ class PdvViewModel(
         }
     }
 
-    fun addTicket(batchId: String, eventId: String, name: String, price: Double) {
-        addLine(
-            CartLine(
-                itemType = ItemType.TICKET,
-                batchId = batchId,
-                eventId = eventId,
-                description = name,
-                quantity = 1,
-                unitPrice = price,
-                holderName = configStore.getOperatorName(),
-            ),
-        )
+    fun quantityInCart(batchId: String): Int =
+        _state.value.cart.firstOrNull { it.batchId == batchId }?.quantity ?: 0
+
+    fun addTicket(batch: TicketBatchDto, eventName: String) {
+        if (batch.available <= 0) {
+            _state.update { it.copy(error = "${batch.name} esgotado") }
+            return
+        }
+        val inCart = quantityInCart(batch.id)
+        if (inCart >= batch.available) {
+            _state.update {
+                it.copy(error = "Disponível: ${batch.available} (${batch.name})")
+            }
+            return
+        }
+        val description = "$eventName - ${batch.name}"
+        _state.update { s ->
+            val existing = s.cart.indexOfFirst { it.batchId == batch.id }
+            val newCart = if (existing >= 0) {
+                s.cart.mapIndexed { i, line ->
+                    if (i == existing) line.copy(quantity = line.quantity + 1) else line
+                }
+            } else {
+                s.cart + CartLine(
+                    itemType = ItemType.TICKET,
+                    batchId = batch.id,
+                    eventId = batch.eventId,
+                    description = description,
+                    quantity = 1,
+                    unitPrice = batch.price,
+                    holderName = configStore.getOperatorName(),
+                )
+            }
+            s.copy(cart = newCart, message = null, error = null)
+        }
     }
 
-    private fun addLine(line: CartLine) {
-        _state.update { s -> s.copy(cart = s.cart + line, message = "Adicionado: ${line.description}") }
+    fun removeTicket(batchId: String) {
+        _state.update { s ->
+            val idx = s.cart.indexOfFirst { it.batchId == batchId }
+            if (idx < 0) return@update s
+            val line = s.cart[idx]
+            val newCart = if (line.quantity <= 1) {
+                s.cart.filterNot { it.batchId == batchId }
+            } else {
+                s.cart.mapIndexed { i, l ->
+                    if (i == idx) l.copy(quantity = l.quantity - 1) else l
+                }
+            }
+            s.copy(
+                cart = newCart,
+                message = if (newCart.isEmpty()) null else "Ingresso removido",
+                showCart = if (newCart.isEmpty()) false else s.showCart,
+            )
+        }
+    }
+
+    fun openCart() {
+        if (_state.value.cart.isEmpty()) {
+            _state.update { it.copy(error = "Carrinho vazio") }
+            return
+        }
+        _state.update { it.copy(showCart = true, error = null) }
+    }
+
+    fun closeCart() {
+        _state.update { it.copy(showCart = false) }
     }
 
     fun clearCart() {
-        _state.update { it.copy(cart = emptyList()) }
+        _state.update { it.copy(cart = emptyList(), showCart = false) }
+    }
+
+    private fun trimCart(cart: List<CartLine>, events: List<EventCatalogDto>): List<CartLine> {
+        val batches = events.flatMap { e -> e.ticketBatches }
+        return cart.mapNotNull { line ->
+            val batchId = line.batchId ?: return@mapNotNull null
+            val batch = batches.firstOrNull { it.id == batchId } ?: return@mapNotNull null
+            val qty = line.quantity.coerceAtMost(batch.available)
+            if (qty <= 0) null else line.copy(quantity = qty)
+        }
     }
 
     fun checkout(method: PaymentMethodApi) {
@@ -179,10 +255,20 @@ class PdvViewModel(
                     success.ticketCodes.forEach { code ->
                         printer.printTicketQr(code, configStore.getOperatorName(), "Ingresso")
                     }
+                    saleAdmin.recordCheckout(
+                        saleId = success.saleId,
+                        clientReference = clientRef,
+                        cart = cart,
+                        total = total,
+                        method = method,
+                        payment = pay,
+                        ticketCodes = success.ticketCodes,
+                    )
                     _state.update {
                         it.copy(
                             loading = false,
                             cart = emptyList(),
+                            showCart = false,
                             message = if (success.duplicated) {
                                 "Venda já sincronizada (${success.saleId})"
                             } else {
@@ -192,6 +278,7 @@ class PdvViewModel(
                             lastTicketCodes = success.ticketCodes,
                         )
                     }
+                    schedulePendingSync()
                 }
                 .onFailure { e ->
                     val msg = when (e) {
@@ -202,6 +289,7 @@ class PdvViewModel(
                         else -> e.message ?: "Falha na API — venda na fila offline"
                     }
                     printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
                             loading = false,
@@ -209,7 +297,14 @@ class PdvViewModel(
                             message = "Pagamento OK na Stone (mock). Venda salva para sync: $clientRef",
                         )
                     }
+                    schedulePendingSync()
                 }
+        }
+    }
+
+    private fun schedulePendingSync() {
+        viewModelScope.launch {
+            pendingSaleSync.syncAll()
         }
     }
 }

@@ -2,6 +2,8 @@ package br.com.gate8.pos.ui.products
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.core.sale.PendingSaleSync
+import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.network.isStockOrProductError
 import br.com.gate8.pos.core.network.saleErrorMessage
@@ -19,7 +21,11 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.domain.model.canAddMore
+import br.com.gate8.pos.domain.model.isOutOfStock
+import br.com.gate8.pos.domain.model.tracksStock
 import br.com.gate8.pos.payment.PaymentGateway
+import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.printer.ReceiptPrinter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,8 +37,10 @@ import kotlinx.serialization.json.Json
 data class ProductsUiState(
     val loading: Boolean = false,
     val catalog: CatalogResponseDto? = null,
+    /** Incrementado a cada refresh bem-sucedido para forçar recomposição da grade. */
+    val catalogVersion: Int = 0,
     val cart: List<CartLine> = emptyList(),
-    val showCheckout: Boolean = false,
+    val showCart: Boolean = false,
     val message: String? = null,
     val error: String? = null,
 )
@@ -42,6 +50,8 @@ class ProductsViewModel(
     private val saleRepository: SaleRepository,
     private val paymentGateway: PaymentGateway,
     private val printer: ReceiptPrinter,
+    private val saleAdmin: SaleAdminService,
+    private val pendingSaleSync: PendingSaleSync,
     private val configStore: DeviceConfigStore,
     private val json: Json,
     private val isDebug: Boolean,
@@ -50,12 +60,11 @@ class ProductsViewModel(
     private val _state = MutableStateFlow(ProductsUiState())
     val state: StateFlow<ProductsUiState> = _state.asStateFlow()
 
+    private var catalogFetchGeneration = 0
+
     init {
         refreshCatalog()
     }
-
-    /** Lista filtrada pelo backend conforme `device.event_id` (globais + do evento). */
-    fun products(): List<ProductDto> = _state.value.catalog?.products.orEmpty()
 
     val cartItemCount: Int get() = _state.value.cart.sumOf { it.quantity }
 
@@ -65,12 +74,23 @@ class ProductsViewModel(
         _state.value.cart.firstOrNull { it.productId == productId }?.quantity ?: 0
 
     fun refreshCatalog() {
+        val generation = ++catalogFetchGeneration
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching { catalogRepository.fetchAndCache() }
+            val result = runCatching { catalogRepository.fetchAndCache() }
+            if (generation != catalogFetchGeneration) return@launch
+
+            result
                 .onSuccess { catalog ->
-                    _state.update { it.copy(loading = false, catalog = catalog) }
-                    trimCartToStock()
+                    _state.update { s ->
+                        val trimmedCart = trimCart(s.cart, catalog.products)
+                        s.copy(
+                            loading = false,
+                            catalog = catalog,
+                            catalogVersion = s.catalogVersion + 1,
+                            cart = trimmedCart,
+                        )
+                    }
                 }
                 .onFailure { e ->
                     val cached = catalogRepository.getCached()
@@ -86,14 +106,15 @@ class ProductsViewModel(
     }
 
     fun addProduct(product: ProductDto) {
-        if (product.stockQuantity <= 0) {
+        if (product.isOutOfStock) {
             _state.update { it.copy(error = "${product.name} sem estoque") }
             return
         }
         val inCart = quantityInCart(product.id)
-        if (inCart >= product.stockQuantity) {
+        if (!product.canAddMore(inCart)) {
+            val available = product.stockQuantity ?: 0
             _state.update {
-                it.copy(error = "Estoque máximo: ${product.stockQuantity} (${product.name})")
+                it.copy(error = "Estoque máximo: $available (${product.name})")
             }
             return
         }
@@ -113,7 +134,7 @@ class ProductsViewModel(
                     unitPrice = product.price,
                 )
             }
-            s.copy(cart = newCart, message = "${product.name} adicionado", error = null)
+            s.copy(cart = newCart, error = null)
         }
     }
 
@@ -129,24 +150,27 @@ class ProductsViewModel(
                     if (i == idx) l.copy(quantity = l.quantity - 1) else l
                 }
             }
-            s.copy(cart = newCart, message = if (newCart.isEmpty()) null else "Item removido")
+            s.copy(
+                cart = newCart,
+                showCart = if (newCart.isEmpty()) false else s.showCart,
+            )
         }
     }
 
-    fun openCheckout() {
+    fun openCart() {
         if (_state.value.cart.isEmpty()) {
             _state.update { it.copy(error = "Carrinho vazio") }
             return
         }
-        _state.update { it.copy(showCheckout = true, error = null) }
+        _state.update { it.copy(showCart = true, error = null) }
     }
 
-    fun closeCheckout() {
-        _state.update { it.copy(showCheckout = false) }
+    fun closeCart() {
+        _state.update { it.copy(showCart = false) }
     }
 
     fun clearCart() {
-        _state.update { it.copy(cart = emptyList(), showCheckout = false) }
+        _state.update { it.copy(cart = emptyList(), showCart = false) }
     }
 
     fun checkout(method: PaymentMethodApi) {
@@ -206,11 +230,12 @@ class ProductsViewModel(
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
                     printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    saleAdmin.recordCheckout(success.saleId, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
                             loading = false,
                             cart = emptyList(),
-                            showCheckout = false,
+                            showCart = false,
                             message = if (success.duplicated) {
                                 "Venda já sincronizada (${success.saleId})"
                             } else {
@@ -219,19 +244,31 @@ class ProductsViewModel(
                         )
                     }
                     refreshCatalog()
+                    schedulePendingSync()
                 }
                 .onFailure { e ->
-                    handleCheckoutFailure(e, cart, total, method, pay.nsu, pay.authorization, clientRef)
+                    handleCheckoutFailure(e, cart, total, method, pay, clientRef)
+                    schedulePendingSync()
                 }
         }
     }
 
+    private fun schedulePendingSync() {
+        viewModelScope.launch {
+            pendingSaleSync.syncAll()
+        }
+    }
+
+    private fun products(): List<ProductDto> = _state.value.catalog?.products.orEmpty()
+
     private fun validateCartStock(): Boolean {
         for (line in _state.value.cart) {
             val product = products().firstOrNull { it.id == line.productId } ?: continue
-            if (line.quantity > product.stockQuantity) {
+            if (!product.tracksStock) continue
+            val available = product.stockQuantity ?: 0
+            if (line.quantity > available) {
                 _state.update {
-                    it.copy(error = "Estoque insuficiente para ${product.name}. Disponível: ${product.stockQuantity}")
+                    it.copy(error = "Estoque insuficiente para ${product.name}. Disponível: $available")
                 }
                 return false
             }
@@ -239,39 +276,38 @@ class ProductsViewModel(
         return true
     }
 
-    private fun trimCartToStock() {
-        _state.update { s ->
-            val trimmed = s.cart.mapNotNull { line ->
-                val product = products().firstOrNull { it.id == line.productId } ?: return@mapNotNull null
-                val qty = line.quantity.coerceAtMost(product.stockQuantity)
-                if (qty <= 0) null else line.copy(quantity = qty)
-            }
-            s.copy(cart = trimmed)
+    private fun trimCart(cart: List<CartLine>, products: List<ProductDto>): List<CartLine> =
+        cart.mapNotNull { line ->
+            val product = products.firstOrNull { it.id == line.productId } ?: return@mapNotNull null
+            if (!product.tracksStock) return@mapNotNull line
+            val qty = line.quantity.coerceAtMost(product.stockQuantity ?: 0)
+            if (qty <= 0) null else line.copy(quantity = qty)
         }
-    }
 
     private fun handleCheckoutFailure(
         e: Throwable,
         cart: List<CartLine>,
         total: Double,
         method: PaymentMethodApi,
-        nsu: String?,
-        authorization: String?,
+        pay: PaymentResult,
         clientRef: String,
     ) {
         when (e) {
             is ApiException -> {
                 if (e.isStockOrProductError()) {
+                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
                             loading = false,
                             error = e.saleErrorMessage(),
-                            message = null,
+                            message = "Pagamento registrado localmente; estoque rejeitou na API",
                         )
                     }
                     refreshCatalog()
                 } else {
-                    printer.printReceipt(cart, total, method.apiValue, nsu, authorization)
+                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
                             loading = false,
@@ -282,7 +318,8 @@ class ProductsViewModel(
                 }
             }
             else -> {
-                printer.printReceipt(cart, total, method.apiValue, nsu, authorization)
+                printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                 _state.update {
                     it.copy(
                         loading = false,

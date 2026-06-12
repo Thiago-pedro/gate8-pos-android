@@ -1,65 +1,331 @@
 package br.com.gate8.pos.ui.config
 
+
+
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.Column
+
 import androidx.compose.foundation.layout.Spacer
+
 import androidx.compose.foundation.layout.fillMaxSize
+
 import androidx.compose.foundation.layout.fillMaxWidth
+
 import androidx.compose.foundation.layout.height
+
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+
+import androidx.compose.foundation.rememberScrollState
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.material3.OutlinedTextField
+
+import androidx.compose.material3.OutlinedTextFieldDefaults
+
 import androidx.compose.material3.Text
+
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+
+import androidx.compose.runtime.collectAsState
+
+import androidx.compose.runtime.getValue
+
 import androidx.compose.ui.Modifier
+
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.ui.graphics.Color
+
+import androidx.compose.ui.text.font.FontWeight
+
 import androidx.compose.ui.unit.dp
+
+import androidx.compose.ui.unit.sp
+
+import br.com.gate8.pos.ui.common.Gate8BackTopBar
+
+import br.com.gate8.pos.ui.common.Gate8MenuButton
+
+import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+
+import br.com.gate8.pos.ui.theme.Gate8Colors
+
 import org.koin.androidx.compose.koinViewModel
 
-@Composable
-fun SetupScreen(
-    onDone: () -> Unit,
-    onLogout: () -> Unit,
-    vm: SetupViewModel = koinViewModel(),
-) {
-    val operator = remember { mutableStateOf(vm.loadOperator()) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Configuração")
-        Spacer(Modifier.height(8.dp))
-        vm.loadProducerName()?.let {
-            Text("Produtor: $it")
-        }
-        vm.loadDeviceName()?.let {
-            Text("Maquininha: $it")
-        }
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = operator.value,
-            onValueChange = { operator.value = it },
-            label = { Text("Operador") },
-            modifier = Modifier.fillMaxWidth(),
-        )
+
+@Composable
+
+fun SetupScreen(
+
+    onDone: () -> Unit,
+
+    onLogout: () -> Unit,
+
+    vm: SetupViewModel = koinViewModel(),
+
+) {
+
+    val state by vm.state.collectAsState()
+
+    val scrollState = rememberScrollState()
+
+
+
+    Gate8ScreenBackground {
+
+    Column(
+
+        Modifier
+
+            .fillMaxSize()
+
+            .padding(horizontal = 24.dp),
+
+    ) {
+
+        Gate8BackTopBar(onBack = onDone)
+
+
+
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = {
-                vm.saveOperator(operator.value)
-                onDone()
-            },
-            modifier = Modifier.fillMaxWidth(),
+
+
+
+        Text(
+
+            "Configurações",
+
+            color = Gate8Colors.TextPrimary,
+
+            fontSize = 24.sp,
+
+            fontWeight = FontWeight.Bold,
+
+        )
+
+
+
+        Column(
+
+            Modifier
+
+                .weight(1f)
+
+                .verticalScroll(scrollState),
+
         ) {
-            Text("Salvar")
+
+            Spacer(Modifier.height(20.dp))
+
+
+
+            SectionTitle("Terminal")
+
+            Spacer(Modifier.height(8.dp))
+
+            InfoPanel {
+
+                state.producerName?.let { InfoLine("Produtor", it) }
+
+                state.deviceName?.let { InfoLine("Maquininha", it) }
+
+                state.deviceId?.let { InfoLine("ID dispositivo", it) }
+
+                state.baseUrl?.let { InfoLine("API", it) }
+
+            }
+
+
+
+            Spacer(Modifier.height(20.dp))
+
+
+
+            SectionTitle("Operador")
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+
+                value = state.operatorName,
+
+                onValueChange = vm::updateOperator,
+
+                label = { Text("Nome do operador") },
+
+                modifier = Modifier.fillMaxWidth(),
+
+                colors = OutlinedTextFieldDefaults.colors(
+
+                    focusedTextColor = Gate8Colors.TextOnLight,
+
+                    unfocusedTextColor = Gate8Colors.TextOnLight,
+
+                    focusedBorderColor = Gate8Colors.AccentBlue,
+
+                    unfocusedBorderColor = Gate8Colors.TextOnLight.copy(alpha = 0.5f),
+
+                    focusedLabelColor = Gate8Colors.AccentBlue,
+
+                    unfocusedLabelColor = Gate8Colors.TextOnLight,
+
+                    cursorColor = Gate8Colors.AccentBlue,
+
+                ),
+
+                shape = RoundedCornerShape(12.dp),
+
+                singleLine = true,
+
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Gate8MenuButton(
+
+                title = "Salvar operador",
+
+                subtitle = "Nome exibido nos comprovantes",
+
+                onClick = vm::saveOperator,
+
+            )
+
+
+
+            state.message?.let {
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(it, color = Color(0xFF1B7A3D), fontSize = 13.sp)
+
+            }
+
+            state.error?.let {
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(it, color = Color(0xFFB3261E), fontSize = 13.sp)
+
+            }
+
+            Spacer(Modifier.height(28.dp))
+
+
+
+            SectionTitle("Sessão")
+
+            Spacer(Modifier.height(12.dp))
+
+            Gate8MenuButton(
+
+                title = "Sair / trocar produtor",
+
+                subtitle = "Encerra a sessão deste terminal",
+
+                onClick = {
+
+                    vm.logout()
+
+                    onLogout()
+
+                },
+
+            )
+
+
+
+            Spacer(Modifier.height(32.dp))
+
         }
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(
-            onClick = {
-                vm.logout()
-                onLogout()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Sair / trocar produtor")
-        }
+
     }
+
+    }
+
 }
+
+
+
+@Composable
+
+private fun SectionTitle(text: String) {
+
+    Text(
+
+        text,
+
+        color = Gate8Colors.TextPrimary,
+
+        fontSize = 16.sp,
+
+        fontWeight = FontWeight.SemiBold,
+
+        modifier = Modifier.padding(bottom = 2.dp),
+
+    )
+
+}
+
+
+
+@Composable
+
+private fun InfoPanel(content: @Composable () -> Unit) {
+
+    Column(
+
+        Modifier
+
+            .fillMaxWidth()
+
+            .clip(RoundedCornerShape(12.dp))
+
+            .background(Color.White.copy(alpha = 0.92f))
+
+            .padding(16.dp),
+
+    ) {
+
+        content()
+
+    }
+
+}
+
+
+
+@Composable
+
+private fun InfoLine(label: String, value: String) {
+
+    Text(
+
+        label,
+
+        color = Gate8Colors.TextOnLight.copy(alpha = 0.7f),
+
+        fontSize = 11.sp,
+
+    )
+
+    Text(
+
+        value,
+
+        color = Gate8Colors.TextOnLight,
+
+        fontSize = 14.sp,
+
+        modifier = Modifier.padding(bottom = 10.dp),
+
+    )
+
+}
+
+
