@@ -2,6 +2,7 @@ package br.com.gate8.pos.mock.printer
 
 import android.util.Log
 import br.com.gate8.pos.domain.model.CartLine
+import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 
@@ -56,6 +57,39 @@ class MockPrinterProvider : ReceiptPrinter {
         } else {
             payload.byBrand.forEach { row ->
                 sb.append("${row.label}: ${row.count}x R$ ${"%.2f".format(row.total)}\n")
+            }
+        }
+        sb.append("================================\n")
+        Log.i(TAG, sb.toString())
+    }
+
+    override fun printCashierSummary(payload: CashierPrintPayload) {
+        val sb = StringBuilder("=== GATE8 CAIXA (MOCK) ===\n")
+        payload.producerName?.let { sb.append("Produtor: $it\n") }
+        payload.deviceName?.let { sb.append("Maquininha: $it\n") }
+        payload.operatorName?.let { sb.append("Operador: $it\n") }
+        sb.append("Abertura: ${payload.openedAtLabel}\n")
+        payload.closedAtLabel?.let { sb.append("Fechamento: $it\n") }
+        sb.append("--------------------------------\n")
+        sb.append("Troco inicial: R$ ${"%.2f".format(payload.openingBalance)}\n")
+        sb.append("Vendas dinheiro: R$ ${"%.2f".format(payload.cashSales)}\n")
+        sb.append("Sangrias: R$ ${"%.2f".format(payload.withdrawals)}\n")
+        sb.append("Despesas: R$ ${"%.2f".format(payload.expenses)}\n")
+        sb.append("Esperado gaveta: R$ ${"%.2f".format(payload.expectedDrawer)}\n")
+        payload.countedBalance?.let { sb.append("Contado: R$ ${"%.2f".format(it)}\n") }
+        payload.difference?.let { sb.append("Diferenca: R$ ${"%.2f".format(it)}\n") }
+        sb.append("--------------------------------\n")
+        sb.append("Vendas turno: ${payload.saleCount}\n")
+        sb.append("Total vendido: R$ ${"%.2f".format(payload.grandTotal)}\n")
+        sb.append("POR PAGAMENTO\n")
+        payload.byPaymentMethod.forEach { row ->
+            sb.append("${row.label}: ${row.count}x R$ ${"%.2f".format(row.total)}\n")
+        }
+        if (payload.movements.isNotEmpty()) {
+            sb.append("--------------------------------\n")
+            sb.append("MOVIMENTOS\n")
+            payload.movements.forEach { m ->
+                sb.append("${m.typeLabel} R$ ${"%.2f".format(m.amount)} — ${m.description ?: ""}\n")
             }
         }
         sb.append("================================\n")

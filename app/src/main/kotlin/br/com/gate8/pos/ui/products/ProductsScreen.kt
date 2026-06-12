@@ -33,9 +33,13 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +72,14 @@ fun ProductsScreen(
     vm: ProductsViewModel = koinViewModel(),
 ) {
     val state by vm.state.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.onScreenVisible()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val products = state.catalog?.products.orEmpty()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartItemCount = state.cart.sumOf { it.quantity }
@@ -285,6 +297,7 @@ fun ProductsScreen(
                     onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
                     onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
                     onClear = { vm.clearCart() },
+                    cashEnabled = state.cashierOpen,
                 )
             }
         },

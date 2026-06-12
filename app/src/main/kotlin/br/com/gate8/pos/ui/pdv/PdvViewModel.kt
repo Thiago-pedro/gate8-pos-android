@@ -15,6 +15,7 @@ import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
 import br.com.gate8.pos.data.remote.dto.StonePaymentDto
+import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
@@ -40,6 +41,7 @@ data class PdvUiState(
     val lastSaleId: String? = null,
     val lastTicketCodes: List<String> = emptyList(),
     val showCart: Boolean = false,
+    val cashierOpen: Boolean = false,
 )
 
 class PdvViewModel(
@@ -50,6 +52,7 @@ class PdvViewModel(
     private val saleAdmin: SaleAdminService,
     private val pendingSaleSync: PendingSaleSync,
     private val configStore: DeviceConfigStore,
+    private val cashierRepository: CashierRepository,
     private val json: Json,
     private val isDebug: Boolean,
 ) : ViewModel() {
@@ -61,6 +64,20 @@ class PdvViewModel(
 
     init {
         refreshCatalog()
+        refreshCashierStatus()
+    }
+
+    fun onScreenVisible() {
+        refreshCashierStatus()
+    }
+
+    private fun refreshCashierStatus() {
+        viewModelScope.launch {
+            runCatching { cashierRepository.fetchStatus() }
+                .onSuccess { status ->
+                    _state.update { it.copy(cashierOpen = status.open) }
+                }
+        }
     }
 
     fun selectEvent(eventId: String) {
@@ -173,6 +190,7 @@ class PdvViewModel(
             _state.update { it.copy(error = "Carrinho vazio") }
             return
         }
+        refreshCashierStatus()
         _state.update { it.copy(showCart = true, error = null) }
     }
 
@@ -198,6 +216,10 @@ class PdvViewModel(
         val cart = _state.value.cart
         if (cart.isEmpty()) {
             _state.update { it.copy(error = "Carrinho vazio") }
+            return
+        }
+        if (method == PaymentMethodApi.CASH && !_state.value.cashierOpen) {
+            _state.update { it.copy(error = "Caixa fechado. Abra o caixa na Home.") }
             return
         }
         val total = cart.sumOf { it.lineTotal }

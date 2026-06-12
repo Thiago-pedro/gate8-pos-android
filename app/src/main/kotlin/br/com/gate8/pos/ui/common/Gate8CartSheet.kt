@@ -47,6 +47,7 @@ fun Gate8CartSheet(
     onPayPix: () -> Unit,
     onPayCash: () -> Unit,
     onClear: () -> Unit,
+    cashEnabled: Boolean = true,
 ) {
     Gate8ScreenBackgroundFillWidth {
     Column(
@@ -145,7 +146,11 @@ fun Gate8CartSheet(
             Spacer(Modifier.height(8.dp))
             PaymentMethodButton("Pix", onPayPix)
             Spacer(Modifier.height(8.dp))
-            PaymentMethodButton("Dinheiro", onPayCash)
+            PaymentMethodButton(
+                label = if (cashEnabled) "Dinheiro" else "Dinheiro (caixa fechado)",
+                onClick = onPayCash,
+                enabled = cashEnabled,
+            )
             Spacer(Modifier.height(12.dp))
             Text(
                 "Limpar carrinho",
@@ -161,13 +166,13 @@ fun Gate8CartSheet(
 }
 
 @Composable
-private fun PaymentMethodButton(label: String, onClick: () -> Unit) {
+private fun PaymentMethodButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
     Box(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.AccentBlue)
-            .clickable(onClick = onClick)
+            .background(if (enabled) Gate8Colors.AccentBlue else Gate8Colors.AccentBlue.copy(alpha = 0.35f))
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {

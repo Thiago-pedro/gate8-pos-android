@@ -11,6 +11,7 @@ class ApiException(
 fun ApiException.saleErrorMessage(): String = when (errorCode) {
     "insufficient_stock" -> "Estoque insuficiente. Disponível: ${available ?: "?"}."
     "product_not_available" -> "Produto indisponível ou inativo."
+    "cashier_closed" -> "Caixa fechado. Abra o caixa na Home para vender em dinheiro."
     else -> message ?: "Erro na venda"
 }
 

@@ -15,6 +15,7 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
+import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
 import br.com.gate8.pos.mock.di.mockFlavorModule
 import br.com.gate8.pos.stone.di.stoneFlavorModule
@@ -28,6 +29,7 @@ import org.koin.dsl.module
 import retrofit2.Retrofit
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
+import br.com.gate8.pos.ui.cashier.CashierViewModel
 import br.com.gate8.pos.ui.config.SetupViewModel
 import br.com.gate8.pos.ui.login.LoginViewModel
 import br.com.gate8.pos.ui.pdv.PdvViewModel
@@ -99,13 +101,15 @@ val appModule = module {
     single { CheckinRepository(get()) }
     single { LoginRepository(get(), get()) }
     single { ReportsRepository(get()) }
+    single { CashierRepository(get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get()) }
     viewModel { RefundViewModel(get()) }
     viewModel { ReportsViewModel(get(), get(), get()) }
-    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
-    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { CashierViewModel(get(), get(), get()) }
+    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
 }

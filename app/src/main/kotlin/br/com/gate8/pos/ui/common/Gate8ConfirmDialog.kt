@@ -30,6 +30,7 @@ fun Gate8ConfirmDialog(
     dismissLabel: String = "Cancelar",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    content: (@Composable () -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
         Box(
@@ -59,6 +60,10 @@ fun Gate8ConfirmDialog(
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
+            content?.let {
+                Spacer(Modifier.height(14.dp))
+                it()
+            }
             Spacer(Modifier.height(22.dp))
             Gate8MenuButton(
                 title = confirmLabel,

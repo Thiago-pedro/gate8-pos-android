@@ -7,6 +7,7 @@ import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,8 @@ data class SetupUiState(
     val deviceId: String? = null,
     val baseUrl: String? = null,
     val lastSale: LastSaleRecord? = null,
+    val cashierOpen: Boolean = false,
+    val cashierExpectedDrawer: Double = 0.0,
     val message: String? = null,
     val error: String? = null,
     val pendingSyncCount: Int = 0,
@@ -34,6 +37,7 @@ class SetupViewModel(
     private val saleAdmin: SaleAdminService,
     private val pendingSaleSync: PendingSaleSync,
     private val saleRepository: SaleRepository,
+    private val cashierRepository: CashierRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -58,11 +62,27 @@ class SetupViewModel(
         viewModelScope.launch {
             _state.update { it.copy(pendingSyncCount = countPendingSync()) }
         }
+        refreshCashierStatus()
+    }
+
+    private fun refreshCashierStatus() {
+        viewModelScope.launch {
+            runCatching { cashierRepository.fetchStatus() }
+                .onSuccess { status ->
+                    _state.update {
+                        it.copy(
+                            cashierOpen = status.open,
+                            cashierExpectedDrawer = status.totals?.expectedDrawer ?: 0.0,
+                        )
+                    }
+                }
+        }
     }
 
     fun onScreenVisible() {
         refresh()
         syncPendingSales()
+        refreshCashierStatus()
     }
 
     fun syncPendingSales() {

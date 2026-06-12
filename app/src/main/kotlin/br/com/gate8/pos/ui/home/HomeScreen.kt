@@ -44,6 +44,7 @@ import org.koin.androidx.compose.koinViewModel
 fun HomeScreen(
     onPdv: () -> Unit,
     onProducts: () -> Unit,
+    onCashier: () -> Unit,
     onRefund: () -> Unit,
     onReports: () -> Unit,
     onSetup: () -> Unit,
@@ -114,6 +115,17 @@ fun HomeScreen(
                     title = "Conveniência",
                     subtitle = "Vender bebidas, comidas e acessórios",
                     onClick = onProducts,
+                    centerText = true,
+                )
+                Spacer(Modifier.height(12.dp))
+                Gate8MenuButton(
+                    title = "Caixa",
+                    subtitle = if (setupState.cashierOpen) {
+                        "Aberto · gaveta esperada R$ ${"%.2f".format(setupState.cashierExpectedDrawer)}"
+                    } else {
+                        "Fechado — abra para vender em dinheiro"
+                    },
+                    onClick = onCashier,
                     centerText = true,
                 )
                 Spacer(Modifier.height(12.dp))
