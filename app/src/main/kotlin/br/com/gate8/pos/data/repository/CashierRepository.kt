@@ -5,6 +5,7 @@ import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.CashierCloseRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierMovementRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierOpenRequestDto
+import br.com.gate8.pos.data.remote.dto.CashierOperatorRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -43,6 +44,13 @@ class CashierRepository(
 
     suspend fun expense(amount: Double, description: String): CashierStatusDto =
         parseResponse(api.cashierExpense(CashierMovementRequestDto(amount, description.trim())))
+
+    suspend fun updateOperator(operatorName: String): CashierStatusDto =
+        parseResponse(
+            api.updateCashierOperator(
+                CashierOperatorRequestDto(operatorName = operatorName.trim()),
+            ),
+        )
 
     private fun parseResponse(response: retrofit2.Response<CashierStatusDto>): CashierStatusDto {
         if (response.isSuccessful) {

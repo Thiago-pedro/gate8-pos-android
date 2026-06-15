@@ -183,8 +183,26 @@ class SetupViewModel(
     }
 
     fun saveOperator() {
-        configStore.setOperatorName(_state.value.operatorName.trim().ifBlank { "Operador POS" })
-        _state.update { it.copy(message = "Operador salvo") }
+        val name = _state.value.operatorName.trim().ifBlank { "Operador POS" }
+        configStore.setOperatorName(name)
+        _state.update {
+            it.copy(
+                operatorName = name,
+                message = "Operador salvo",
+                error = null,
+            )
+        }
+        if (!_state.value.cashierOpen) return
+        viewModelScope.launch {
+            runCatching { cashierRepository.updateOperator(name) }
+                .onFailure {
+                    _state.update {
+                        it.copy(
+                            error = "Nome salvo no aparelho. No painel, feche e reabra o caixa ou peça ao Lovable o endpoint PATCH /cashier/operator.",
+                        )
+                    }
+                }
+        }
     }
 
     fun reprintLast() {

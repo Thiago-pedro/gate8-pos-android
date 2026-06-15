@@ -22,10 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.foundation.verticalScroll
 
-import androidx.compose.material3.OutlinedTextField
-
-import androidx.compose.material3.OutlinedTextFieldDefaults
-
 import androidx.compose.material3.Text
 
 import androidx.compose.runtime.Composable
@@ -47,9 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
-
 import br.com.gate8.pos.ui.common.Gate8MenuButton
-
+import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 
 import br.com.gate8.pos.ui.theme.Gate8Colors
@@ -150,37 +145,15 @@ fun SetupScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            OutlinedTextField(
+            Gate8OutlinedTextField(
 
                 value = state.operatorName,
 
                 onValueChange = vm::updateOperator,
 
-                label = { Text("Nome do operador") },
+                label = "Nome do operador",
 
                 modifier = Modifier.fillMaxWidth(),
-
-                colors = OutlinedTextFieldDefaults.colors(
-
-                    focusedTextColor = Gate8Colors.TextOnLight,
-
-                    unfocusedTextColor = Gate8Colors.TextOnLight,
-
-                    focusedBorderColor = Gate8Colors.AccentBlue,
-
-                    unfocusedBorderColor = Gate8Colors.TextOnLight.copy(alpha = 0.5f),
-
-                    focusedLabelColor = Gate8Colors.AccentBlue,
-
-                    unfocusedLabelColor = Gate8Colors.TextOnLight,
-
-                    cursorColor = Gate8Colors.AccentBlue,
-
-                ),
-
-                shape = RoundedCornerShape(12.dp),
-
-                singleLine = true,
 
             )
 
@@ -202,7 +175,7 @@ fun SetupScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                Text(it, color = Color(0xFF1B7A3D), fontSize = 13.sp)
+                Text(it, color = Gate8Colors.Success, fontSize = 13.sp)
 
             }
 
@@ -210,7 +183,7 @@ fun SetupScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                Text(it, color = Color(0xFFB3261E), fontSize = 13.sp)
+                Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
 
             }
 

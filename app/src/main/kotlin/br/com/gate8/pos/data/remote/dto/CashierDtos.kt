@@ -78,6 +78,11 @@ data class CashierPeriodDto(
 )
 
 @Serializable
+data class CashierOperatorRequestDto(
+    @SerialName("operator_name") val operatorName: String,
+)
+
+@Serializable
 data class CashierOpenRequestDto(
     @SerialName("opening_balance") val openingBalance: Double,
     @SerialName("operator_name") val operatorName: String,

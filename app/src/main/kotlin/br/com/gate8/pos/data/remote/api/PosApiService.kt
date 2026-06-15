@@ -9,6 +9,7 @@ import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleResponseDto
 import br.com.gate8.pos.data.remote.dto.CashierCloseRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierMovementRequestDto
+import br.com.gate8.pos.data.remote.dto.CashierOperatorRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierOpenRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
@@ -16,6 +17,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Headers
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Query
 
@@ -53,4 +55,7 @@ interface PosApiService {
 
     @POST("api/public/pos/cashier/expense")
     suspend fun cashierExpense(@Body body: CashierMovementRequestDto): Response<CashierStatusDto>
+
+    @PATCH("api/public/pos/cashier/operator")
+    suspend fun updateCashierOperator(@Body body: CashierOperatorRequestDto): Response<CashierStatusDto>
 }

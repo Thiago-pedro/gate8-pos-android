@@ -43,6 +43,7 @@ data class CashierUiState(
     val notesInput: String = "",
     val error: String? = null,
     val message: String? = null,
+    val operatorLabel: String = "",
 )
 
 class CashierViewModel(
@@ -55,11 +56,17 @@ class CashierViewModel(
     val state: StateFlow<CashierUiState> = _state.asStateFlow()
 
     init {
+        refreshOperatorLabel()
         refresh()
     }
 
     fun onScreenVisible() {
+        refreshOperatorLabel()
         refresh()
+    }
+
+    private fun refreshOperatorLabel() {
+        _state.update { it.copy(operatorLabel = configStore.getOperatorName()) }
     }
 
     fun refresh() {
@@ -254,7 +261,7 @@ class CashierViewModel(
         return CashierPrintPayload(
             deviceName = configStore.getDeviceName(),
             producerName = configStore.getProducerName(),
-            operatorName = session.operatorName,
+            operatorName = configStore.getOperatorName().ifBlank { session.operatorName },
             openedAtLabel = formatInstantLabel(session.openedAt),
             closedAtLabel = session.closedAt?.let { formatInstantLabel(it) },
             openingBalance = totals.openingBalance,

@@ -76,9 +76,9 @@ fun CashierScreen(
                     textAlign = TextAlign.Center,
                 )
                 Text(
-                    if (state.open) "Aberto · operador ${state.session?.operatorName ?: "—"}"
+                    if (state.open) "Aberto · operador ${state.operatorLabel.ifBlank { "—" }}"
                     else "Fechado — abra o caixa para vender em dinheiro",
-                    color = if (state.open) Color(0xFF1B7A3D) else Gate8Colors.TextSecondary,
+                    color = if (state.open) Gate8Colors.TextPrimary else Gate8Colors.TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier
                         .fillMaxWidth()
