@@ -1,15 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.Gate8POS" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/gate8_background_top</item>
-        <item name="android:navigationBarColor">@color/gate8_background_bottom</item>
-        <item name="android:windowLightStatusBar">false</item>
-    </style>
-
-    <style name="Theme.Gate8POS.Splash" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@drawable/bg_splash_inicio</item>
-        <item name="android:statusBarColor">@color/gate8_background_top</item>
-        <item name="android:navigationBarColor">@color/gate8_background_bottom</item>
-        <item name="android:windowLightStatusBar">false</item>
-    </style>
-</resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Gate8POS" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/gate8_background</item>
+        <item name="android:navigationBarColor">@color/gate8_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <style name="Theme.Gate8POS.Splash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/gate8_background</item>
+        <item name="android:statusBarColor">@color/gate8_background</item>
+        <item name="android:navigationBarColor">@color/gate8_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

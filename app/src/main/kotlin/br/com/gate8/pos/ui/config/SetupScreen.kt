@@ -259,7 +259,7 @@ private fun InfoPanel(content: @Composable () -> Unit) {
 
             .clip(RoundedCornerShape(12.dp))
 
-            .background(Color.White.copy(alpha = 0.92f))
+            .background(Gate8Colors.CardSurface)
 
             .padding(16.dp),
 

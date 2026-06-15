@@ -194,7 +194,7 @@ fun ReportsScreen(
 
 @Composable
 private fun PeriodChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) Gate8Colors.AccentBlue else Color.White.copy(alpha = 0.15f)
+    val bg = if (selected) Gate8Colors.AccentBlue else Gate8Colors.CardSurface
     val textColor = if (selected) Color.White else Gate8Colors.TextPrimary
     Text(
         label,
@@ -262,7 +262,7 @@ private fun ReportPanel(title: String, content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.92f))
+            .background(Gate8Colors.CardSurface)
             .padding(16.dp),
     ) {
         Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Gate8Colors.TextOnLight)

@@ -215,7 +215,7 @@ fun HomeScreen(
 
             Text(
                 stringResource(R.string.fale_conosco),
-                color = Gate8Colors.TextOnLight,
+            color = Gate8Colors.TextSecondary,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier

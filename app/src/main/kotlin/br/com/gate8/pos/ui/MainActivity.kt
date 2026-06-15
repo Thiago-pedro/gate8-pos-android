@@ -3,8 +3,10 @@ package br.com.gate8.pos.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import br.com.gate8.pos.ui.theme.Gate8Colors
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -58,7 +60,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Surface(Modifier.fillMaxSize()) {
+                    Surface(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Gate8Colors.Background),
+                    ) {
                         NavHost(navController = nav, startDestination = start) {
                             composable(Routes.Login) {
                                 LoginScreen(

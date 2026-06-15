@@ -176,6 +176,6 @@ private fun PaymentMethodButton(label: String, onClick: () -> Unit, enabled: Boo
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(label, color = Gate8Colors.TextOnButton, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }

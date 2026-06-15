@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Gate8POS.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/gate8_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.Gate8POS</item>
+        <item name="android:statusBarColor">@color/gate8_background</item>
+        <item name="android:navigationBarColor">@color/gate8_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

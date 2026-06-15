@@ -150,10 +150,15 @@ private fun LastSaleCard(sale: br.com.gate8.pos.domain.model.LastSaleRecord) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.92f))
+            .background(Gate8Colors.CardSurface)
             .padding(16.dp),
     ) {
-        Text("Última venda", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(
+            "Última venda",
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            color = Gate8Colors.TextPrimary,
+        )
         Text(date, color = Gate8Colors.TextOnLight, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         if (sale.saleId != null) {
             Text("ID: ${sale.saleId}", color = Gate8Colors.TextOnLight, fontSize = 12.sp)

@@ -1,29 +1,20 @@
-package br.com.gate8.pos.ui.theme
-
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-
-object Gate8Colors {
-    val BackgroundTop = Color(0xFF1E4FD8)
-    val BackgroundBottom = Color(0xFFE8EDF3)
-    val AccentBlue = Color(0xFF3B82F6)
-    val AccentBlueDark = Color(0xFF2563EB)
-    val CardSurface = Color(0xFF151B2E)
-    val CardSurfaceElevated = Color(0xFF1C2438)
-    val TextPrimary = Color(0xFFFFFFFF)
-    val TextSecondary = Color(0xFF94A3B8)
-    /** Texto sobre a parte clara do degradê (cinza). */
-    val TextOnLight = Color(0xFF475569)
-    val BadgeBlue = Color(0xFF3B82F6)
-    val Error = Color(0xFFEF4444)
-    val Success = Color(0xFF22C55E)
-
-    val ScreenGradient = Brush.verticalGradient(
-        colors = listOf(
-            BackgroundTop,
-            Color(0xFF5B7FDB),
-            Color(0xFF9EB0D4),
-            BackgroundBottom,
-        ),
-    )
-}
+package br.com.gate8.pos.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+object Gate8Colors {
+    val Background = Color.White
+    val AccentBlue = Color(0xFF1740D8)
+    val AccentBlueDark = Color(0xFF1230B0)
+    val CardSurface = Color(0xFFF3F4F6)
+    val CardSurfaceElevated = Color(0xFFE5E7EB)
+    val TextPrimary = Color(0xFF374151)
+    val TextSecondary = Color(0xFF6B7280)
+    /** Texto sobre fundo claro (mesmo tom do primário no layout atual). */
+    val TextOnLight = TextPrimary
+    val TextOnButton = Color.White
+    val BadgeBlue = AccentBlue
+    val Error = Color(0xFFDC2626)
+    val Success = Color(0xFF16A34A)
+}
+

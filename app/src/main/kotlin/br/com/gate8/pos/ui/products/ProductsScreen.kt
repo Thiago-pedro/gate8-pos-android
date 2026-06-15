@@ -115,7 +115,7 @@ fun ProductsScreen(
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(Gate8Colors.CardSurface)
                             .clickable { vm.refreshCatalog() }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     ) {

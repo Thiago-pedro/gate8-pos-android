@@ -20,7 +20,7 @@ fun Gate8HeaderLogo(
 ) {
     Image(
         painter = painterResource(R.drawable.logo_gate8_header),
-        contentDescription = "Gate8 tickets",
+        contentDescription = "Gate8",
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding)

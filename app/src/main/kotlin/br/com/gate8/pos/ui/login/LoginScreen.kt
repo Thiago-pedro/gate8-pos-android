@@ -74,7 +74,7 @@ fun LoginScreen(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.94f))
+                    .background(Gate8Colors.CardSurface)
                     .padding(horizontal = 20.dp, vertical = 24.dp),
             ) {
                 Gate8OutlinedTextField(
@@ -158,7 +158,7 @@ fun LoginPendingScreen(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.94f))
+                    .background(Gate8Colors.CardSurface)
                     .padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

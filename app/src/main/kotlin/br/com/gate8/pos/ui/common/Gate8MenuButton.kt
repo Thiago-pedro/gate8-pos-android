@@ -37,7 +37,7 @@ fun Gate8MenuButton(
     ) {
         Text(
             title,
-            color = Color.White.copy(alpha = alpha),
+            color = Gate8Colors.TextOnButton.copy(alpha = alpha),
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = textAlign,
@@ -45,7 +45,7 @@ fun Gate8MenuButton(
         )
         Text(
             subtitle,
-            color = Color.White.copy(alpha = 0.85f * alpha),
+            color = Gate8Colors.TextOnButton.copy(alpha = 0.85f * alpha),
             fontSize = 12.sp,
             textAlign = textAlign,
             modifier = Modifier
