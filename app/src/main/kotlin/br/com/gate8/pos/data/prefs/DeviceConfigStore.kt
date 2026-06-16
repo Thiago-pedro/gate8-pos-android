@@ -75,6 +75,12 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_OPERATOR, name).apply()
     }
 
+    fun getStoneCode(): String? = prefs.getString(KEY_STONE_CODE, null)
+
+    fun setStoneCode(code: String) {
+        prefs.edit().putString(KEY_STONE_CODE, code.trim()).apply()
+    }
+
     fun getDeviceShortId(): String {
         val fromName = getDeviceName()?.takeIf { it.isNotBlank() }
         if (fromName != null) return fromName.take(12)
@@ -110,6 +116,7 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_DEVICE_NAME = "device_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_OPERATOR = "operator_name"
+        private const val KEY_STONE_CODE = "stone_code"
         private const val KEY_SHORT_ID = "device_short_id"
     }
 }

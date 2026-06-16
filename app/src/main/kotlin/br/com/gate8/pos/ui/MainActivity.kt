@@ -14,8 +14,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import br.com.gate8.pos.R
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.stone.StoneActivityHolder
 import br.com.gate8.pos.ui.cashier.CashierScreen
 import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.common.Gate8SplashHost
@@ -31,6 +33,7 @@ import br.com.gate8.pos.ui.refund.RefundScreen
 import br.com.gate8.pos.ui.reports.ReportsScreen
 import br.com.gate8.pos.ui.theme.Gate8Theme
 import org.koin.android.ext.android.inject
+import org.koin.core.context.GlobalContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
@@ -118,5 +121,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!BuildConfig.USE_MOCK_PAYMENT) {
+            runCatching { GlobalContext.get().get<StoneActivityHolder>() }
+                .getOrNull()
+                ?.attach(this)
+        }
+    }
+
+    override fun onPause() {
+        if (!BuildConfig.USE_MOCK_PAYMENT) {
+            runCatching { GlobalContext.get().get<StoneActivityHolder>() }
+                .getOrNull()
+                ?.detach(this)
+        }
+        super.onPause()
     }
 }

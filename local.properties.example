@@ -1,0 +1,8 @@
+## Copie para local.properties (não commitar).
+## Token PackageCloud — solicitar no Stone Partner Community após credenciamento.
+
+sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
+packageCloudReadToken=
+
+## Opcional: lib do fabricante do terminal (positivo, sunmi, gertec, ingenico, tectoy)
+stoneTerminal=
