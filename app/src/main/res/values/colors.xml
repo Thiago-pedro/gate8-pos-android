@@ -1,5 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="gate8_background">#FFFFFFFF</color>
-    <color name="gate8_accent">#FF1740D8</color>
-</resources>
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <color name="gate8_background">#FFFFFFFF</color>
+
+    <color name="gate8_accent">#FF1740D8</color>
+
+</resources>
+

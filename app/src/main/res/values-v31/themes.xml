@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Ícone vazio no splash do sistema: logo completa aparece na splash Compose (evita máscara circular no "8"). -->
     <style name="Theme.Gate8POS.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/gate8_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo_icon</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_empty</item>
         <item name="postSplashScreenTheme">@style/Theme.Gate8POS</item>
         <item name="android:statusBarColor">@color/gate8_background</item>
         <item name="android:navigationBarColor">@color/gate8_background</item>

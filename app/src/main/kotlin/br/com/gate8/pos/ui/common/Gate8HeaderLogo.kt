@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -25,6 +26,20 @@ fun Gate8HeaderLogo(
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding)
             .height(height),
+        contentScale = ContentScale.Fit,
+    )
+}
+
+/** Logo centralizada na splash — largura da tela com margem, altura proporcional, centro H+V. */
+@Composable
+fun Gate8SplashLogo(modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.logo_gate8_header),
+        contentDescription = "Gate8",
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 40.dp)
+            .wrapContentHeight(),
         contentScale = ContentScale.Fit,
     )
 }
