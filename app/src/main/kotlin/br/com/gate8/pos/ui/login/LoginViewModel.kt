@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.core.device.DeviceFingerprint
+import br.com.gate8.pos.device.PosHardwareInfo
 import br.com.gate8.pos.core.util.ProducerTokenValidator
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.repository.LoginRepository
@@ -39,6 +40,7 @@ class LoginViewModel(
     application: Application,
     private val configStore: DeviceConfigStore,
     private val loginRepository: LoginRepository,
+    private val hardwareInfo: PosHardwareInfo,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -49,7 +51,7 @@ class LoginViewModel(
 
     init {
         configStore.ensureDefaultBaseUrl()
-        DeviceFingerprint.getOrCreate(application, configStore)
+        DeviceFingerprint.getOrCreate(application, configStore, hardwareInfo)
         val savedToken = configStore.getProducerToken()
         val savedLabel = configStore.getDeviceName() ?: ""
         _state.update {
@@ -89,7 +91,7 @@ class LoginViewModel(
     private fun performLogin(token: String, label: String?) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, pendingDeviceName = null, disabledDeviceName = null) }
-            val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore)
+            val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore, hardwareInfo)
             configStore.setProducerToken(token)
 
             runCatching {

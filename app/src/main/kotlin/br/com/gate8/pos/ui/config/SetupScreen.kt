@@ -131,6 +131,10 @@ fun SetupScreen(
 
                 state.deviceId?.let { InfoLine("ID dispositivo", it) }
 
+                state.terminalManufacturer?.let { InfoLine("Fabricante", it) }
+
+                state.terminalSerial?.let { InfoLine("Serial POS", it) }
+
                 state.baseUrl?.let { InfoLine("API", it) }
 
             }
@@ -185,6 +189,38 @@ fun SetupScreen(
 
                 Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
 
+            }
+
+            if (state.showStoneSection) {
+                Spacer(Modifier.height(20.dp))
+
+                SectionTitle("Stone")
+
+                Spacer(Modifier.height(8.dp))
+
+                Gate8OutlinedTextField(
+                    value = state.stoneCode,
+                    onValueChange = vm::updateStoneCode,
+                    label = "StoneCode",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                state.stonePosHint?.let { hint ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(hint, color = Gate8Colors.TextSecondary, fontSize = 12.sp)
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                Gate8MenuButton(
+                    title = if (state.stoneActivating) "Ativando…" else "Ativar terminal Stone",
+                    subtitle = if (state.stonePixConfigured) {
+                        "PIX configurado no build"
+                    } else {
+                        "PIX: credenciais sandbox em local.properties"
+                    },
+                    onClick = vm::saveAndActivateStone,
+                )
             }
 
             Spacer(Modifier.height(28.dp))

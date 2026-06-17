@@ -11,9 +11,16 @@ interface StoneSdkBridge {
 
     fun initialize(application: Application)
 
-    suspend fun ensureActivated(stoneCode: String?): Result<Unit>
+    suspend fun ensureActivated(stoneCode: String?): Result<StoneActivationOutcome>
 
-    suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult
+    /** StoneCodes conhecidos no POS (init + sessão). Útil quando o terminal já veio ativado. */
+    fun knownActiveStoneCodes(): List<String>
+
+    suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String? = null,
+    ): PaymentResult
 
     suspend fun voidTransaction(
         transactionId: String,

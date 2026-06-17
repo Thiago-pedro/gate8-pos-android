@@ -17,8 +17,6 @@ import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
-import br.com.gate8.pos.mock.di.mockFlavorModule
-import br.com.gate8.pos.stone.di.stoneFlavorModule
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -103,8 +101,8 @@ val appModule = module {
     single { ReportsRepository(get()) }
     single { CashierRepository(get(), get()) }
 
-    viewModel { LoginViewModel(androidApplication(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get(), get()) }
+    viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { RefundViewModel(get()) }
     viewModel { ReportsViewModel(get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
@@ -112,10 +110,4 @@ val appModule = module {
     viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
-}
-
-fun flavorModules() = if (BuildConfig.USE_MOCK_PAYMENT) {
-    listOf(mockFlavorModule)
-} else {
-    listOf(stoneFlavorModule)
 }

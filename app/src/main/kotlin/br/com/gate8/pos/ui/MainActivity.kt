@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import br.com.gate8.pos.ui.theme.Gate8Colors
@@ -18,6 +19,7 @@ import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.stone.StoneActivityHolder
+import br.com.gate8.pos.stone.ui.StonePixQrOverlay
 import br.com.gate8.pos.ui.cashier.CashierScreen
 import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.common.Gate8SplashHost
@@ -63,12 +65,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Surface(
-                        Modifier
-                            .fillMaxSize()
-                            .background(Gate8Colors.Background),
-                    ) {
-                        NavHost(navController = nav, startDestination = start) {
+                    Box(Modifier.fillMaxSize()) {
+                        Surface(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Gate8Colors.Background),
+                        ) {
+                            NavHost(navController = nav, startDestination = start) {
                             composable(Routes.Login) {
                                 LoginScreen(
                                     onHome = {
@@ -116,6 +119,12 @@ class MainActivity : ComponentActivity() {
                             composable(Routes.Reports) { ReportsScreen(onBack = { nav.popBackStack() }) }
                             composable(Routes.Cashier) { CashierScreen(onBack = { nav.popBackStack() }) }
                             composable(Routes.Pending) { PendingScreen(onBack = { nav.popBackStack() }) }
+                        }
+                        }
+                        if (!BuildConfig.USE_MOCK_PAYMENT) {
+                            runCatching { GlobalContext.get().get<StoneActivityHolder>() }
+                                .getOrNull()
+                                ?.let { StonePixQrOverlay(it) }
                         }
                     }
                 }

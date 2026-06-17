@@ -230,7 +230,7 @@ class PdvViewModel(
 
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, message = null) }
-            val payment = runCatching { paymentGateway.charge(total, method) }
+            val payment = runCatching { paymentGateway.charge(total, method, clientRef) }
             if (payment.isFailure) {
                 _state.update { it.copy(loading = false, error = payment.exceptionOrNull()?.message) }
                 return@launch
@@ -273,7 +273,14 @@ class PdvViewModel(
 
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    printer.printReceipt(
+                        cart,
+                        total,
+                        method.apiValue,
+                        pay.nsu,
+                        pay.authorization,
+                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                    )
                     success.ticketCodes.forEach { code ->
                         printer.printTicketQr(code, configStore.getOperatorName(), "Ingresso")
                     }
@@ -310,7 +317,14 @@ class PdvViewModel(
                         }
                         else -> e.message ?: "Falha na API — venda na fila offline"
                     }
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    printer.printReceipt(
+                        cart,
+                        total,
+                        method.apiValue,
+                        pay.nsu,
+                        pay.authorization,
+                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                    )
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(

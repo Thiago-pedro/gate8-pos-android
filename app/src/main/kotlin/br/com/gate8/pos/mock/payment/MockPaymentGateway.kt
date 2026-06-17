@@ -9,7 +9,11 @@ import java.util.UUID
 import kotlin.random.Random
 
 class MockPaymentGateway : PaymentGateway {
-    override suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult {
+    override suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String?,
+    ): PaymentResult {
         delay(800)
         val nsu = Random.nextInt(100000, 999999).toString()
         val auth = Random.nextInt(100000, 999999).toString()
@@ -23,7 +27,7 @@ class MockPaymentGateway : PaymentGateway {
                 PaymentMethodApi.PIX -> "Pix"
                 else -> "MOCK"
             },
-            transactionId = "mock-stone-${UUID.randomUUID()}",
+            transactionId = clientReference ?: "mock-stone-${UUID.randomUUID()}",
         )
     }
 

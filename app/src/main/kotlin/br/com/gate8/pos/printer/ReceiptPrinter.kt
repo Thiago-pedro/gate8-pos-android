@@ -9,6 +9,8 @@ interface ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
+        stoneTransactionId: String? = null,
+        isReprint: Boolean = false,
     )
 
     fun printTicketQr(code: String, holder: String?, description: String)
@@ -25,6 +27,8 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
+        stoneTransactionId: String?,
+        isReprint: Boolean,
     ) = Unit
 
     override fun printTicketQr(code: String, holder: String?, description: String) = Unit

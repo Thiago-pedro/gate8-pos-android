@@ -11,17 +11,21 @@ class StonePaymentGateway(
     private val bridge: StoneSdkBridge,
 ) : PaymentGateway {
 
-    override suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult {
+    override suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String?,
+    ): PaymentResult {
         if (method == PaymentMethodApi.CASH) {
             return PaymentResult(
                 method = method,
                 nsu = "",
                 authorization = "",
                 brand = "Dinheiro",
-                transactionId = "cash-${UUID.randomUUID()}",
+                transactionId = clientReference ?: "cash-${UUID.randomUUID()}",
             )
         }
-        return bridge.charge(amount, method)
+        return bridge.charge(amount, method, clientReference)
     }
 
     override suspend fun voidTransaction(

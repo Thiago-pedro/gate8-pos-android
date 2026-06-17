@@ -16,7 +16,11 @@ data class VoidResult(
 )
 
 interface PaymentGateway {
-    suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult
+    suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String? = null,
+    ): PaymentResult
 
     /** Estorno/cancelamento na adquirente (Stone ou mock). */
     suspend fun voidTransaction(

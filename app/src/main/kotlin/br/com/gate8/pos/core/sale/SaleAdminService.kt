@@ -77,6 +77,8 @@ class SaleAdminService(
             sale.paymentLabel,
             sale.nsu,
             sale.authorization,
+            stoneTransactionId = sale.transactionId,
+            isReprint = true,
         )
         sale.ticketCodes.forEach { code ->
             printer.printTicketQr(code, null, "Ingresso")

@@ -5,7 +5,6 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import br.com.gate8.pos.BuildConfig
-import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.stone.runtime.StoneRuntime
 import br.com.gate8.pos.stone.sdk.StoneSdkBridge
 import br.com.gate8.pos.stone.work.StoneReversalWorker
@@ -14,16 +13,11 @@ import java.util.concurrent.TimeUnit
 class StoneSdkBootstrap(
     private val application: Application,
     private val bridge: StoneSdkBridge,
-    private val config: DeviceConfigStore,
 ) : StoneRuntime {
 
     override fun onApplicationStart() {
         if (BuildConfig.STONE_SDK_LINKED) {
             bridge.initialize(application)
-            config.getStoneCode()?.let { code ->
-                // Ativação assíncrona na 1ª abertura com StoneCode salvo
-                // (completa em StoneSdkBridgeLive quando token presente)
-            }
         }
         scheduleReversal()
     }

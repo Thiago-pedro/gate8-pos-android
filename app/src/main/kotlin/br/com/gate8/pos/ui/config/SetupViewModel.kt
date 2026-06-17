@@ -10,6 +10,8 @@ import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
+import br.com.gate8.pos.device.PosHardwareInfo
+import br.com.gate8.pos.stone.settings.StoneSettingsGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,9 +20,16 @@ import kotlinx.coroutines.launch
 
 data class SetupUiState(
     val operatorName: String = "",
+    val stoneCode: String = "",
+    val showStoneSection: Boolean = false,
+    val stonePixConfigured: Boolean = false,
+    val stonePosHint: String? = null,
+    val stoneActivating: Boolean = false,
     val producerName: String? = null,
     val deviceName: String? = null,
     val deviceId: String? = null,
+    val terminalManufacturer: String? = null,
+    val terminalSerial: String? = null,
     val baseUrl: String? = null,
     val lastSale: LastSaleRecord? = null,
     val cashierOpen: Boolean = false,
@@ -38,6 +47,8 @@ class SetupViewModel(
     private val pendingSaleSync: PendingSaleSync,
     private val saleRepository: SaleRepository,
     private val cashierRepository: CashierRepository,
+    private val stoneSettings: StoneSettingsGateway,
+    private val hardwareInfo: PosHardwareInfo,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -48,12 +59,19 @@ class SetupViewModel(
     }
 
     fun refresh() {
+        val terminal = hardwareInfo.readTerminal()
         _state.update {
             it.copy(
                 operatorName = configStore.getOperatorName(),
+                stoneCode = stoneSettings.getSavedStoneCode(),
+                showStoneSection = stoneSettings.showStoneSection,
+                stonePixConfigured = stoneSettings.pixCredentialsConfigured(),
+                stonePosHint = stoneSettings.posActiveStoneCodesHint(),
                 producerName = configStore.getProducerName(),
                 deviceName = configStore.getDeviceName(),
                 deviceId = configStore.getDeviceId(),
+                terminalManufacturer = terminal.manufacturer,
+                terminalSerial = terminal.serialNumber,
                 baseUrl = configStore.getBaseUrl(),
                 lastSale = saleAdmin.loadLastSale(),
                 pendingSyncCount = 0,
@@ -180,6 +198,26 @@ class SetupViewModel(
 
     fun updateOperator(name: String) {
         _state.update { it.copy(operatorName = name) }
+    }
+
+    fun updateStoneCode(code: String) {
+        _state.update { it.copy(stoneCode = code) }
+    }
+
+    fun saveAndActivateStone() {
+        if (_state.value.stoneActivating) return
+        viewModelScope.launch {
+            _state.update { it.copy(stoneActivating = true, error = null, message = null) }
+            val result = stoneSettings.saveAndActivate(_state.value.stoneCode)
+            _state.update {
+                it.copy(
+                    stoneActivating = false,
+                    stoneCode = stoneSettings.getSavedStoneCode(),
+                    message = result.getOrNull(),
+                    error = result.exceptionOrNull()?.message,
+                )
+            }
+        }
     }
 
     fun saveOperator() {

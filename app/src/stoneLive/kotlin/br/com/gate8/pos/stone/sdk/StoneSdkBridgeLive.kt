@@ -1,17 +1,15 @@
 package br.com.gate8.pos.stone.sdk
 
 import android.app.Application
-import android.content.Context
-import br.com.stone.posandroid.providers.PosTransactionProvider
+import android.util.Log
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
-import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.payment.PaymentResult
-import br.com.gate8.pos.payment.VoidResult
 import br.com.gate8.pos.stone.StoneActivityHolder
 import kotlinx.coroutines.suspendCancellableCoroutine
 import stone.application.StoneStart
 import stone.application.enums.Action
 import stone.application.enums.InstalmentTransactionEnum
+import stone.application.enums.StoneKeyType
 import stone.application.enums.TransactionStatusEnum
 import stone.application.enums.TypeOfTransactionEnum
 import stone.application.interfaces.StoneActionCallback
@@ -23,6 +21,11 @@ import stone.providers.CancellationProvider
 import stone.providers.ReversalProvider
 import stone.user.UserModel
 import stone.utils.Stone
+import br.com.stone.posandroid.providers.PosTransactionProvider
+import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.PaymentResult
+import br.com.gate8.pos.payment.VoidResult
+import android.content.Context
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToLong
@@ -37,42 +40,72 @@ class StoneSdkBridgeLive(
 
     override val isLinked: Boolean = true
 
+    /** Usuários retornados por [StoneStart.init] (null = ainda não ativado no app). */
+    private var initUserList: List<UserModel>? = null
+
+    override fun knownActiveStoneCodes(): List<String> =
+        activeUserModels().mapNotNull { it.stoneCode?.trim() }.filter { it.isNotEmpty() }.distinct()
+
     override fun initialize(application: Application) {
-        StoneStart.init(application)
-        Stone.setAppName(APP_NAME)
+        val pixKeys = pixKeysFromBuildConfig()
+        initUserList = if (pixKeys.isEmpty()) {
+            StoneStart.init(application)
+        } else {
+            StoneStart.init(application, pixKeys)
+        }
+        Stone.appName = APP_NAME
+
+        val codes = knownActiveStoneCodes()
+        when {
+            codes.isEmpty() -> Log.i(TAG, "Stone SDK init — aguardando ativação (StoneCode)")
+            else -> Log.i(
+                TAG,
+                "Stone SDK init — ${codes.size} StoneCode(s) no POS: ${codes.joinToString()}",
+            )
+        }
     }
 
-    override suspend fun ensureActivated(stoneCode: String?): Result<Unit> {
+    override suspend fun ensureActivated(stoneCode: String?): Result<StoneActivationOutcome> {
         val code = stoneCode?.trim().orEmpty().ifBlank { config.getStoneCode().orEmpty() }
         if (code.isBlank()) {
-            return Result.failure(IllegalStateException("Informe o StoneCode em Configurações"))
+            val onPos = knownActiveStoneCodes()
+            val hint = if (onPos.isNotEmpty()) {
+                " Informe o StoneCode (ativo no POS: ${onPos.joinToString()})."
+            } else {
+                ""
+            }
+            return Result.failure(IllegalStateException("Informe o StoneCode em Configurações.$hint"))
         }
+        config.setStoneCode(code)
         if (hasStoneCode(code)) {
-            return Result.success(Unit)
+            return Result.success(StoneActivationOutcome.ALREADY_ACTIVE)
         }
-        return runCatching { activateStoneCode(code) }
+        return runCatching {
+            activateStoneCode(code)
+            StoneActivationOutcome.NEWLY_ACTIVATED
+        }
     }
 
-    override suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult {
+    override suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String?,
+    ): PaymentResult {
         ensureActivated(null).getOrElse { throw it }
         val user = requireUser()
         val activity = activityHolder.requireActivity()
-        val transaction = buildTransaction(amount, method)
+        val transaction = buildTransaction(amount, method, clientReference)
 
         val provider = PosTransactionProvider(activity, transaction, user)
         provider.dialogTitle = "Pagamento"
         provider.dialogMessage = "Processando…"
 
-        executePosTransaction(provider)
+        executePosTransaction(provider, transaction, method)
 
-        return when (transaction.transactionStatus) {
+        val status = provider.transactionStatus ?: transaction.transactionStatus
+        return when (status) {
             TransactionStatusEnum.APPROVED -> mapApprovedPayment(method, transaction, activity)
-            else -> {
-                val msg = provider.messageFromAuthorize
-                    ?: provider.listOfErrors?.joinToString().orEmpty()
-                    .ifBlank { "Transação não aprovada" }
-                throw IllegalStateException(msg)
-            }
+            else -> throw IllegalStateException(resolveTransactionError(provider, transaction, method))
         }
     }
 
@@ -129,27 +162,33 @@ class StoneSdkBridgeLive(
         }
     }
 
-    private fun hasStoneCode(code: String): Boolean {
-        val users = Stone.sessionApplication?.userModelList.orEmpty()
-        return users.any { it.stoneCode.equals(code, ignoreCase = true) }
+    private fun activeUserModels(): List<UserModel> {
+        val fromInit = initUserList.orEmpty()
+        if (fromInit.isNotEmpty()) return fromInit
+        return Stone.sessionApplication?.userModelList.orEmpty()
     }
+
+    private fun hasStoneCode(code: String): Boolean =
+        activeUserModels().any { it.stoneCode.equals(code, ignoreCase = true) }
 
     private suspend fun activateStoneCode(stoneCode: String) {
         val context = activityHolder.requireActivity()
         suspendCancellableCoroutine { cont ->
             val provider = ActiveApplicationProvider(context)
-            provider.dialogTitle = "Gate8"
-            provider.dialogMessage = "Ativando terminal Stone…"
+            provider.dialogTitle = "Aguarde"
+            provider.dialogMessage = "Ativando o Stone Code"
             provider.connectionCallback = object : StoneCallbackInterface {
                 override fun onSuccess() {
-                    config.setStoneCode(stoneCode)
                     if (cont.isActive) cont.resume(Unit)
                 }
 
                 override fun onError() {
                     if (cont.isActive) {
+                        val detail = provider.listOfErrors?.joinToString().orEmpty()
                         cont.resumeWithException(
-                            IllegalStateException("Falha ao ativar StoneCode $stoneCode"),
+                            IllegalStateException(
+                                detail.ifBlank { "Falha ao ativar StoneCode $stoneCode" },
+                            ),
                         )
                     }
                 }
@@ -158,35 +197,78 @@ class StoneSdkBridgeLive(
         }
     }
 
-    private suspend fun executePosTransaction(provider: PosTransactionProvider) {
+    private suspend fun executePosTransaction(
+        provider: PosTransactionProvider,
+        transaction: TransactionObject,
+        method: PaymentMethodApi,
+    ) {
         suspendCancellableCoroutine { cont ->
+            provider.isDefaultUI()
             provider.connectionCallback = object : StoneActionCallback {
                 override fun onSuccess() {
                     if (cont.isActive) cont.resume(Unit)
                 }
 
                 override fun onStatusChanged(action: Action) {
-                    // PIX: exibir transactionObject.qRCode em overlay (próxima iteração)
+                    when (action) {
+                        Action.TRANSACTION_WAITING_QRCODE_SCAN -> {
+                            Log.i(TAG, "PIX: aguardando leitura do QRCode (DefaultUI Stone)")
+                            activityHolder.onPixQrCodeWaiting(transaction.qRCode)
+                        }
+                        else -> Log.d(TAG, "Stone action: $action")
+                    }
                 }
 
                 override fun onError() {
                     if (cont.isActive) {
                         cont.resumeWithException(
                             IllegalStateException(
-                                provider.listOfErrors?.joinToString().orEmpty()
-                                    .ifBlank { "Erro na transação" },
+                                resolveTransactionError(provider, transaction, method),
                             ),
                         )
                     }
                 }
             }
+            cont.invokeOnCancellation {
+                activityHolder.clearPixQrCode()
+                runCatching { provider.abortPayment() }
+            }
             provider.execute()
+        }
+        activityHolder.clearPixQrCode()
+    }
+
+    private fun resolveTransactionError(
+        provider: PosTransactionProvider,
+        transaction: TransactionObject,
+        method: PaymentMethodApi,
+    ): String {
+        val fromAuthorize = provider.messageFromAuthorize?.trim().orEmpty()
+        val fromErrors = provider.listOfErrors?.joinToString().orEmpty().trim()
+        val status = provider.transactionStatus ?: transaction.transactionStatus
+        val base = when {
+            fromAuthorize.isNotBlank() -> fromAuthorize
+            fromErrors.isNotBlank() -> fromErrors
+            status != null -> "Transação não aprovada ($status)"
+            else -> "Transação não aprovada"
+        }
+        return if (method == PaymentMethodApi.PIX) {
+            "$base. Se o cliente pagou, confira na Conta Stone antes de cobrar de novo."
+        } else {
+            base
         }
     }
 
-    private fun requireUser(): UserModel =
-        Stone.getUserModel(0)
+    private fun requireUser(): UserModel {
+        val code = config.getStoneCode()?.trim().orEmpty()
+        if (code.isNotEmpty()) {
+            activeUserModels()
+                .firstOrNull { it.stoneCode.equals(code, ignoreCase = true) }
+                ?.let { return it }
+        }
+        return Stone.getUserModel(0)
             ?: throw IllegalStateException("Terminal Stone não ativado. Configure o StoneCode.")
+    }
 
     private fun mapApprovedPayment(
         method: PaymentMethodApi,
@@ -206,10 +288,18 @@ class StoneSdkBridgeLive(
         )
     }
 
-    private fun buildTransaction(amount: Double, method: PaymentMethodApi): TransactionObject {
+    private fun buildTransaction(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String?,
+    ): TransactionObject {
         val cents = (amount * 100.0).roundToLong().coerceAtLeast(1L)
         return TransactionObject().apply {
             setAmount(cents.toString())
+            clientReference?.trim()?.takeIf { it.isNotEmpty() }?.let { ref ->
+                setInitiatorTransactionKey(ref)
+                setRequestId(ref)
+            }
             setInstalmentTransaction(InstalmentTransactionEnum.ONE_INSTALMENT)
             setTypeOfTransaction(
                 when (method) {
@@ -219,12 +309,37 @@ class StoneSdkBridgeLive(
                     else -> throw IllegalArgumentException("Método não suportado na Stone: $method")
                 },
             )
+            // Captura automática (autorização + cobrança na mesma operação).
+            // Captura posterior (setCapture false + CaptureTransactionProvider) não é usada no Gate8:
+            // bilheteria/conveniência exige pagamento confirmado na hora.
+            // Sub-merchant: não aplicável (plug-in Stone; recebível vai ao produtor).
             setCapture(true)
-            setShortName("Gate8")
+            setShortName(SHORT_NAME)
         }
     }
 
     companion object {
         private const val APP_NAME = "Gate8"
+        private const val SHORT_NAME = "Gate8"
+        private const val TAG = "Gate8Stone"
+
+        private fun pixKeysFromBuildConfig(): Map<StoneKeyType, String> {
+            val authorization = BuildConfig.STONE_PIX_QR_AUTHORIZATION.trim()
+            val providerId = BuildConfig.STONE_PIX_QR_PROVIDERID.trim()
+            if (authorization.isBlank() || providerId.isBlank()) return emptyMap()
+            return mapOf(
+                StoneKeyType.QRCODE_AUTHORIZATION to normalizeQrAuthorization(authorization),
+                StoneKeyType.QRCODE_PROVIDERID to providerId,
+            )
+        }
+
+        private fun normalizeQrAuthorization(value: String): String {
+            val trimmed = value.trim()
+            return if (trimmed.startsWith("Bearer ", ignoreCase = true)) {
+                trimmed
+            } else {
+                "Bearer $trimmed"
+            }
+        }
     }
 }

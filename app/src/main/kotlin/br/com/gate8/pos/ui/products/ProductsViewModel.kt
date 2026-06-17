@@ -208,7 +208,7 @@ class ProductsViewModel(
 
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, message = null) }
-            val payment = runCatching { paymentGateway.charge(total, method) }
+            val payment = runCatching { paymentGateway.charge(total, method, clientRef) }
             if (payment.isFailure) {
                 _state.update { it.copy(loading = false, error = payment.exceptionOrNull()?.message) }
                 return@launch
@@ -251,7 +251,14 @@ class ProductsViewModel(
 
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    printer.printReceipt(
+                        cart,
+                        total,
+                        method.apiValue,
+                        pay.nsu,
+                        pay.authorization,
+                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                    )
                     saleAdmin.recordCheckout(success.saleId, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -317,7 +324,14 @@ class ProductsViewModel(
         when (e) {
             is ApiException -> {
                 if (e.isStockOrProductError()) {
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    printer.printReceipt(
+                        cart,
+                        total,
+                        method.apiValue,
+                        pay.nsu,
+                        pay.authorization,
+                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                    )
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -328,7 +342,14 @@ class ProductsViewModel(
                     }
                     refreshCatalog()
                 } else {
-                    printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                    printer.printReceipt(
+                        cart,
+                        total,
+                        method.apiValue,
+                        pay.nsu,
+                        pay.authorization,
+                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                    )
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -340,7 +361,14 @@ class ProductsViewModel(
                 }
             }
             else -> {
-                printer.printReceipt(cart, total, method.apiValue, pay.nsu, pay.authorization)
+                printer.printReceipt(
+                    cart,
+                    total,
+                    method.apiValue,
+                    pay.nsu,
+                    pay.authorization,
+                    stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+                )
                 saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                 _state.update {
                     it.copy(

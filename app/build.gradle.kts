@@ -6,7 +6,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
 }
 
-val localProperties = java.util.Properties().apply {
+import java.util.Properties
+
+val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
@@ -16,10 +18,16 @@ val packageCloudReadToken =
         ?: ""
 val stoneSdkLinked = packageCloudReadToken.isNotBlank()
 val stoneSdkVersion: String = findProperty("stoneSdkVersion") as String? ?: "4.16.3"
-val stoneTerminal: String =
-    localProperties.getProperty("stoneTerminal")
-        ?: findProperty("stoneTerminal") as String?
-        ?: ""
+
+fun String.escapeForBuildConfig(): String =
+    replace("\\", "\\\\").replace("\"", "\\\"")
+
+val stonePixQrAuthorization =
+    (localProperties.getProperty("stonePixQrAuthorization") ?: "").escapeForBuildConfig()
+val stonePixQrProviderId =
+    (localProperties.getProperty("stonePixQrProviderId") ?: "").escapeForBuildConfig()
+
+apply(from = "${rootProject.projectDir}/positivo/positivo-signing-config.gradle")
 
 android {
     namespace = "br.com.gate8.pos"
@@ -33,9 +41,11 @@ android {
         versionName = "1.0.0"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
         buildConfigField("boolean", "STONE_SDK_LINKED", stoneSdkLinked.toString())
+        buildConfigField("String", "STONE_PIX_QR_AUTHORIZATION", "\"$stonePixQrAuthorization\"")
+        buildConfigField("String", "STONE_PIX_QR_PROVIDERID", "\"$stonePixQrProviderId\"")
     }
 
-    flavorDimensions += "environment"
+    flavorDimensions += listOf("environment", "model")
     productFlavors {
         create("mock") {
             dimension = "environment"
@@ -44,6 +54,21 @@ android {
         create("stone") {
             dimension = "environment"
             buildConfigField("boolean", "USE_MOCK_PAYMENT", "false")
+        }
+
+        create("generic") {
+            dimension = "model"
+            buildConfigField("String", "TERMINAL_MODEL", "\"generic\"")
+        }
+        create("positivoSeriesL") {
+            dimension = "model"
+            buildConfigField("String", "TERMINAL_MODEL", "\"positivo_l3\"")
+            versionNameSuffix = "-positivo-l3"
+        }
+        create("sunmi") {
+            dimension = "model"
+            buildConfigField("String", "TERMINAL_MODEL", "\"sunmi_p2\"")
+            versionNameSuffix = "-sunmi-p2"
         }
     }
 
@@ -124,14 +149,23 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 
     if (stoneSdkLinked) {
-        "stoneImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
-        "stoneImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
-        when (stoneTerminal.lowercase()) {
-            "positivo" -> "stoneImplementation"("br.com.stone:stone-sdk-posandroid-positivo:$stoneSdkVersion")
-            "sunmi" -> "stoneImplementation"("br.com.stone:stone-sdk-posandroid-sunmi:$stoneSdkVersion")
-            "gertec" -> "stoneImplementation"("br.com.stone:stone-sdk-posandroid-gertec:$stoneSdkVersion")
-            "ingenico" -> "stoneImplementation"("br.com.stone:stone-sdk-posandroid-ingenico:$stoneSdkVersion")
-            "tectoy" -> "stoneImplementation"("br.com.stone:stone-sdk-posandroid-tectoy:$stoneSdkVersion")
-        }
+        val envConfig = "br.com.stone.sdk.android:envconfig:$stoneSdkVersion"
+        "stoneGenericDebugImplementation"(envConfig)
+        "stonePositivoSeriesLDebugImplementation"(envConfig)
+        "stonePositivoSeriesLPositivoImplementation"(envConfig)
+        "stoneSunmiDebugImplementation"(envConfig)
+
+        "stoneGenericImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
+        "stoneGenericImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
+
+        "stonePositivoSeriesLImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
+        "stonePositivoSeriesLImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
+        "stonePositivoSeriesLImplementation"(
+            "br.com.stone:stone-sdk-posandroid-positivo:$stoneSdkVersion",
+        )
+
+        "stoneSunmiImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
+        "stoneSunmiImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
+        "stoneSunmiImplementation"("br.com.stone:stone-sdk-posandroid-sunmi:$stoneSdkVersion")
     }
 }

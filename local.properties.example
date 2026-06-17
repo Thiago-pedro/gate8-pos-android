@@ -4,5 +4,12 @@
 sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 packageCloudReadToken=
 
-## Opcional: lib do fabricante do terminal (positivo, sunmi, gertec, ingenico, tectoy)
-stoneTerminal=
+## PIX (sandbox) — solicitar QRCODE_AUTHORIZATION e QRCODE_PROVIDERID à Stone.
+## QRCODE_AUTHORIZATION pode ser só o token; o app adiciona "Bearer " se faltar.
+
+stonePixQrAuthorization=
+stonePixQrProviderId=
+
+## Homologação Stone: builds debug usam Sandbox automaticamente.
+## Para trocar ambiente na maquininha (só APK debug com envconfig):
+## adb shell "am start -n br.com.gate8.pos.terminal.debug/br.com.stone.sdk.android.envconfig.data.EnvironmentActivity"

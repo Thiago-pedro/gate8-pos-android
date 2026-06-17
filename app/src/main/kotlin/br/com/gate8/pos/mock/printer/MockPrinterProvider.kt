@@ -13,6 +13,8 @@ class MockPrinterProvider : ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
+        stoneTransactionId: String?,
+        isReprint: Boolean,
     ) {
         val sb = StringBuilder("=== GATE8 CUPOM (MOCK) ===\n")
         lines.forEach { l ->
@@ -20,6 +22,7 @@ class MockPrinterProvider : ReceiptPrinter {
         }
         sb.append("TOTAL R$ ${"%.2f".format(total)}\n")
         sb.append("Pagamento: $paymentLabel\n")
+        if (isReprint) sb.append("*** REIMPRESSAO ***\n")
         if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
         Log.i(TAG, sb.toString())
     }

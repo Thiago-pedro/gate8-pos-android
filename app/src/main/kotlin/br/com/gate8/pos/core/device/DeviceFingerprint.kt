@@ -3,14 +3,25 @@ package br.com.gate8.pos.core.device
 import android.content.Context
 import android.provider.Settings
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.device.PosHardwareInfo
 import java.util.UUID
 
 object DeviceFingerprint {
     private const val MIN_LENGTH = 8
 
-    fun getOrCreate(context: Context, store: DeviceConfigStore): String {
+    fun getOrCreate(
+        context: Context,
+        store: DeviceConfigStore,
+        hardware: PosHardwareInfo? = null,
+    ): String {
         store.getFingerprint()?.let { existing ->
             if (existing.length >= MIN_LENGTH) return existing
+        }
+        val stoneSerial = hardware?.readTerminal()?.serialNumber
+        if (!stoneSerial.isNullOrBlank()) {
+            val fingerprint = "stone-$stoneSerial"
+            store.setFingerprint(fingerprint)
+            return fingerprint
         }
         val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
         val fingerprint = when {

@@ -27,14 +27,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build mockDebug APK
+      - name: Build mockGenericDebug APK
         uses: gradle/gradle-build-action@v3
         with:
-          arguments: :app:assembleMockDebug --no-daemon --stacktrace
+          arguments: :app:assembleMockGenericDebug --no-daemon --stacktrace
 
       - name: Prepare release asset
         run: |
-          APK=$(find app/build/outputs/apk/mock/debug -name "*.apk" | head -1)
+          APK=$(find app/build/outputs/apk/mock/generic/debug -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
             echo "APK not found"
             find app/build/outputs -name "*.apk"

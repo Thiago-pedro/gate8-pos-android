@@ -15,10 +15,16 @@ class StoneSdkBridgeUnavailable : StoneSdkBridge {
 
     override fun initialize(application: Application) = Unit
 
-    override suspend fun ensureActivated(stoneCode: String?): Result<Unit> =
+    override suspend fun ensureActivated(stoneCode: String?): Result<StoneActivationOutcome> =
         Result.failure(StoneSdkNotLinkedException())
 
-    override suspend fun charge(amount: Double, method: PaymentMethodApi): PaymentResult =
+    override fun knownActiveStoneCodes(): List<String> = emptyList()
+
+    override suspend fun charge(
+        amount: Double,
+        method: PaymentMethodApi,
+        clientReference: String?,
+    ): PaymentResult =
         throw StoneSdkNotLinkedException()
 
     override suspend fun voidTransaction(
