@@ -9,18 +9,18 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import stone.application.StoneStart
 import stone.application.enums.Action
 import stone.application.enums.InstalmentTransactionEnum
-import stone.application.enums.StoneKeyType
 import stone.application.enums.TransactionStatusEnum
 import stone.application.enums.TypeOfTransactionEnum
 import stone.application.interfaces.StoneActionCallback
 import stone.application.interfaces.StoneCallbackInterface
 import stone.database.transaction.TransactionDAO
 import stone.database.transaction.TransactionObject
-import stone.providers.activeapplication.ActiveApplicationProvider
+import stone.providers.ActiveApplicationProvider
 import stone.providers.CancellationProvider
 import stone.providers.ReversalProvider
 import stone.user.UserModel
 import stone.utils.Stone
+import stone.utils.keys.StoneKeyType
 import br.com.stone.posandroid.providers.PosTransactionProvider
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.PaymentResult
@@ -48,12 +48,18 @@ class StoneSdkBridgeLive(
 
     override fun initialize(application: Application) {
         val pixKeys = pixKeysFromBuildConfig()
+        Log.i(
+            TAG,
+            "Stone SDK init — credenciais PIX configuradas: ${pixKeys.isNotEmpty()} " +
+                "(authorization=${BuildConfig.STONE_PIX_QR_AUTHORIZATION.isNotBlank()}, " +
+                "providerId=${BuildConfig.STONE_PIX_QR_PROVIDERID.isNotBlank()})",
+        )
         initUserList = if (pixKeys.isEmpty()) {
             StoneStart.init(application)
         } else {
             StoneStart.init(application, pixKeys)
         }
-        Stone.appName = APP_NAME
+        Stone.setAppName(APP_NAME)
 
         val codes = knownActiveStoneCodes()
         when {
@@ -121,7 +127,7 @@ class StoneSdkBridgeLive(
         val activity = activityHolder.requireActivity()
         val dao = TransactionDAO(activity)
         val transaction = dao.findTransactionWithAtk(transactionId)
-            ?: dao.allTransactions?.firstOrNull { it.initiatorTransactionKey == transactionId }
+            ?: dao.getAllTransactions()?.firstOrNull { it.initiatorTransactionKey == transactionId }
             ?: return VoidResult(false, "Transação não encontrada no SDK")
 
         val provider = CancellationProvider(activity, transaction)
@@ -193,7 +199,7 @@ class StoneSdkBridgeLive(
                     }
                 }
             }
-            provider.activate(stoneCode)
+            provider.activate(listOf(stoneCode))
         }
     }
 
@@ -213,13 +219,19 @@ class StoneSdkBridgeLive(
                     when (action) {
                         Action.TRANSACTION_WAITING_QRCODE_SCAN -> {
                             Log.i(TAG, "PIX: aguardando leitura do QRCode (DefaultUI Stone)")
-                            activityHolder.onPixQrCodeWaiting(transaction.qRCode)
+                            activityHolder.onPixQrCodeWaiting(transaction.qrCode)
                         }
                         else -> Log.d(TAG, "Stone action: $action")
                     }
                 }
 
                 override fun onError() {
+                    Log.e(
+                        TAG,
+                        "Transação $method falhou — errors=${provider.listOfErrors} " +
+                            "msgAuthorize=${provider.messageFromAuthorize} " +
+                            "status=${provider.transactionStatus ?: transaction.transactionStatus}",
+                    )
                     if (cont.isActive) {
                         cont.resumeWithException(
                             IllegalStateException(
@@ -312,10 +324,38 @@ class StoneSdkBridgeLive(
             // Captura automática (autorização + cobrança na mesma operação).
             // Captura posterior (setCapture false + CaptureTransactionProvider) não é usada no Gate8:
             // bilheteria/conveniência exige pagamento confirmado na hora.
-            // Sub-merchant: não aplicável (plug-in Stone; recebível vai ao produtor).
             setCapture(true)
             setShortName(SHORT_NAME)
+            // PIX exige os dados do sub-merchant para montar o payload do QR Code.
+            // Sem eles a SDK falha instantaneamente (INTERNAL_ERROR) antes de exibir o QR.
+            if (method == PaymentMethodApi.PIX) {
+                applySubMerchant()
+            }
         }
+    }
+
+    /**
+     * Dados do estabelecimento (sub-merchant) exigidos pela Stone para gerar o QR Code PIX.
+     * Espelha o fluxo do demo oficial (stone-payments/demo-sdk-android).
+     * TODO: para produção, popular com os dados reais do estabelecimento (via config).
+     */
+    private fun TransactionObject.applySubMerchant() {
+        setSubMerchantCity("Sao Paulo")
+        setSubMerchantTaxIdentificationNumber("00.000.000/0001-91")
+        setSubMerchantRegisteredIdentifier("00.000.000/0001-91")
+        setSubMerchantPostalAddress("01001-000")
+        setSubMerchantLegalName("Gate8")
+        setSubMerchantTaxIdentificationType("JRDC")
+        setSubMerchantPhoneNumber("(11) 9 9999-9999")
+        setSubMerchantCountryCode("076")
+        setSubMerchantState("SP")
+        setSubMerchantNeighborhood("Centro")
+        setSubMerchantEmail("contato@gate8.com.br")
+        setSubMerchantSiteUrl("www.gate8.com.br")
+        setSubMerchantBuildingNumber("1")
+        setSubMerchantAddress("Praca da Se")
+        setSubMerchantCategoryCode("5734")
+        setSubMerchantPaymentGatewayId("123123")
     }
 
     companion object {

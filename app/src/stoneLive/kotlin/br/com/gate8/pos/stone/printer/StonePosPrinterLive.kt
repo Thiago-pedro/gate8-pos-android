@@ -2,7 +2,11 @@ package br.com.gate8.pos.stone.printer
 
 import android.app.Activity
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.util.Log
+import br.com.gate8.pos.R
 import br.com.stone.posandroid.providers.PosPrintProvider
 import br.com.stone.posandroid.providers.PosPrintReceiptProvider
 import br.com.stone.posandroid.providers.PosReprintReceiptProvider
@@ -17,12 +21,25 @@ class StonePosPrinterLive : StonePosPrinter {
     override fun printLines(activity: Activity, lines: List<String>, bitmap: Bitmap?) {
         runCatching {
             val provider = PosPrintProvider(activity)
+            logoBitmap(activity)?.let { provider.addBitmap(scaleForPrinter(it)) }
             lines.forEach { line -> provider.addLine(line) }
             bitmap?.let { provider.addBitmap(scaleForPrinter(it)) }
             provider.connectionCallback = logCallback("PosPrintProvider")
             provider.execute()
         }.onFailure { Log.e(TAG, "printLines", it) }
     }
+
+    /** Logo Gate8 do cabecalho, achatada sobre fundo branco para a impressora termica. */
+    private fun logoBitmap(activity: Activity): Bitmap? = runCatching {
+        val source = BitmapFactory.decodeResource(activity.resources, R.drawable.logo_gate8_header)
+            ?: return null
+        val flattened = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        Canvas(flattened).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(source, 0f, 0f, null)
+        }
+        flattened
+    }.onFailure { Log.w(TAG, "logoBitmap", it) }.getOrNull()
 
     override fun printCardReceipt(
         activity: Activity,
@@ -43,9 +60,17 @@ class StonePosPrinterLive : StonePosPrinter {
     }
 
     override fun reprintCardReceipt(activity: Activity, transactionId: String, merchantCopy: Boolean) {
+        val transaction = resolveTransaction(activity, transactionId, null) ?: run {
+            Log.w(TAG, "Transação não encontrada para reimpressão: $transactionId")
+            return
+        }
+        val dbId = transaction.idFromBase ?: run {
+            Log.w(TAG, "idFromBase ausente para reimpressão: $transactionId")
+            return
+        }
         runCatching {
             val type = if (merchantCopy) ReceiptType.MERCHANT else ReceiptType.CLIENT
-            val provider = PosReprintReceiptProvider(activity, transactionId, type)
+            val provider = PosReprintReceiptProvider(activity, dbId, type)
             provider.connectionCallback = logCallback("PosReprintReceiptProvider")
             provider.execute()
         }.onFailure { Log.e(TAG, "reprintCardReceipt", it) }
@@ -59,7 +84,7 @@ class StonePosPrinterLive : StonePosPrinter {
         val dao = TransactionDAO(activity)
         transactionId?.trim()?.takeIf { it.isNotEmpty() }?.let { id ->
             dao.findTransactionWithAtk(id)
-                ?: dao.allTransactions?.firstOrNull {
+                ?: dao.getAllTransactions()?.firstOrNull {
                     it.initiatorTransactionKey.equals(id, ignoreCase = true)
                 }
                 ?.let { return it }

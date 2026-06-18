@@ -9,8 +9,8 @@ class PosHardwareInfoLive : PosHardwareInfo {
         runCatching {
             val device = Stone.getPosAndroidDevice() ?: return PosTerminalInfo(null, null)
             PosTerminalInfo(
-                serialNumber = device.posAndroidSerialNumber?.trim()?.takeIf { it.isNotEmpty() },
-                manufacturer = device.posAndroidManufacturer?.trim()?.takeIf { it.isNotEmpty() },
+                serialNumber = device.getPosAndroidSerialNumber()?.trim()?.takeIf { it.isNotEmpty() },
+                manufacturer = device.getPosAndroidManufacturer()?.trim()?.takeIf { it.isNotEmpty() },
             )
         }.getOrDefault(PosTerminalInfo(null, null))
 }

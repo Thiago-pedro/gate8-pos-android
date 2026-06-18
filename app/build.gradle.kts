@@ -62,8 +62,9 @@ android {
         }
         create("positivoSeriesL") {
             dimension = "model"
-            buildConfigField("String", "TERMINAL_MODEL", "\"positivo_l3\"")
-            versionNameSuffix = "-positivo-l3"
+            // Série L cobre Positivo L300 (L3) e L400 (L4) — mesma dependência stone-sdk-posandroid-positivo.
+            buildConfigField("String", "TERMINAL_MODEL", "\"positivo_series_l\"")
+            versionNameSuffix = "-positivo-l"
         }
         create("sunmi") {
             dimension = "model"
@@ -115,6 +116,19 @@ android {
                 "META-INF/client_release.kotlin_module",
             )
         }
+    }
+}
+
+// Com 2 flavor dimensions, combinações flavor/buildType exigem configuration explícita (AGP).
+if (stoneSdkLinked) {
+    configurations {
+        create("stoneGenericImplementation")
+        create("stonePositivoSeriesLImplementation")
+        create("stoneSunmiImplementation")
+        create("stoneGenericDebugImplementation")
+        create("stonePositivoSeriesLDebugImplementation")
+        create("stonePositivoSeriesLPositivoImplementation")
+        create("stoneSunmiDebugImplementation")
     }
 }
 

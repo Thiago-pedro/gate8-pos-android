@@ -319,7 +319,8 @@ private fun ProductGridCard(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f)),
+            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f))
+            .clickable(enabled = canIncrement, onClick = onIncrement),
     ) {
         Box {
             if (!product.imageUrl.isNullOrBlank()) {

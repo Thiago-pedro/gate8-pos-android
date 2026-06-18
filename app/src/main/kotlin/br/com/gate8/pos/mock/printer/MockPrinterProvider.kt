@@ -27,6 +27,23 @@ class MockPrinterProvider : ReceiptPrinter {
         Log.i(TAG, sb.toString())
     }
 
+    override fun printVoidReceipt(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
+    ) {
+        val sb = StringBuilder("=== GATE8 ESTORNO (MOCK) ===\n")
+        lines.forEach { l ->
+            sb.append("${l.quantity}x ${l.description} R$ ${"%.2f".format(l.lineTotal)}\n")
+        }
+        sb.append("VALOR ESTORNADO R$ ${"%.2f".format(total)}\n")
+        sb.append("Pagamento: $paymentLabel\n")
+        if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
+        Log.i(TAG, sb.toString())
+    }
+
     override fun printTicketQr(code: String, holder: String?, description: String) {
         Log.i(TAG, "QR INGRESSO (conteúdo=$code) $description holder=$holder")
     }

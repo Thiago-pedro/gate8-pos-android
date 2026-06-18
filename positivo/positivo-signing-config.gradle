@@ -22,5 +22,14 @@ android {
             signingConfig signingConfigs.positivo
             matchingFallbacks = ['debug']
         }
+        // Build de teste em PRODUCAO: herda do debug (sem minify, com logs),
+        // mas NAO recebe a dependencia envconfig -> a SDK Stone usa o ambiente de PRODUCAO.
+        // Instala lado a lado (sufixo .prod) para nao sobrescrever o app de Sandbox.
+        positivoProd {
+            initWith debug
+            applicationIdSuffix ".prod"
+            signingConfig signingConfigs.positivo
+            matchingFallbacks = ['release', 'debug']
+        }
     }
 }

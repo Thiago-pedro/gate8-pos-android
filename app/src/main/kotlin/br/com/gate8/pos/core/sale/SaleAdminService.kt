@@ -103,6 +103,23 @@ class SaleAdminService(
         }
         lastSaleStore.markVoided()
         val label = PaymentMethodApi.fromApiValue(sale.paymentMethod).displayLabel()
+        runCatching {
+            val cartLines = sale.lines.map { line ->
+                CartLine(
+                    itemType = ItemType.PRODUCT,
+                    description = line.description,
+                    quantity = line.quantity,
+                    unitPrice = line.unitPrice,
+                )
+            }
+            printer.printVoidReceipt(
+                lines = cartLines,
+                total = sale.total,
+                paymentLabel = label,
+                nsu = sale.nsu,
+                authorization = sale.authorization,
+            )
+        }
         return Result.success(
             "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label",
         )

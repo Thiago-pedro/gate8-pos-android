@@ -13,6 +13,14 @@ interface ReceiptPrinter {
         isReprint: Boolean = false,
     )
 
+    fun printVoidReceipt(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
+    )
+
     fun printTicketQr(code: String, holder: String?, description: String)
 
     fun printReportSummary(payload: ReportPrintPayload)
@@ -29,6 +37,14 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         authorization: String?,
         stoneTransactionId: String?,
         isReprint: Boolean,
+    ) = Unit
+
+    override fun printVoidReceipt(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
     ) = Unit
 
     override fun printTicketQr(code: String, holder: String?, description: String) = Unit

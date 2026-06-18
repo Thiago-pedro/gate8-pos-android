@@ -96,8 +96,10 @@ Terminais de homologação Gate8: **Positivo L3** e **Sunmi P2**.
 
 | Terminal | Product flavor `model` | Variant para instalar na maquininha |
 |----------|------------------------|-------------------------------------|
-| Positivo L3 | `positivoSeriesL` | `stonePositivoSeriesLPositivo` |
+| Positivo Série L (L300 / **L400**) | `positivoSeriesL` | `stonePositivoSeriesLPositivo` |
 | Sunmi P2 | `sunmi` | `stoneSunmiDebug` |
+
+> A Série L (L300 = L3, L400 = L4) usa o mesmo flavor e a mesma dependência `stone-sdk-posandroid-positivo`. O build type `positivo` assina com a JKS platform da Positivo (`positivo/`), obrigatória nos terminais de debug.
 
 1. Token PackageCloud em `local.properties` (`packageCloudReadToken`) — Stone Partner Community.
 2. **Positivo L3:** JKS em `positivo/` (ver `positivo/README.md` e [Assinatura Debug Positivo](https://drive.google.com/drive/folders/1Roxc3NsYmcT2I-ne3zTCJRScvkY048Yz?usp=sharing)).

@@ -56,6 +56,27 @@ class StoneReceiptPrinterAdapter(
         posPrinter.printLines(activity, textLines)
     }
 
+    override fun printVoidReceipt(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
+    ) {
+        val activity = activityHolder.runCatching { requireActivity() }.getOrNull() ?: return
+        if (!posPrinter.isAvailable) return
+        posPrinter.printLines(
+            activity,
+            Gate8ReceiptTextBuilder.voidReceipt(
+                lines = lines,
+                total = total,
+                paymentLabel = paymentLabel,
+                nsu = nsu,
+                authorization = authorization,
+            ),
+        )
+    }
+
     override fun printTicketQr(code: String, holder: String?, description: String) {
         val activity = activityHolder.runCatching { requireActivity() }.getOrNull() ?: return
         if (!posPrinter.isAvailable) return
