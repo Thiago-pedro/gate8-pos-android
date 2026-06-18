@@ -6,6 +6,7 @@ import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.LastSaleLineRecord
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.printer.ReceiptPrinter
@@ -14,6 +15,7 @@ class SaleAdminService(
     private val lastSaleStore: LastSaleStore,
     private val paymentGateway: PaymentGateway,
     private val printer: ReceiptPrinter,
+    private val saleRepository: SaleRepository,
 ) {
     fun loadLastSale(): LastSaleRecord? = lastSaleStore.get()
 
@@ -120,8 +122,29 @@ class SaleAdminService(
                 authorization = sale.authorization,
             )
         }
+        // Avisa o backend (painel Lovable) para registrar o estorno (status -> voided).
+        // O pagamento já foi revertido e o comprovante impresso; uma falha aqui não
+        // desfaz o estorno, apenas adia a atualização do painel.
+        val syncNote = syncVoidToBackend(sale)
         return Result.success(
-            "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label",
+            "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label$syncNote",
+        )
+    }
+
+    private suspend fun syncVoidToBackend(sale: LastSaleRecord): String {
+        val saleId = sale.saleId
+        if (saleId.isNullOrBlank()) {
+            return " · painel não atualizado (venda sem ID; estorno só na maquininha)"
+        }
+        return runCatching {
+            saleRepository.voidSale(
+                saleId = saleId,
+                clientReference = sale.clientReference,
+                reason = "Estorno na maquininha",
+            )
+        }.fold(
+            onSuccess = { "" },
+            onFailure = { " · painel não atualizado (sincronização pendente)" },
         )
     }
 }

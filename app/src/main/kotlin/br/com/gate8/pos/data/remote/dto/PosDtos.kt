@@ -117,6 +117,20 @@ data class CreateSaleResponseDto(
 )
 
 @Serializable
+data class VoidSaleRequestDto(
+    @SerialName("client_reference") val clientReference: String? = null,
+    val reason: String? = null,
+)
+
+@Serializable
+data class VoidSaleResponseDto(
+    @SerialName("sale_id") val saleId: String? = null,
+    val status: String? = null,
+    val duplicated: Boolean = false,
+    val error: String? = null,
+)
+
+@Serializable
 data class SaleTicketGroupDto(
     @SerialName("item_index") val itemIndex: Int,
     val tickets: List<TicketCodeDto> = emptyList(),

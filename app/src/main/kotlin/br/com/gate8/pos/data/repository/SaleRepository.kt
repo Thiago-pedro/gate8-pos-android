@@ -7,6 +7,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.ApiErrorDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
+import br.com.gate8.pos.data.remote.dto.VoidSaleRequestDto
 import br.com.gate8.pos.domain.model.SaleSuccess
 import kotlinx.serialization.json.Json
 
@@ -65,6 +66,24 @@ class SaleRepository(
             401 -> throw ApiException(401, "Token inválido — verifique g8pos_ no admin")
             403 -> throw ApiException(403, "Dispositivo inativo")
             else -> throw ApiException(response.code(), "Erro ao registrar venda")
+        }
+    }
+
+    /**
+     * Registra o estorno da venda no backend (painel Lovable) → `pos_sales.status = voided`.
+     * Idempotente: HTTP 200/201 (inclusive se a venda já estava estornada) = sucesso.
+     */
+    suspend fun voidSale(saleId: String, clientReference: String?, reason: String?) {
+        val response = api.voidSale(
+            saleId,
+            VoidSaleRequestDto(clientReference = clientReference, reason = reason),
+        )
+        when (response.code()) {
+            200, 201 -> return
+            401 -> throw ApiException(401, "Token inválido — verifique g8pos_ no admin")
+            403 -> throw ApiException(403, "Dispositivo inativo")
+            404 -> throw ApiException(404, "Venda não encontrada no servidor")
+            else -> throw parseErrorBody(response.code(), response.errorBody()?.string())
         }
     }
 

@@ -7,6 +7,8 @@ import br.com.gate8.pos.data.remote.dto.CheckinRequestDto
 import br.com.gate8.pos.data.remote.dto.CheckinResponseDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleResponseDto
+import br.com.gate8.pos.data.remote.dto.VoidSaleRequestDto
+import br.com.gate8.pos.data.remote.dto.VoidSaleResponseDto
 import br.com.gate8.pos.data.remote.dto.CashierCloseRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierMovementRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierOperatorRequestDto
@@ -19,6 +21,7 @@ import retrofit2.http.GET
 import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PosApiService {
@@ -31,6 +34,12 @@ interface PosApiService {
 
     @POST("api/public/pos/sales")
     suspend fun createSale(@Body body: CreateSaleRequestDto): Response<CreateSaleResponseDto>
+
+    @POST("api/public/pos/sales/{id}/void")
+    suspend fun voidSale(
+        @Path("id") saleId: String,
+        @Body body: VoidSaleRequestDto,
+    ): Response<VoidSaleResponseDto>
 
     @POST("api/public/pos/checkin")
     suspend fun checkin(@Body body: CheckinRequestDto): Response<CheckinResponseDto>

@@ -56,7 +56,7 @@ val appModule = module {
             get(),
         )
     }
-    single { SaleAdminService(get(), get(), get()) }
+    single { SaleAdminService(get(), get(), get(), get()) }
     single { PendingSaleSync(get(), get()) }
 
     single {
