@@ -19,15 +19,14 @@ class SaleAdminService(
 ) {
     fun loadLastSale(): LastSaleRecord? = lastSaleStore.get()
 
+    fun loadRecentSales(): List<LastSaleRecord> = lastSaleStore.list()
+
     fun saveLastSale(record: LastSaleRecord) {
         lastSaleStore.save(record)
     }
 
     fun attachSaleIdIfMatches(clientReference: String, saleId: String) {
-        val current = lastSaleStore.get() ?: return
-        if (current.clientReference == clientReference && current.saleId.isNullOrBlank()) {
-            lastSaleStore.save(current.copy(saleId = saleId))
-        }
+        lastSaleStore.updateSaleId(clientReference, saleId)
     }
 
     fun recordCheckout(
@@ -89,8 +88,15 @@ class SaleAdminService(
     }
 
     suspend fun voidLastSale(): Result<String> {
-        val sale = lastSaleStore.get()
+        val last = lastSaleStore.get()
             ?: return Result.failure(IllegalStateException("Nenhuma venda recente"))
+        return voidSale(last.clientReference)
+    }
+
+    /** Estorna uma venda específica da lista de vendas recentes. */
+    suspend fun voidSale(clientReference: String): Result<String> {
+        val sale = lastSaleStore.find(clientReference)
+            ?: return Result.failure(IllegalStateException("Venda não encontrada"))
         if (sale.voided) {
             return Result.failure(IllegalStateException("Esta venda já foi estornada"))
         }
@@ -103,7 +109,7 @@ class SaleAdminService(
                 return Result.failure(IllegalStateException(void.message))
             }
         }
-        lastSaleStore.markVoided()
+        lastSaleStore.markVoided(sale.clientReference)
         val label = PaymentMethodApi.fromApiValue(sale.paymentMethod).displayLabel()
         runCatching {
             val cartLines = sale.lines.map { line ->
@@ -144,7 +150,10 @@ class SaleAdminService(
             )
         }.fold(
             onSuccess = { "" },
-            onFailure = { " · painel não atualizado (sincronização pendente)" },
+            onFailure = { e ->
+                android.util.Log.w("Gate8Void", "Falha ao sincronizar estorno (saleId=$saleId)", e)
+                " · painel não atualizado (${e.message ?: "erro de conexão"})"
+            },
         )
     }
 }

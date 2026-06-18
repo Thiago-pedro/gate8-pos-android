@@ -82,8 +82,11 @@ class SaleRepository(
             200, 201 -> return
             401 -> throw ApiException(401, "Token inválido — verifique g8pos_ no admin")
             403 -> throw ApiException(403, "Dispositivo inativo")
-            404 -> throw ApiException(404, "Venda não encontrada no servidor")
-            else -> throw parseErrorBody(response.code(), response.errorBody()?.string())
+            404 -> throw ApiException(404, "Venda não encontrada no servidor (404)")
+            else -> {
+                val serverMsg = parseErrorBody(response.code(), response.errorBody()?.string()).message
+                throw ApiException(response.code(), "HTTP ${response.code()}: ${serverMsg ?: "erro"}")
+            }
         }
     }
 

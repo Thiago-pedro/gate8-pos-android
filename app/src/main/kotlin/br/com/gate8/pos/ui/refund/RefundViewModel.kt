@@ -12,10 +12,10 @@ import kotlinx.coroutines.launch
 
 data class RefundUiState(
     val loading: Boolean = false,
-    val lastSale: LastSaleRecord? = null,
+    val sales: List<LastSaleRecord> = emptyList(),
     val message: String? = null,
     val error: String? = null,
-    val showConfirm: Boolean = false,
+    val pendingVoid: LastSaleRecord? = null,
 )
 
 class RefundViewModel(
@@ -33,33 +33,40 @@ class RefundViewModel(
     }
 
     fun refresh() {
-        _state.update { it.copy(lastSale = saleAdmin.loadLastSale(), error = null, message = null) }
+        _state.update {
+            it.copy(sales = saleAdmin.loadRecentSales(), error = null, message = null)
+        }
     }
 
-    fun requestVoid() {
-        _state.update { it.copy(showConfirm = true) }
+    fun requestVoid(sale: LastSaleRecord) {
+        _state.update { it.copy(pendingVoid = sale) }
     }
 
     fun dismissConfirm() {
-        _state.update { it.copy(showConfirm = false) }
+        _state.update { it.copy(pendingVoid = null) }
     }
 
     fun confirmVoid() {
+        val target = _state.value.pendingVoid ?: return
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, showConfirm = false, error = null, message = null) }
-            saleAdmin.voidLastSale()
+            _state.update { it.copy(loading = true, pendingVoid = null, error = null, message = null) }
+            saleAdmin.voidSale(target.clientReference)
                 .onSuccess { msg ->
                     _state.update {
                         it.copy(
                             loading = false,
                             message = msg,
-                            lastSale = saleAdmin.loadLastSale(),
+                            sales = saleAdmin.loadRecentSales(),
                         )
                     }
                 }
                 .onFailure { e ->
                     _state.update {
-                        it.copy(loading = false, error = e.message ?: "Falha no estorno")
+                        it.copy(
+                            loading = false,
+                            error = e.message ?: "Falha no estorno",
+                            sales = saleAdmin.loadRecentSales(),
+                        )
                     }
                 }
         }
