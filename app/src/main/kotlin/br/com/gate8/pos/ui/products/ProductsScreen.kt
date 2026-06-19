@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.products
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.LocationOn
@@ -58,7 +61,12 @@ import br.com.gate8.pos.domain.model.tracksStock
 import br.com.gate8.pos.ui.common.Gate8CartLineUi
 import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+import br.com.gate8.pos.ui.common.Gate8AlertDialog
 import br.com.gate8.pos.ui.common.Gate8CartSheet
+import br.com.gate8.pos.ui.common.Gate8ConfirmModal
+import br.com.gate8.pos.ui.common.Gate8SuccessDialog
+import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
+import br.com.gate8.pos.ui.common.paymentLoadingMessage
 import br.com.gate8.pos.ui.common.Gate8QuantitySelector
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
@@ -84,6 +92,60 @@ fun ProductsScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartItemCount = state.cart.sumOf { it.quantity }
     val cartTotal = state.cart.sumOf { it.lineTotal }
+
+    PaymentWaitingOverlay(
+        visible = state.loading,
+        method = state.payingMethod,
+        amount = cartTotal,
+        onCancel = { vm.cancelPayment() },
+    )
+
+    state.saleSuccess?.let { success ->
+        Gate8SuccessDialog(
+            title = success.title,
+            detail = success.detail,
+            onDismiss = { vm.dismissSaleSuccess() },
+        )
+    }
+
+    if (state.pixExpired) {
+        Gate8AlertDialog(
+            title = "QR Code expirado",
+            detail = "O tempo para pagar o Pix acabou. Gere um novo QR Code para tentar novamente.",
+            onDismiss = { vm.dismissPixExpired() },
+        )
+    }
+
+    if (state.paymentCancelled) {
+        Gate8AlertDialog(
+            title = "Pagamento cancelado",
+            detail = "A cobrança foi cancelada. Os itens continuam no carrinho.",
+            icon = Icons.Filled.Cancel,
+            accent = Gate8Colors.AccentBlue,
+            onDismiss = { vm.dismissPaymentCancelled() },
+        )
+    }
+
+    if (state.paymentFailed) {
+        Gate8AlertDialog(
+            title = "Falha na leitura do cartão",
+            detail = "Não foi possível ler o cartão. Os itens continuam no carrinho — tente novamente.",
+            icon = Icons.Filled.CreditCard,
+            onDismiss = { vm.dismissPaymentFailed() },
+        )
+    }
+
+    if (state.pendingClientCopy != null) {
+        Gate8ConfirmModal(
+            title = "Imprimir via do cliente?",
+            message = "A via do lojista já saiu. Imprimir também a via do cliente? " +
+                "Em seguida saem o comprovante Gate8 e as fichas.",
+            confirmLabel = "Sim, imprimir",
+            dismissLabel = "Não",
+            onConfirm = { vm.answerClientCopy(true) },
+            onDismiss = { vm.answerClientCopy(false) },
+        )
+    }
 
     Gate8ScreenBackground {
     Gate8CartScreenRoot(
@@ -288,6 +350,7 @@ fun ProductsScreen(
                     total = cartTotal,
                     lines = cartLines,
                     loading = state.loading,
+                    loadingMessage = paymentLoadingMessage(state.payingMethod),
                     onIncrement = { productId ->
                         products.firstOrNull { it.id == productId }?.let { vm.addProduct(it) }
                     },
@@ -319,6 +382,7 @@ private fun ProductGridCard(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
             .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f))
             .clickable(enabled = canIncrement, onClick = onIncrement),
     ) {

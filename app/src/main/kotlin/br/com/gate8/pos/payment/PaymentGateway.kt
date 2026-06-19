@@ -15,6 +15,12 @@ data class VoidResult(
     val message: String,
 )
 
+/** Lançada quando o operador cancela manualmente um pagamento em andamento. */
+class PaymentCancelledException : Exception("Pagamento cancelado")
+
+/** Lançada quando o QR Code Pix expira sem pagamento. */
+class PixExpiredException : Exception("QR Code Pix expirado")
+
 interface PaymentGateway {
     suspend fun charge(
         amount: Double,
@@ -29,4 +35,10 @@ interface PaymentGateway {
         amount: Double,
         method: PaymentMethodApi,
     ): VoidResult
+
+    /**
+     * Aborta o pagamento em andamento (cartão/Pix) na maquininha.
+     * Faz a [charge] em curso lançar [PaymentCancelledException]. No-op se nada está rodando.
+     */
+    fun cancelCurrentPayment() {}
 }

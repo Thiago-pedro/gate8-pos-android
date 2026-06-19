@@ -10,6 +10,9 @@ import br.com.gate8.pos.R
 import br.com.stone.posandroid.providers.PosPrintProvider
 import br.com.stone.posandroid.providers.PosPrintReceiptProvider
 import br.com.stone.posandroid.providers.PosReprintReceiptProvider
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import stone.application.enums.ReceiptType
 import stone.application.interfaces.StoneCallbackInterface
 import stone.database.transaction.TransactionDAO
@@ -18,27 +21,84 @@ import stone.database.transaction.TransactionObject
 class StonePosPrinterLive : StonePosPrinter {
     override val isAvailable: Boolean = true
 
-    override fun printLines(activity: Activity, lines: List<String>, bitmap: Bitmap?) {
-        runCatching {
-            val provider = PosPrintProvider(activity)
-            logoBitmap(activity)?.let { provider.addBitmap(scaleForPrinter(it)) }
-            lines.forEach { line -> provider.addLine(line) }
-            bitmap?.let { provider.addBitmap(scaleForPrinter(it)) }
-            provider.connectionCallback = logCallback("PosPrintProvider")
-            provider.execute()
-        }.onFailure { Log.e(TAG, "printLines", it) }
+    /**
+     * Fila sequencial de impressão: cada trabalho só começa quando o anterior
+     * termina (ou estoura o timeout). Sem isso, as várias chamadas assíncronas
+     * de `execute()` saem embaralhadas (via lojista, via cliente, comprovante e
+     * fichas misturados no mesmo rolo).
+     */
+    private val printQueue = Executors.newSingleThreadExecutor()
+
+    /**
+     * Enfileira um trabalho de impressão. O `block` é executado na UI thread
+     * (padrão dos providers Stone) e deve, ao final, chamar `latch.countDown()`
+     * via callback (use [callback]) ou diretamente quando não houver o que imprimir.
+     */
+    private fun enqueue(activity: Activity, label: String, block: (CountDownLatch) -> Unit) {
+        printQueue.execute {
+            val latch = CountDownLatch(1)
+            activity.runOnUiThread {
+                runCatching { block(latch) }.onFailure {
+                    Log.e(TAG, "$label: falha ao imprimir", it)
+                    latch.countDown()
+                }
+            }
+            runCatching { latch.await(PRINT_TIMEOUT_SEC, TimeUnit.SECONDS) }
+        }
     }
 
-    /** Logo Gate8 do cabecalho, achatada sobre fundo branco para a impressora termica. */
+    private fun callback(label: String, latch: CountDownLatch) = object : StoneCallbackInterface {
+        override fun onSuccess() {
+            Log.i(TAG, "$label: impressão OK")
+            latch.countDown()
+        }
+
+        override fun onError() {
+            Log.w(TAG, "$label: erro na impressão")
+            latch.countDown()
+        }
+    }
+
+    override fun printLines(
+        activity: Activity,
+        lines: List<String>,
+        bitmap: Bitmap?,
+        logoScale: Float,
+    ) {
+        enqueue(activity, "PosPrintProvider") { latch ->
+            val provider = PosPrintProvider(activity)
+            logoBitmap(activity)?.let { provider.addBitmap(scaleLogo(it, logoScale)) }
+            lines.forEach { line -> provider.addLine(line) }
+            bitmap?.let { provider.addBitmap(scaleForPrinter(it)) }
+            provider.connectionCallback = callback("PosPrintProvider", latch)
+            provider.execute()
+        }
+    }
+
+    /** Logo Gate8 do cabecalho, convertida para preto puro: o "8" azul saia fraco na termica. */
     private fun logoBitmap(activity: Activity): Bitmap? = runCatching {
         val source = BitmapFactory.decodeResource(activity.resources, R.drawable.logo_gate8_header)
             ?: return null
-        val flattened = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-        Canvas(flattened).apply {
-            drawColor(Color.WHITE)
-            drawBitmap(source, 0f, 0f, null)
+        val w = source.width
+        val h = source.height
+        val pixels = IntArray(w * h)
+        source.getPixels(pixels, 0, w, 0, 0, w, h)
+        for (i in pixels.indices) {
+            val c = pixels[i]
+            val alpha = (c ushr 24) and 0xFF
+            if (alpha < 128) {
+                pixels[i] = Color.WHITE
+                continue
+            }
+            val r = (c ushr 16) and 0xFF
+            val g = (c ushr 8) and 0xFF
+            val b = c and 0xFF
+            val luminance = 0.299 * r + 0.587 * g + 0.114 * b
+            pixels[i] = if (luminance < BLACK_THRESHOLD) Color.BLACK else Color.WHITE
         }
-        flattened
+        Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply {
+            setPixels(pixels, 0, w, 0, 0, w, h)
+        }
     }.onFailure { Log.w(TAG, "logoBitmap", it) }.getOrNull()
 
     override fun printCardReceipt(
@@ -47,33 +107,39 @@ class StonePosPrinterLive : StonePosPrinter {
         nsu: String?,
         merchantCopy: Boolean,
     ) {
-        val transaction = resolveTransaction(activity, transactionId, nsu) ?: run {
-            Log.w(TAG, "Transação não encontrada para impressão (itk=$transactionId nsu=$nsu)")
-            return
-        }
-        runCatching {
+        enqueue(activity, "PosPrintReceiptProvider") { latch ->
+            val transaction = resolveTransaction(activity, transactionId, nsu)
+            if (transaction == null) {
+                Log.w(TAG, "Transação não encontrada para impressão (itk=$transactionId nsu=$nsu)")
+                latch.countDown()
+                return@enqueue
+            }
             val type = if (merchantCopy) ReceiptType.MERCHANT else ReceiptType.CLIENT
             val provider = PosPrintReceiptProvider(activity, transaction, type)
-            provider.connectionCallback = logCallback("PosPrintReceiptProvider")
+            provider.connectionCallback = callback("PosPrintReceiptProvider", latch)
             provider.execute()
-        }.onFailure { Log.e(TAG, "printCardReceipt", it) }
+        }
     }
 
     override fun reprintCardReceipt(activity: Activity, transactionId: String, merchantCopy: Boolean) {
-        val transaction = resolveTransaction(activity, transactionId, null) ?: run {
-            Log.w(TAG, "Transação não encontrada para reimpressão: $transactionId")
-            return
-        }
-        val dbId = transaction.idFromBase ?: run {
-            Log.w(TAG, "idFromBase ausente para reimpressão: $transactionId")
-            return
-        }
-        runCatching {
+        enqueue(activity, "PosReprintReceiptProvider") { latch ->
+            val transaction = resolveTransaction(activity, transactionId, null)
+            if (transaction == null) {
+                Log.w(TAG, "Transação não encontrada para reimpressão: $transactionId")
+                latch.countDown()
+                return@enqueue
+            }
+            val dbId = transaction.idFromBase
+            if (dbId == null) {
+                Log.w(TAG, "idFromBase ausente para reimpressão: $transactionId")
+                latch.countDown()
+                return@enqueue
+            }
             val type = if (merchantCopy) ReceiptType.MERCHANT else ReceiptType.CLIENT
             val provider = PosReprintReceiptProvider(activity, dbId, type)
-            provider.connectionCallback = logCallback("PosReprintReceiptProvider")
+            provider.connectionCallback = callback("PosReprintReceiptProvider", latch)
             provider.execute()
-        }.onFailure { Log.e(TAG, "reprintCardReceipt", it) }
+        }
     }
 
     private fun resolveTransaction(
@@ -95,6 +161,26 @@ class StonePosPrinterLive : StonePosPrinter {
         return null
     }
 
+    /**
+     * Reduz a logo para uma fração da largura do papel. A impressora Stone estica
+     * qualquer bitmap até a largura total da bobina; por isso, para deixar a logo
+     * menor, desenhamos ela centralizada numa tela branca de largura cheia. Assim,
+     * quando o SDK esticar a tela, a logo ocupa apenas `fraction` da largura.
+     */
+    private fun scaleLogo(source: Bitmap, fraction: Float): Bitmap {
+        if (fraction >= 1f) return scaleForPrinter(source)
+        val canvasW = source.width
+        val logoW = (canvasW * fraction).toInt().coerceIn(1, canvasW)
+        val logoH = (source.height * fraction).toInt().coerceAtLeast(1)
+        val scaledLogo = Bitmap.createScaledBitmap(source, logoW, logoH, true)
+        return Bitmap.createBitmap(canvasW, logoH, Bitmap.Config.ARGB_8888).apply {
+            Canvas(this).apply {
+                drawColor(Color.WHITE)
+                drawBitmap(scaledLogo, ((canvasW - logoW) / 2).toFloat(), 0f, null)
+            }
+        }
+    }
+
     private fun scaleForPrinter(source: Bitmap): Bitmap {
         val maxW = PRINTER_MAX_WIDTH_PX
         val maxH = PRINTER_MAX_HEIGHT_PX
@@ -105,19 +191,11 @@ class StonePosPrinterLive : StonePosPrinter {
         return Bitmap.createScaledBitmap(source, w, h, true)
     }
 
-    private fun logCallback(label: String) = object : StoneCallbackInterface {
-        override fun onSuccess() {
-            Log.i(TAG, "$label: impressão OK")
-        }
-
-        override fun onError() {
-            Log.w(TAG, "$label: erro na impressão")
-        }
-    }
-
     companion object {
         private const val TAG = "Gate8StonePrinter"
         private const val PRINTER_MAX_WIDTH_PX = 380
         private const val PRINTER_MAX_HEIGHT_PX = 595
+        private const val PRINT_TIMEOUT_SEC = 30L
+        private const val BLACK_THRESHOLD = 210.0
     }
 }

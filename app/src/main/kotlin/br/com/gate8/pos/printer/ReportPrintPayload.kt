@@ -6,6 +6,26 @@ data class ReportPrintRow(
     val total: Double,
 )
 
+/** Item do ranking de mais vendidos: nome, quantidade total e valor total. */
+data class ReportPrintItem(
+    val name: String,
+    val quantity: Int,
+    val total: Double,
+)
+
+/** Situação do caixa para incluir no rodapé do relatório. */
+data class ReportCashierInfo(
+    val open: Boolean,
+    val operatorName: String?,
+    val openingBalance: Double,
+    val cashSales: Double,
+    val withdrawals: Double,
+    val expenses: Double,
+    val expectedDrawer: Double,
+    val countedBalance: Double?,
+    val difference: Double?,
+)
+
 data class ReportPrintPayload(
     val periodLabel: String,
     val deviceName: String?,
@@ -18,4 +38,6 @@ data class ReportPrintPayload(
     val averageTicket: Double,
     val byPaymentMethod: List<ReportPrintRow>,
     val byBrand: List<ReportPrintRow>,
+    val topItems: List<ReportPrintItem> = emptyList(),
+    val cashier: ReportCashierInfo? = null,
 )

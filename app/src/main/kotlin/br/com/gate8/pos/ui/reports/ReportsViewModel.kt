@@ -3,8 +3,12 @@ package br.com.gate8.pos.ui.reports
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
+import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
+import br.com.gate8.pos.printer.ReportCashierInfo
+import br.com.gate8.pos.printer.ReportPrintItem
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReportPrintRow
 import br.com.gate8.pos.printer.ReceiptPrinter
@@ -34,6 +38,7 @@ data class ReportsUiState(
     val showCustomDialog: Boolean = false,
     val data: ReportsSummaryDto? = null,
     val isDemoData: Boolean = false,
+    val cashier: CashierStatusDto? = null,
     val error: String? = null,
     val periodLabel: String = "",
     val printMessage: String? = null,
@@ -43,6 +48,7 @@ class ReportsViewModel(
     private val reportsRepository: ReportsRepository,
     private val printer: ReceiptPrinter,
     private val configStore: DeviceConfigStore,
+    private val cashierRepository: CashierRepository,
 ) : ViewModel() {
     private val zone = ZoneId.of("America/Sao_Paulo")
     private val _state = MutableStateFlow(ReportsUiState())
@@ -124,6 +130,8 @@ class ReportsViewModel(
                 averageTicket = s.averageTicket,
                 byPaymentMethod = data.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
                 byBrand = data.byBrand.map { ReportPrintRow(it.brand, it.count, it.total) },
+                topItems = data.topItems.map { ReportPrintItem(it.name, it.quantity, it.total) },
+                cashier = _state.value.cashier?.toReportCashierInfo(),
             ),
         )
         _state.update { it.copy(printMessage = "Relatório enviado à impressora", error = null) }
@@ -133,6 +141,7 @@ class ReportsViewModel(
         val (from, to, label) = resolveRange()
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, printMessage = null, periodLabel = label) }
+            val cashier = runCatching { cashierRepository.fetchStatus() }.getOrNull()
             runCatching { reportsRepository.fetchSummary(from, to) }
                 .onSuccess { summary ->
                     val isDemo = summary.device?.id == "demo"
@@ -141,6 +150,7 @@ class ReportsViewModel(
                             loading = false,
                             data = summary,
                             isDemoData = isDemo,
+                            cashier = cashier,
                             periodLabel = label,
                         )
                     }
@@ -149,6 +159,7 @@ class ReportsViewModel(
                     _state.update {
                         it.copy(
                             loading = false,
+                            cashier = cashier,
                             error = e.message ?: "Não foi possível carregar o relatório",
                         )
                     }
@@ -195,4 +206,16 @@ class ReportsViewModel(
 
     private fun formatDate(date: LocalDate): String =
         date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+
+    private fun CashierStatusDto.toReportCashierInfo(): ReportCashierInfo = ReportCashierInfo(
+        open = open,
+        operatorName = session?.operatorName,
+        openingBalance = totals?.openingBalance ?: session?.openingBalance ?: 0.0,
+        cashSales = totals?.cashSales ?: 0.0,
+        withdrawals = totals?.withdrawals ?: 0.0,
+        expenses = totals?.expenses ?: 0.0,
+        expectedDrawer = totals?.expectedDrawer ?: session?.expectedBalance ?: 0.0,
+        countedBalance = session?.countedBalance,
+        difference = session?.difference,
+    )
 }

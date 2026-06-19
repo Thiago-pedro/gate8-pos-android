@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +39,7 @@ import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
 import br.com.gate8.pos.ui.common.Gate8MenuButton
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
 import java.time.Instant
@@ -96,9 +99,11 @@ fun CashierScreen(
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = Gate8Colors.AccentBlue)
                         }
-                    } else if (state.open && state.totals != null) {
-                        CashierTotalsCard(state.totals!!, state.session?.openedAt)
-                        Spacer(Modifier.height(12.dp))
+                    } else if (state.open) {
+                        state.totals?.let { totals ->
+                            CashierTotalsCard(totals, state.session?.openedAt)
+                            Spacer(Modifier.height(12.dp))
+                        }
                         if (state.movements.isNotEmpty()) {
                             MovementsCard(state.movements)
                             Spacer(Modifier.height(12.dp))
@@ -137,7 +142,7 @@ fun CashierScreen(
                             onClick = { vm.showDialog(CashierDialog.OPEN) },
                             centerText = true,
                         )
-                        state.closeSummary?.let {
+                        if (state.closeSummary != null || state.lastClosePayload != null) {
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 "Último fechamento",
@@ -234,6 +239,14 @@ fun CashierScreen(
                     onDismiss = vm::dismissDialog,
                 )
                 CashierDialog.NONE -> Unit
+            }
+
+            state.successModal?.let { success ->
+                Gate8SuccessDialog(
+                    title = success.title,
+                    detail = success.detail,
+                    onDismiss = { vm.dismissSuccessModal() },
+                )
             }
         }
     }
@@ -354,6 +367,7 @@ private fun CashierAmountDialog(
                     onValueChange = onAmountChange,
                     label = amountLabel,
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 if (showDescription) {
                     Spacer(Modifier.height(10.dp))
@@ -375,7 +389,13 @@ private fun CashierAmountDialog(
                 }
                 error?.let {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, color = Color(0xFFB3261E), fontSize = 12.sp)
+                    Text(
+                        it,
+                        color = Color(0xFFB3261E),
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         },

@@ -21,7 +21,9 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
+import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.printer.ReceiptPrinter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,12 @@ import kotlinx.serialization.json.Json
 
 data class PdvUiState(
     val loading: Boolean = false,
+    /** Forma de pagamento em processamento (para mostrar a mensagem certa enquanto carrega). */
+    val payingMethod: PaymentMethodApi? = null,
+    /** Quando true, mostra o modal de "QR Code Pix expirado". */
+    val pixExpired: Boolean = false,
+    /** Quando true, mostra o modal de "pagamento cancelado". */
+    val paymentCancelled: Boolean = false,
     val catalog: CatalogResponseDto? = null,
     val catalogVersion: Int = 0,
     val selectedEventId: String? = null,
@@ -202,6 +210,19 @@ class PdvViewModel(
         _state.update { it.copy(cart = emptyList(), showCart = false) }
     }
 
+    /** Cancela o pagamento em andamento (cartão/Pix) na maquininha. */
+    fun cancelPayment() {
+        paymentGateway.cancelCurrentPayment()
+    }
+
+    fun dismissPixExpired() {
+        _state.update { it.copy(pixExpired = false) }
+    }
+
+    fun dismissPaymentCancelled() {
+        _state.update { it.copy(paymentCancelled = false) }
+    }
+
     private fun trimCart(cart: List<CartLine>, events: List<EventCatalogDto>): List<CartLine> {
         val batches = events.flatMap { e -> e.ticketBatches }
         return cart.mapNotNull { line ->
@@ -229,10 +250,20 @@ class PdvViewModel(
         )
 
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, message = null) }
+            _state.update { it.copy(loading = true, payingMethod = method, error = null, message = null) }
             val payment = runCatching { paymentGateway.charge(total, method, clientRef) }
             if (payment.isFailure) {
-                _state.update { it.copy(loading = false, error = payment.exceptionOrNull()?.message) }
+                val err = payment.exceptionOrNull()
+                _state.update {
+                    when (err) {
+                        is PaymentCancelledException ->
+                            it.copy(loading = false, payingMethod = null, paymentCancelled = true)
+                        is PixExpiredException ->
+                            it.copy(loading = false, payingMethod = null, pixExpired = true)
+                        else ->
+                            it.copy(loading = false, payingMethod = null, error = err?.message)
+                    }
+                }
                 return@launch
             }
             val pay = payment.getOrThrow()

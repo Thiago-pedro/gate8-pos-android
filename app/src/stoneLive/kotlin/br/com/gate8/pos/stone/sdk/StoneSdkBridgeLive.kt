@@ -23,9 +23,12 @@ import stone.utils.Stone
 import stone.utils.keys.StoneKeyType
 import br.com.stone.posandroid.providers.PosTransactionProvider
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentResult
+import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.payment.VoidResult
 import android.content.Context
+import kotlinx.coroutines.CancellableContinuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToLong
@@ -42,6 +45,11 @@ class StoneSdkBridgeLive(
 
     /** Usuários retornados por [StoneStart.init] (null = ainda não ativado no app). */
     private var initUserList: List<UserModel>? = null
+
+    /** Estado do pagamento em andamento, para permitir cancelamento manual. */
+    private var currentProvider: PosTransactionProvider? = null
+    private var currentContinuation: CancellableContinuation<Unit>? = null
+    @Volatile private var userCancelled = false
 
     override fun knownActiveStoneCodes(): List<String> =
         activeUserModels().mapNotNull { it.stoneCode?.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -208,46 +216,92 @@ class StoneSdkBridgeLive(
         transaction: TransactionObject,
         method: PaymentMethodApi,
     ) {
-        suspendCancellableCoroutine { cont ->
-            provider.isDefaultUI()
-            provider.connectionCallback = object : StoneActionCallback {
-                override fun onSuccess() {
-                    if (cont.isActive) cont.resume(Unit)
-                }
-
-                override fun onStatusChanged(action: Action) {
-                    when (action) {
-                        Action.TRANSACTION_WAITING_QRCODE_SCAN -> {
-                            Log.i(TAG, "PIX: aguardando leitura do QRCode (DefaultUI Stone)")
-                            activityHolder.onPixQrCodeWaiting(transaction.qrCode)
+        userCancelled = false
+        currentProvider = provider
+        try {
+            suspendCancellableCoroutine { cont ->
+                currentContinuation = cont
+                activityHolder.setCancelHandler { cancelCurrentPayment() }
+                provider.isDefaultUI()
+                provider.connectionCallback = object : StoneActionCallback {
+                    override fun onSuccess() {
+                        if (cont.isActive) {
+                            if (userCancelled) {
+                                cont.resumeWithException(PaymentCancelledException())
+                            } else {
+                                cont.resume(Unit)
+                            }
                         }
-                        else -> Log.d(TAG, "Stone action: $action")
                     }
-                }
 
-                override fun onError() {
-                    Log.e(
-                        TAG,
-                        "Transação $method falhou — errors=${provider.listOfErrors} " +
-                            "msgAuthorize=${provider.messageFromAuthorize} " +
-                            "status=${provider.transactionStatus ?: transaction.transactionStatus}",
-                    )
-                    if (cont.isActive) {
-                        cont.resumeWithException(
-                            IllegalStateException(
-                                resolveTransactionError(provider, transaction, method),
-                            ),
-                        )
+                    override fun onStatusChanged(action: Action) {
+                        when (action) {
+                            Action.TRANSACTION_WAITING_QRCODE_SCAN -> {
+                                Log.i(TAG, "PIX: aguardando leitura do QRCode (DefaultUI Stone)")
+                                activityHolder.onPixQrCodeWaiting(transaction.qrCode)
+                            }
+                            else -> Log.d(TAG, "Stone action: $action")
+                        }
+                    }
+
+                    override fun onError() {
+                        if (cont.isActive) {
+                            if (userCancelled) {
+                                cont.resumeWithException(PaymentCancelledException())
+                                return
+                            }
+                            if (method == PaymentMethodApi.PIX && isQrExpired(provider)) {
+                                Log.i(TAG, "PIX: QR Code expirou")
+                                cont.resumeWithException(PixExpiredException())
+                                return
+                            }
+                            Log.e(
+                                TAG,
+                                "Transação $method falhou — errors=${provider.listOfErrors} " +
+                                    "msgAuthorize=${provider.messageFromAuthorize} " +
+                                    "status=${provider.transactionStatus ?: transaction.transactionStatus}",
+                            )
+                            cont.resumeWithException(
+                                IllegalStateException(
+                                    resolveTransactionError(provider, transaction, method),
+                                ),
+                            )
+                        }
                     }
                 }
+                cont.invokeOnCancellation {
+                    activityHolder.clearPixQrCode()
+                    runCatching { provider.abortPayment() }
+                }
+                provider.execute()
             }
-            cont.invokeOnCancellation {
-                activityHolder.clearPixQrCode()
-                runCatching { provider.abortPayment() }
-            }
-            provider.execute()
+        } finally {
+            activityHolder.setCancelHandler(null)
+            activityHolder.clearPixQrCode()
+            currentProvider = null
+            currentContinuation = null
         }
+    }
+
+    override fun cancelCurrentPayment() {
+        val cont = currentContinuation ?: return
+        userCancelled = true
+        activityHolder.setCancelHandler(null)
         activityHolder.clearPixQrCode()
+        runCatching { currentProvider?.abortPayment() }
+        currentContinuation = null
+        if (cont.isActive) {
+            cont.resumeWithException(PaymentCancelledException())
+        }
+    }
+
+    private fun isQrExpired(provider: PosTransactionProvider): Boolean {
+        val text = buildString {
+            append(provider.messageFromAuthorize.orEmpty())
+            append(' ')
+            append(provider.listOfErrors?.joinToString().orEmpty())
+        }.uppercase()
+        return text.contains("EXPIRED") || text.contains("EXPIRAD")
     }
 
     private fun resolveTransactionError(
@@ -373,12 +427,17 @@ class StoneSdkBridgeLive(
             )
         }
 
+        /**
+         * O demo oficial da Stone (stone-payments/demo-sdk-android) passa o valor de
+         * QRCODE_AUTHORIZATION cru (sem prefixo "Bearer"). Mantemos o mesmo formato:
+         * removemos qualquer prefixo "Bearer" caso venha configurado por engano.
+         */
         private fun normalizeQrAuthorization(value: String): String {
             val trimmed = value.trim()
             return if (trimmed.startsWith("Bearer ", ignoreCase = true)) {
-                trimmed
+                trimmed.removePrefix("Bearer ").removePrefix("bearer ").trim()
             } else {
-                "Bearer $trimmed"
+                trimmed
             }
         }
     }

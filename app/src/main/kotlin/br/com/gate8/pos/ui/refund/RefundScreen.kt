@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -28,12 +29,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
+import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
@@ -76,13 +80,22 @@ fun RefundScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Escolha a venda que deseja estornar neste terminal",
+                    "Vendas de hoje neste terminal. Estornos de dias anteriores devem ser feitos pelo painel.",
                     color = Gate8Colors.TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 6.dp),
                 )
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
+
+                Gate8OutlinedTextField(
+                    value = state.query,
+                    onValueChange = vm::onQueryChange,
+                    label = "Buscar por NSU, valor ou código",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 state.message?.let {
                     Text(it, color = Gate8Colors.Success, fontSize = 13.sp)
@@ -108,14 +121,19 @@ fun RefundScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (state.sales.isEmpty()) {
+                    val visible = state.visibleSales
+                    if (visible.isEmpty()) {
                         Text(
-                            "Nenhuma venda registrada neste terminal.",
+                            if (state.sales.isEmpty()) {
+                                "Nenhuma venda registrada hoje neste terminal."
+                            } else {
+                                "Nenhuma venda encontrada para a busca."
+                            },
                             color = Gate8Colors.TextOnLight,
                             fontSize = 14.sp,
                         )
                     } else {
-                        state.sales.forEach { sale ->
+                        visible.forEach { sale ->
                             SaleCard(
                                 sale = sale,
                                 enabled = !state.loading && !sale.voided,
@@ -131,10 +149,32 @@ fun RefundScreen(
                 Gate8ConfirmDialog(
                     title = "Confirmar estorno",
                     message = "Estornar a venda de R$ ${"%.2f".format(pending.total)} " +
-                        "(${pending.paymentLabel})? A operação será enviada à adquirente.",
+                        "(${pending.paymentLabel})? Digite o token de login da maquininha para confirmar.",
                     confirmLabel = "Estornar",
                     onConfirm = vm::confirmVoid,
                     onDismiss = vm::dismissConfirm,
+                    content = {
+                        Gate8OutlinedTextField(
+                            value = state.tokenInput,
+                            onValueChange = vm::onTokenChange,
+                            label = "Token de login (6 caracteres)",
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Characters,
+                            ),
+                        )
+                        state.tokenError?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
+                        }
+                    },
+                )
+            }
+
+            if (state.voidSuccess) {
+                Gate8SuccessDialog(
+                    title = "Estorno concluído com sucesso!",
+                    onDismiss = vm::dismissVoidSuccess,
                 )
             }
         }

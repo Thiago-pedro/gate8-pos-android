@@ -20,10 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.theme.Gate8Colors
+
+/**
+ * Mensagem exibida sob o spinner enquanto o pagamento processa, conforme a forma escolhida.
+ * Retorna null quando não há mensagem específica (ex.: dinheiro, processamento rápido).
+ */
+fun paymentLoadingMessage(method: PaymentMethodApi?): String? = when (method) {
+    PaymentMethodApi.DEBIT, PaymentMethodApi.CREDIT ->
+        "Aproxime, insira ou passe o cartão na parte superior da maquininha"
+    PaymentMethodApi.PIX -> "Gerando o QR Code Pix..."
+    else -> null
+}
 
 data class Gate8CartLineUi(
     val id: String,
@@ -40,6 +53,7 @@ fun Gate8CartSheet(
     total: Double,
     lines: List<Gate8CartLineUi>,
     loading: Boolean,
+    loadingMessage: String? = null,
     onIncrement: (String) -> Unit,
     onDecrement: (String) -> Unit,
     onPayDebit: () -> Unit,
@@ -129,8 +143,26 @@ fun Gate8CartSheet(
         Spacer(Modifier.height(16.dp))
 
         if (loading) {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 CircularProgressIndicator(color = Gate8Colors.AccentBlue)
+                if (!loadingMessage.isNullOrBlank()) {
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        loadingMessage,
+                        color = Gate8Colors.TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                    )
+                }
             }
         } else {
             Text(
@@ -155,6 +187,7 @@ fun Gate8CartSheet(
             Text(
                 "Limpar carrinho",
                 color = Gate8Colors.TextOnLight,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onClear)

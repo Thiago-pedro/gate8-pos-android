@@ -43,7 +43,7 @@ val stoneFlavorModule = module {
         }
     }
     single<PaymentGateway> { StonePaymentGateway(get()) }
-    single<ReceiptPrinter> { StoneReceiptPrinterAdapter(get(), get()) }
+    single<ReceiptPrinter> { StoneReceiptPrinterAdapter(get(), get(), get()) }
     single<StoneRuntime> { StoneSdkBootstrap(get(), get()) }
     single<StoneSettingsGateway> { StoneSettingsGatewayImpl(get(), get()) }
 }

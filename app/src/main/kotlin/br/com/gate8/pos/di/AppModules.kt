@@ -103,8 +103,8 @@ val appModule = module {
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
     viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { RefundViewModel(get()) }
-    viewModel { ReportsViewModel(get(), get(), get()) }
+    viewModel { RefundViewModel(get(), get()) }
+    viewModel { ReportsViewModel(get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }

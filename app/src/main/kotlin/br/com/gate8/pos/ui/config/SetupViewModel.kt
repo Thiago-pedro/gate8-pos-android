@@ -39,6 +39,8 @@ data class SetupUiState(
     val pendingSyncCount: Int = 0,
     val syncing: Boolean = false,
     val showClearPendingConfirm: Boolean = false,
+    /** Modo ficha na conveniência: cada item sai em uma ficha separada. */
+    val convenienceTicketMode: Boolean = false,
 )
 
 class SetupViewModel(
@@ -75,6 +77,7 @@ class SetupViewModel(
                 baseUrl = configStore.getBaseUrl(),
                 lastSale = saleAdmin.loadLastSale(),
                 pendingSyncCount = 0,
+                convenienceTicketMode = configStore.isConvenienceTicketMode(),
             )
         }
         viewModelScope.launch {
@@ -240,6 +243,21 @@ class SetupViewModel(
                         )
                     }
                 }
+        }
+    }
+
+    fun setConvenienceTicketMode(enabled: Boolean) {
+        configStore.setConvenienceTicketMode(enabled)
+        _state.update {
+            it.copy(
+                convenienceTicketMode = enabled,
+                message = if (enabled) {
+                    "Modo ficha ligado: cada item sai em uma ficha separada"
+                } else {
+                    "Modo ficha desligado: itens saem em um recibo só"
+                },
+                error = null,
+            )
         }
     }
 

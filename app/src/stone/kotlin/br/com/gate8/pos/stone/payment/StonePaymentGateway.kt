@@ -39,4 +39,8 @@ class StonePaymentGateway(
         }
         return bridge.voidTransaction(transactionId, nsu, amount, method)
     }
+
+    override fun cancelCurrentPayment() {
+        bridge.cancelCurrentPayment()
+    }
 }

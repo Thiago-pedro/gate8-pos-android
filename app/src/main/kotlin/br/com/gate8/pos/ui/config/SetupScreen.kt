@@ -4,7 +4,11 @@ package br.com.gate8.pos.ui.config
 
 import androidx.compose.foundation.background
 
+import androidx.compose.foundation.layout.Box
+
 import androidx.compose.foundation.layout.Column
+
+import androidx.compose.foundation.layout.Row
 
 import androidx.compose.foundation.layout.Spacer
 
@@ -16,13 +20,19 @@ import androidx.compose.foundation.layout.height
 
 import androidx.compose.foundation.layout.padding
 
+import androidx.compose.foundation.layout.width
+
 import androidx.compose.foundation.rememberScrollState
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.foundation.verticalScroll
 
+import androidx.compose.material3.Switch
+
 import androidx.compose.material3.Text
+
+import androidx.compose.ui.Alignment
 
 import androidx.compose.runtime.Composable
 
@@ -227,6 +237,17 @@ fun SetupScreen(
 
 
 
+            SectionTitle("Conveniência")
+
+            Spacer(Modifier.height(8.dp))
+
+            ConvenienceTicketToggle(
+                enabled = state.convenienceTicketMode,
+                onToggle = vm::setConvenienceTicketMode,
+            )
+
+            Spacer(Modifier.height(28.dp))
+
             SectionTitle("Sessão")
 
             Spacer(Modifier.height(12.dp))
@@ -260,6 +281,57 @@ fun SetupScreen(
 }
 
 
+
+@Composable
+private fun ConvenienceTicketToggle(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Gate8Colors.CardSurface)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Modo ficha",
+                    color = Gate8Colors.TextOnLight,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (enabled) Gate8Colors.AccentBlue
+                            else Gate8Colors.TextOnLight.copy(alpha = 0.25f),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        if (enabled) "LIGADO" else "DESLIGADO",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Além dos comprovantes, sai uma ficha separada por unidade de item (ex.: 2 copões = 2 fichas). Desligado, sai só o recibo único.",
+                color = Gate8Colors.TextOnLight.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = enabled, onCheckedChange = onToggle)
+    }
+}
 
 @Composable
 

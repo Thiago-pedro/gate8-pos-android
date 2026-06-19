@@ -10,6 +10,7 @@ data class ReportsSummaryDto(
     val summary: ReportsTotalsDto,
     @SerialName("by_payment_method") val byPaymentMethod: List<ReportsPaymentRowDto> = emptyList(),
     @SerialName("by_brand") val byBrand: List<ReportsBrandRowDto> = emptyList(),
+    @SerialName("top_items") val topItems: List<ReportsItemRowDto> = emptyList(),
 )
 
 @Serializable
@@ -46,5 +47,12 @@ data class ReportsPaymentRowDto(
 data class ReportsBrandRowDto(
     val brand: String,
     val count: Int = 0,
+    val total: Double = 0.0,
+)
+
+@Serializable
+data class ReportsItemRowDto(
+    val name: String,
+    val quantity: Int = 0,
     val total: Double = 0.0,
 )

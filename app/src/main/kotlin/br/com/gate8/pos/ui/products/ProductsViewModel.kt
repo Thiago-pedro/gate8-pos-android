@@ -25,8 +25,10 @@ import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.canAddMore
 import br.com.gate8.pos.domain.model.isOutOfStock
 import br.com.gate8.pos.domain.model.tracksStock
+import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
+import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.printer.ReceiptPrinter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,8 +37,38 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
+/** Dados do modal de sucesso exibido ao concluir uma venda. */
+data class SaleSuccessUi(
+    val title: String,
+    val detail: String? = null,
+)
+
+/**
+ * Impressão pendente aguardando o operador responder se deseja a via do cliente.
+ * Guarda o que falta imprimir (via cliente opcional + comprovante Gate8 + fichas).
+ */
+data class PendingClientCopy(
+    val cart: List<CartLine>,
+    val total: Double,
+    val method: PaymentMethodApi,
+    val pay: PaymentResult,
+    val success: SaleSuccessUi,
+)
+
 data class ProductsUiState(
     val loading: Boolean = false,
+    /** Forma de pagamento em processamento (para mostrar a mensagem certa enquanto carrega). */
+    val payingMethod: PaymentMethodApi? = null,
+    /** Quando preenchido, mostra o modal de "venda concluída". */
+    val saleSuccess: SaleSuccessUi? = null,
+    /** Quando preenchido, mostra o prompt "imprimir via do cliente?". */
+    val pendingClientCopy: PendingClientCopy? = null,
+    /** Quando true, mostra o modal de "QR Code Pix expirado". */
+    val pixExpired: Boolean = false,
+    /** Quando true, mostra o modal de "pagamento cancelado". */
+    val paymentCancelled: Boolean = false,
+    /** Quando true, mostra o modal de "falha na leitura do cartão". */
+    val paymentFailed: Boolean = false,
     val catalog: CatalogResponseDto? = null,
     /** Incrementado a cada refresh bem-sucedido para forçar recomposição da grade. */
     val catalogVersion: Int = 0,
@@ -191,6 +223,27 @@ class ProductsViewModel(
         _state.update { it.copy(cart = emptyList(), showCart = false) }
     }
 
+    fun dismissSaleSuccess() {
+        _state.update { it.copy(saleSuccess = null) }
+    }
+
+    /** Cancela o pagamento em andamento (cartão/Pix) na maquininha. */
+    fun cancelPayment() {
+        paymentGateway.cancelCurrentPayment()
+    }
+
+    fun dismissPixExpired() {
+        _state.update { it.copy(pixExpired = false) }
+    }
+
+    fun dismissPaymentCancelled() {
+        _state.update { it.copy(paymentCancelled = false) }
+    }
+
+    fun dismissPaymentFailed() {
+        _state.update { it.copy(paymentFailed = false) }
+    }
+
     fun checkout(method: PaymentMethodApi) {
         val cart = _state.value.cart
         if (cart.isEmpty()) return
@@ -207,10 +260,20 @@ class ProductsViewModel(
         )
 
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, message = null) }
+            _state.update { it.copy(loading = true, payingMethod = method, error = null, message = null) }
             val payment = runCatching { paymentGateway.charge(total, method, clientRef) }
             if (payment.isFailure) {
-                _state.update { it.copy(loading = false, error = payment.exceptionOrNull()?.message) }
+                val err = payment.exceptionOrNull()
+                _state.update {
+                    when (err) {
+                        is PaymentCancelledException ->
+                            it.copy(loading = false, payingMethod = null, paymentCancelled = true)
+                        is PixExpiredException ->
+                            it.copy(loading = false, payingMethod = null, pixExpired = true)
+                        else ->
+                            it.copy(loading = false, payingMethod = null, paymentFailed = true)
+                    }
+                }
                 return@launch
             }
             val pay = payment.getOrThrow()
@@ -251,27 +314,16 @@ class ProductsViewModel(
 
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
-                    printer.printReceipt(
-                        cart,
-                        total,
-                        method.apiValue,
-                        pay.nsu,
-                        pay.authorization,
-                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                    )
                     saleAdmin.recordCheckout(success.saleId, clientRef, cart, total, method, pay)
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            cart = emptyList(),
-                            showCart = false,
-                            message = if (success.duplicated) {
-                                "Venda já sincronizada (${success.saleId})"
-                            } else {
-                                "Venda OK: ${success.saleId}"
-                            },
-                        )
-                    }
+                    val successUi = SaleSuccessUi(
+                        title = if (success.duplicated) {
+                            "Venda já registrada!"
+                        } else {
+                            "Venda concluída com sucesso!"
+                        },
+                    )
+                    _state.update { it.copy(loading = false, cart = emptyList(), showCart = false) }
+                    beginReceiptPrint(cart, total, method, pay, successUi)
                     refreshCatalog()
                     schedulePendingSync()
                 }
@@ -287,6 +339,81 @@ class ProductsViewModel(
             pendingSaleSync.syncAll()
         }
     }
+
+    /**
+     * Inicia a impressão na ordem certa. Para cartão/Pix: imprime a via do lojista
+     * e pergunta se deve sair a via do cliente (via [answerClientCopy]); em dinheiro,
+     * já imprime o comprovante e as fichas.
+     */
+    private fun beginReceiptPrint(
+        cart: List<CartLine>,
+        total: Double,
+        method: PaymentMethodApi,
+        pay: PaymentResult,
+        success: SaleSuccessUi,
+    ) {
+        val isCardLike = method != PaymentMethodApi.CASH &&
+            (!pay.transactionId.isNullOrBlank() || !pay.nsu.isNullOrBlank())
+        if (isCardLike) {
+            printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
+            _state.update {
+                it.copy(pendingClientCopy = PendingClientCopy(cart, total, method, pay, success))
+            }
+        } else {
+            printSummaryAndTickets(cart, total, method, pay)
+            _state.update { it.copy(saleSuccess = success) }
+        }
+    }
+
+    /** Resposta do operador ao prompt "imprimir via do cliente?". */
+    fun answerClientCopy(printClientCopy: Boolean) {
+        val pending = _state.value.pendingClientCopy ?: return
+        if (printClientCopy) {
+            printer.printCardCopy(pending.pay.transactionId, pending.pay.nsu, merchantCopy = false)
+        }
+        printSummaryAndTickets(pending.cart, pending.total, pending.method, pending.pay)
+        _state.update { it.copy(pendingClientCopy = null, saleSuccess = pending.success) }
+    }
+
+    /** Comprovante textual da Gate8 e, em modo ficha, uma ficha por unidade de item. */
+    private fun printSummaryAndTickets(
+        cart: List<CartLine>,
+        total: Double,
+        method: PaymentMethodApi,
+        pay: PaymentResult,
+    ) {
+        printer.printSaleSummary(cart, total, method.apiValue, pay.nsu, pay.authorization)
+        if (configStore.isConvenienceTicketMode()) {
+            printer.printConvenienceTickets(cart, terminalName(), pay.authorization)
+        }
+    }
+
+    /**
+     * Impressão completa sem prompt (usada nos caminhos de falha da API): comprovante
+     * único com vias de cartão e, em modo ficha, as fichas.
+     */
+    private fun printSaleReceipt(
+        cart: List<CartLine>,
+        total: Double,
+        method: PaymentMethodApi,
+        pay: PaymentResult,
+    ) {
+        printer.printReceipt(
+            cart,
+            total,
+            method.apiValue,
+            pay.nsu,
+            pay.authorization,
+            stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+        )
+        if (configStore.isConvenienceTicketMode()) {
+            printer.printConvenienceTickets(cart, terminalName(), pay.authorization)
+        }
+    }
+
+    /** Nome do dispositivo usado como "terminal" nas fichas (ex.: "CX 9"). */
+    private fun terminalName(): String =
+        configStore.getDeviceName()?.takeIf { it.isNotBlank() } ?: configStore.getDeviceShortId()
 
     private fun products(): List<ProductDto> = _state.value.catalog?.products.orEmpty()
 
@@ -324,14 +451,7 @@ class ProductsViewModel(
         when (e) {
             is ApiException -> {
                 if (e.isStockOrProductError()) {
-                    printer.printReceipt(
-                        cart,
-                        total,
-                        method.apiValue,
-                        pay.nsu,
-                        pay.authorization,
-                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                    )
+                    printSaleReceipt(cart, total, method, pay)
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -342,14 +462,7 @@ class ProductsViewModel(
                     }
                     refreshCatalog()
                 } else {
-                    printer.printReceipt(
-                        cart,
-                        total,
-                        method.apiValue,
-                        pay.nsu,
-                        pay.authorization,
-                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                    )
+                    printSaleReceipt(cart, total, method, pay)
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -361,14 +474,7 @@ class ProductsViewModel(
                 }
             }
             else -> {
-                printer.printReceipt(
-                    cart,
-                    total,
-                    method.apiValue,
-                    pay.nsu,
-                    pay.authorization,
-                    stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                )
+                printSaleReceipt(cart, total, method, pay)
                 saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                 _state.update {
                     it.copy(

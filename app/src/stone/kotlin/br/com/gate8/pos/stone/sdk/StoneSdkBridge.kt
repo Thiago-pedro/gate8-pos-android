@@ -29,6 +29,9 @@ interface StoneSdkBridge {
         method: PaymentMethodApi,
     ): VoidResult
 
+    /** Aborta a transação em andamento na maquininha (cancelamento manual). No-op se nada está rodando. */
+    fun cancelCurrentPayment() {}
+
     fun runReversal(context: Context)
 }
 

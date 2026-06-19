@@ -79,6 +79,15 @@ class MockPrinterProvider : ReceiptPrinter {
                 sb.append("${row.label}: ${row.count}x R$ ${"%.2f".format(row.total)}\n")
             }
         }
+        sb.append("--------------------------------\n")
+        sb.append("MAIS VENDIDOS\n")
+        if (payload.topItems.isEmpty()) {
+            sb.append("Nenhum item\n")
+        } else {
+            payload.topItems.forEach { item ->
+                sb.append("${item.quantity}x ${item.name}: R$ ${"%.2f".format(item.total)}\n")
+            }
+        }
         sb.append("================================\n")
         Log.i(TAG, sb.toString())
     }
@@ -114,6 +123,52 @@ class MockPrinterProvider : ReceiptPrinter {
         }
         sb.append("================================\n")
         Log.i(TAG, sb.toString())
+    }
+
+    override fun printCardCopy(
+        transactionId: String?,
+        nsu: String?,
+        merchantCopy: Boolean,
+        isReprint: Boolean,
+    ) {
+        val via = if (merchantCopy) "LOJISTA" else "CLIENTE"
+        Log.i(TAG, "=== GATE8 VIA $via (MOCK) === itk=$transactionId nsu=$nsu reprint=$isReprint")
+    }
+
+    override fun printSaleSummary(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
+        isReprint: Boolean,
+    ) {
+        val sb = StringBuilder("=== GATE8 COMPROVANTE (MOCK) ===\n")
+        lines.forEach { l ->
+            sb.append("${l.quantity}x ${l.description} R$ ${"%.2f".format(l.lineTotal)}\n")
+        }
+        sb.append("TOTAL R$ ${"%.2f".format(total)}\n")
+        sb.append("Pagamento: $paymentLabel\n")
+        if (isReprint) sb.append("*** REIMPRESSAO ***\n")
+        if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
+        Log.i(TAG, sb.toString())
+    }
+
+    override fun printConvenienceTickets(
+        lines: List<CartLine>,
+        terminalName: String,
+        authorization: String?,
+    ) {
+        val autLine = if (!authorization.isNullOrBlank()) "\nAUT.: $authorization" else ""
+        lines.forEach { line ->
+            repeat(line.quantity.coerceAtLeast(1)) {
+                Log.i(
+                    TAG,
+                    "=== GATE8 FICHA (MOCK) ===\n$terminalName\n${line.description.uppercase()}\n" +
+                        "R$ ${"%.2f".format(line.unitPrice)}$autLine\n..........................",
+                )
+            }
+        }
     }
 
     companion object {

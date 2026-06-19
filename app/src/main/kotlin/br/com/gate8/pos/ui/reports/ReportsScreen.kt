@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8MenuButton
@@ -143,6 +144,12 @@ fun ReportsScreen(
                     PaymentBreakdownCard(data)
                     Spacer(Modifier.height(12.dp))
                     BrandBreakdownCard(data)
+                    Spacer(Modifier.height(12.dp))
+                    TopItemsCard(data)
+                }
+                state.cashier?.let { cashier ->
+                    Spacer(Modifier.height(12.dp))
+                    CashierStatusCard(cashier)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -257,6 +264,59 @@ private fun BrandBreakdownCard(data: ReportsSummaryDto) {
 }
 
 @Composable
+private fun TopItemsCard(data: ReportsSummaryDto) {
+    ReportPanel(title = "Itens mais vendidos") {
+        if (data.topItems.isEmpty()) {
+            Text(
+                "Nenhum item vendido no período",
+                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+            )
+        } else {
+            data.topItems.forEachIndexed { index, item ->
+                BreakdownRow("${index + 1}. ${item.name}", item.quantity, item.total, unit = "un.")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CashierStatusCard(cashier: CashierStatusDto) {
+    val totals = cashier.totals
+    val session = cashier.session
+    val title = if (cashier.open) "Caixa · ainda aberto" else "Caixa · fechado"
+    ReportPanel(title = title) {
+        session?.operatorName?.takeIf { it.isNotBlank() }?.let {
+            StatRow("Operador", it)
+        }
+        if (cashier.open) {
+            StatRow("Troco inicial", money(totals?.openingBalance ?: session?.openingBalance ?: 0.0))
+            StatRow("Vendas em dinheiro", money(totals?.cashSales ?: 0.0))
+            (totals?.withdrawals ?: 0.0).takeIf { it > 0.0 }?.let { StatRow("Sangrias", money(it)) }
+            (totals?.expenses ?: 0.0).takeIf { it > 0.0 }?.let { StatRow("Despesas", money(it)) }
+            StatRow(
+                "Saldo na gaveta",
+                money(totals?.expectedDrawer ?: session?.expectedBalance ?: 0.0),
+                highlight = true,
+            )
+        } else {
+            StatRow("Troco inicial", money(totals?.openingBalance ?: session?.openingBalance ?: 0.0))
+            StatRow("Vendas em dinheiro", money(totals?.cashSales ?: 0.0))
+            StatRow("Esperado", money(totals?.expectedDrawer ?: session?.expectedBalance ?: 0.0))
+            session?.countedBalance?.let { StatRow("Contado", money(it)) }
+            session?.difference?.let { StatRow("Diferença", money(it), highlight = true) }
+            if (session == null && totals == null) {
+                Text(
+                    "Nenhum caixa registrado",
+                    color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReportPanel(title: String, content: @Composable () -> Unit) {
     Column(
         Modifier
@@ -290,7 +350,7 @@ private fun StatRow(label: String, value: String, highlight: Boolean = false) {
 }
 
 @Composable
-private fun BreakdownRow(label: String, count: Int, total: Double) {
+private fun BreakdownRow(label: String, count: Int, total: Double, unit: String = "venda(s)") {
     Row(
         Modifier
             .fillMaxWidth()
@@ -299,7 +359,7 @@ private fun BreakdownRow(label: String, count: Int, total: Double) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(label, color = Gate8Colors.TextOnLight, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text("$count venda(s)", color = Gate8Colors.TextOnLight.copy(alpha = 0.6f), fontSize = 11.sp)
+            Text("$count $unit", color = Gate8Colors.TextOnLight.copy(alpha = 0.6f), fontSize = 11.sp)
         }
         Text(
             money(total),

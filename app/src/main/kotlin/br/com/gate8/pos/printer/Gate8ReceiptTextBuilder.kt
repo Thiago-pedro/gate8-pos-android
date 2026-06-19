@@ -12,41 +12,92 @@ import java.util.Locale
  * Largura fixa de 32 colunas (papel 58mm dos terminais Stone POS).
  */
 object Gate8ReceiptTextBuilder {
-    private const val WIDTH = 32
+    // A fonte da impressora Stone POS é PROPORCIONAL: pontos/espaços são estreitos
+    // e letras/números são largos. Por isso contar caracteres não funciona (linhas
+    // com mesma contagem cabem ou quebram dependendo de quantas letras têm). Usamos
+    // um orçamento em "unidades": ' '/'.' = 1 unidade, demais = 2 unidades. A bobina
+    // 57mm comporta ~62 unidades; usamos 56 (com margem) para garantir UMA linha só.
+    private const val UNIT_BUDGET = 56
     private const val MERCHANT_NAME = "GATE8"
+
+    // Altura (em linhas) do corpo de cada ficha, para centralizar o conteúdo na vertical.
+    private const val FICHA_BODY_LINES = 11
 
     private val brLocale = Locale("pt", "BR")
     private val timeFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", brLocale)
 
     // ----- Helpers de layout -----
 
-    private fun divider(): String = "-".repeat(WIDTH)
+    /** Largura aproximada do texto em unidades: ' ' e '.' contam 1; demais contam 2. */
+    private fun units(text: String): Int {
+        var total = 0
+        for (c in text) total += if (c == ' ' || c == '.') 1 else 2
+        return total
+    }
+
+    /** Abrevia o texto para caber em [maxUnits], terminando em "..." quando cortado. */
+    private fun ellipsize(text: String, maxUnits: Int): String {
+        if (maxUnits <= 0) return ""
+        if (units(text) <= maxUnits) return text
+        var t = text
+        while (t.isNotEmpty() && units(t.trimEnd() + "...") > maxUnits) {
+            t = t.dropLast(1)
+        }
+        val trimmed = t.trimEnd()
+        return if (trimmed.isEmpty()) "" else "$trimmed..."
+    }
+
+    private fun divider(): String = "-".repeat(UNIT_BUDGET)
+
+    private fun dottedDivider(): String = ".".repeat(UNIT_BUDGET)
 
     private fun center(text: String): String {
-        if (text.length >= WIDTH) return text
-        val left = (WIDTH - text.length) / 2
-        return " ".repeat(left) + text
+        val u = units(text)
+        if (u >= UNIT_BUDGET) return text
+        return " ".repeat((UNIT_BUDGET - u) / 2) + text
     }
 
-    /** Rótulo à esquerda e valor alinhado à direita na mesma linha. */
+    /**
+     * Rótulo à esquerda e valor à direita, com o vão preenchido por pontos
+     * (ex.: "VENDAS . . . . . 23"). A quantidade de pontos se ajusta à largura
+     * real (fonte proporcional) e o rótulo é abreviado com "..." se necessário,
+     * garantindo SEMPRE uma única linha.
+     */
+    private fun dotLeaderRow(left: String, right: String): String {
+        val rightU = units(right)
+        val maxLeftU = (UNIT_BUDGET - rightU - 2).coerceAtLeast(0)
+        val l = ellipsize(left, maxLeftU)
+        val gap = (UNIT_BUDGET - units(l) - rightU).coerceAtLeast(1)
+        val leader = CharArray(gap) { if (it % 2 == 0) ' ' else '.' }
+        leader[gap - 1] = ' '
+        return l + String(leader) + right
+    }
+
+    /** Rótulo à esquerda e valor alinhado à direita, sempre em uma única linha. */
     private fun row(left: String, right: String): String {
-        val space = WIDTH - left.length - right.length
-        if (space >= 1) return left + " ".repeat(space) + right
-        // Não cabe: trunca o lado esquerdo para preservar o valor à direita.
-        val maxLeft = (WIDTH - right.length - 1).coerceAtLeast(0)
-        val trimmed = left.take(maxLeft)
-        return trimmed + " " + right
+        val rightU = units(right)
+        val l = ellipsize(left, (UNIT_BUDGET - rightU - 1).coerceAtLeast(0))
+        val space = (UNIT_BUDGET - units(l) - rightU).coerceAtLeast(1)
+        return l + " ".repeat(space) + right
     }
 
-    /** Linha de item: descrição à esquerda, valor à direita (quebra se necessário). */
-    private fun itemRows(quantity: Int, description: String, value: Double): List<String> {
-        val left = "${quantity}x $description"
+    /**
+     * Linha de item: "{qtd} x {unitario} {descricao}" à esquerda e o total da linha
+     * à direita, SEMPRE em uma única linha. Se não couber, a descrição é abreviada
+     * com "..." para preservar quantidade, valor unitário e total.
+     */
+    private fun itemRows(
+        quantity: Int,
+        unitPrice: Double,
+        description: String,
+        value: Double,
+    ): List<String> {
+        val prefix = "$quantity x ${amount(unitPrice)} "
         val right = amount(value)
-        return if (left.length + right.length + 1 <= WIDTH) {
-            listOf(row(left, right))
-        } else {
-            listOf(left, row("", right))
-        }
+        val maxLeftU = (UNIT_BUDGET - units(right) - 1).coerceAtLeast(0)
+        val maxDescU = (maxLeftU - units(prefix)).coerceAtLeast(0)
+        val left = prefix + ellipsize(description, maxDescU)
+        return listOf(row(left, right))
     }
 
     private fun money(value: Double): String = "R$ " + String.format(brLocale, "%,.2f", value)
@@ -65,8 +116,7 @@ object Gate8ReceiptTextBuilder {
 
     private fun footer(): List<String> = buildList {
         add(divider())
-        add(center("OBRIGADO PELA PREFERENCIA!"))
-        add(center("SUPORTE: suporte@gate8.club"))
+        add(center("suporte@gate8.club"))
         add(divider())
     }
 
@@ -92,6 +142,7 @@ object Gate8ReceiptTextBuilder {
         nsu: String?,
         authorization: String?,
         isReprint: Boolean,
+        terminalName: String = MERCHANT_NAME,
     ): List<String> = buildList {
         addAll(
             header(
@@ -100,12 +151,12 @@ object Gate8ReceiptTextBuilder {
             ),
         )
         add(row("DATA:", timeFormat.format(Date())))
-        add(row("TERMINAL:", MERCHANT_NAME))
+        add(row("DISPOSITIVO:", terminalName))
         add(divider())
         add(row("DESCRICAO", "VALOR (R$)"))
         add("")
         lines.forEach { line ->
-            addAll(itemRows(line.quantity, line.description, line.lineTotal))
+            addAll(itemRows(line.quantity, line.unitPrice, line.description, line.lineTotal))
         }
         add(divider())
         add(row("TOTAL", money(total)))
@@ -120,21 +171,67 @@ object Gate8ReceiptTextBuilder {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
+        terminalName: String = MERCHANT_NAME,
     ): List<String> = buildList {
         addAll(header(title = "COMPROVANTE DE ESTORNO"))
         add(row("DATA:", timeFormat.format(Date())))
-        add(row("TERMINAL:", MERCHANT_NAME))
+        add(row("DISPOSITIVO:", terminalName))
         add(divider())
         add(row("DESCRICAO", "VALOR (R$)"))
         add("")
         lines.forEach { line ->
-            addAll(itemRows(line.quantity, line.description, line.lineTotal))
+            addAll(itemRows(line.quantity, line.unitPrice, line.description, line.lineTotal))
         }
         add(divider())
         add(row("VALOR ESTORNADO", money(total)))
         add(divider())
         paymentBlock(this, paymentLabel, nsu, authorization)
         addAll(footer())
+    }
+
+    /**
+     * Ficha individual da conveniência (modo ficha). A logo Gate8 (reduzida) é
+     * impressa como bitmap no topo (ver StonePosPrinterLive.printLines). Abaixo vão:
+     * data/hora, terminal (nome do dispositivo), nome do item e preço unitário,
+     * todos centralizados. Sem nome do estabelecimento e sem CNPJ.
+     */
+    fun convenienceTicket(
+        description: String,
+        unitPrice: Double,
+        terminalName: String,
+        authorization: String?,
+        producerName: String? = null,
+    ): List<String> {
+        val main = buildList {
+            // Nome do produtor logo abaixo da logo Gate8, sem rótulo.
+            producerName?.takeIf { it.isNotBlank() }?.let {
+                add(center(it))
+                add("")
+            }
+            add(center(timeFormat.format(Date())))
+            add(center(terminalName))
+            add("")
+            add(center(description.uppercase(brLocale)))
+            add(center(money(unitPrice)))
+        }
+        // AUT vai no rodapé da ficha (última informação), com um espaço antes.
+        val footer = if (!authorization.isNullOrBlank()) {
+            listOf("", center("AUT.: $authorization"))
+        } else {
+            emptyList()
+        }
+        // Centraliza o conteúdo principal na vertical dentro do "quadrado" da ficha,
+        // reservando o rodapé para o AUT. O pontilhado fecha o quadrado.
+        val padding = (FICHA_BODY_LINES - main.size - footer.size).coerceAtLeast(2)
+        val padTop = padding / 2
+        val padBottom = padding - padTop
+        return buildList {
+            repeat(padTop) { add("") }
+            addAll(main)
+            repeat(padBottom) { add("") }
+            addAll(footer)
+            add(dottedDivider())
+        }
     }
 
     fun ticketBlock(code: String, holder: String?, description: String): List<String> = buildList {
@@ -149,14 +246,16 @@ object Gate8ReceiptTextBuilder {
 
     fun reportSummary(payload: ReportPrintPayload): List<String> = buildList {
         addAll(header(title = "RELATORIO"))
-        payload.producerName?.let { add(row("PRODUTOR:", it)) }
-        payload.deviceName?.let { add(row("MAQUININHA:", it)) }
-        add(row("PERIODO:", payload.periodLabel))
+        payload.producerName?.let { add(dotLeaderRow("PRODUTOR:", it)) }
+        payload.deviceName?.let { add(dotLeaderRow("MAQUININHA:", it)) }
+        add(dotLeaderRow("PERIODO:", payload.periodLabel))
         add(divider())
-        add(row("VENDAS:", payload.saleCount.toString()))
-        add(row("ESTORNOS:", payload.voidCount.toString()))
-        add(row("LIQUIDO:", money(payload.netTotal)))
-        add(row("TICKET MEDIO:", money(payload.averageTicket)))
+        add(dotLeaderRow("VENDAS:", payload.saleCount.toString()))
+        add(dotLeaderRow("ESTORNOS:", payload.voidCount.toString()))
+        add(dotLeaderRow("BRUTO:", money(payload.grossTotal)))
+        add(dotLeaderRow("ESTORNOS R$:", money(payload.voidTotal)))
+        add(dotLeaderRow("LIQUIDO:", money(payload.netTotal)))
+        add(dotLeaderRow("TICKET MEDIO:", money(payload.averageTicket)))
         add(divider())
         add(center("POR PAGAMENTO"))
         add("")
@@ -164,10 +263,63 @@ object Gate8ReceiptTextBuilder {
             add(center("Nenhuma venda"))
         } else {
             payload.byPaymentMethod.forEach { entry ->
-                add(row("${entry.count}x ${entry.label}", amount(entry.total)))
+                add(dotLeaderRow("${entry.count}x ${entry.label}", amount(entry.total)))
             }
         }
+        add(divider())
+        add(center("POR BANDEIRA"))
+        add("")
+        if (payload.byBrand.isEmpty()) {
+            add(center("Sem cartao no periodo"))
+        } else {
+            payload.byBrand.forEach { entry ->
+                add(dotLeaderRow("${entry.count}x ${entry.label}", amount(entry.total)))
+            }
+        }
+        add(divider())
+        add(center("MAIS VENDIDOS"))
+        add("")
+        if (payload.topItems.isEmpty()) {
+            add(center("Nenhum item"))
+        } else {
+            payload.topItems.forEach { item ->
+                add(dotLeaderRow("${item.quantity}x ${item.name}", amount(item.total)))
+            }
+        }
+        addAll(cashierBlock(payload.cashier))
         addAll(footer())
+    }
+
+    /** Bloco do caixa no relatório: saldo + "ainda aberto" se aberto, ou resumo se fechado. */
+    private fun cashierBlock(cashier: ReportCashierInfo?): List<String> = buildList {
+        add(divider())
+        add(center("CAIXA"))
+        add("")
+        if (cashier == null) {
+            add(center("Sem dados de caixa"))
+            return@buildList
+        }
+        if (cashier.open) {
+            add(dotLeaderRow("STATUS:", "ABERTO"))
+            cashier.operatorName?.takeIf { it.isNotBlank() }?.let { add(dotLeaderRow("OPERADOR:", it)) }
+            add(dotLeaderRow("TROCO INICIAL:", amount(cashier.openingBalance)))
+            add(dotLeaderRow("VENDAS DINHEIRO:", amount(cashier.cashSales)))
+            if (cashier.withdrawals > 0.0) add(dotLeaderRow("SANGRIAS:", amount(cashier.withdrawals)))
+            if (cashier.expenses > 0.0) add(dotLeaderRow("DESPESAS:", amount(cashier.expenses)))
+            add(dotLeaderRow("SALDO NA GAVETA:", amount(cashier.expectedDrawer)))
+            add("")
+            add(center("** AINDA ABERTO **"))
+        } else {
+            add(dotLeaderRow("STATUS:", "FECHADO"))
+            cashier.operatorName?.takeIf { it.isNotBlank() }?.let { add(dotLeaderRow("OPERADOR:", it)) }
+            add(dotLeaderRow("TROCO INICIAL:", amount(cashier.openingBalance)))
+            add(dotLeaderRow("VENDAS DINHEIRO:", amount(cashier.cashSales)))
+            if (cashier.withdrawals > 0.0) add(dotLeaderRow("SANGRIAS:", amount(cashier.withdrawals)))
+            if (cashier.expenses > 0.0) add(dotLeaderRow("DESPESAS:", amount(cashier.expenses)))
+            add(dotLeaderRow("ESPERADO:", amount(cashier.expectedDrawer)))
+            cashier.countedBalance?.let { add(dotLeaderRow("CONTADO:", amount(it))) }
+            cashier.difference?.let { add(dotLeaderRow("DIFERENCA:", amount(it))) }
+        }
     }
 
     fun cashierSummary(payload: CashierPrintPayload): List<String> = buildList {

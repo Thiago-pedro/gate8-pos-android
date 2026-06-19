@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.cashier
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
@@ -30,6 +31,12 @@ enum class CashierDialog {
     CLOSE,
 }
 
+/** Dados do modal de sucesso (abertura/fechamento de caixa). */
+data class CashierSuccessUi(
+    val title: String,
+    val detail: String? = null,
+)
+
 data class CashierUiState(
     val loading: Boolean = false,
     val open: Boolean = false,
@@ -43,6 +50,10 @@ data class CashierUiState(
     val notesInput: String = "",
     val error: String? = null,
     val message: String? = null,
+    /** Quando preenchido, mostra o modal de sucesso (caixa aberto/fechado). */
+    val successModal: CashierSuccessUi? = null,
+    /** Comprovante do último fechamento, montado localmente, para (re)impressão. */
+    val lastClosePayload: CashierPrintPayload? = null,
     val operatorLabel: String = "",
 )
 
@@ -102,6 +113,10 @@ class CashierViewModel(
         _state.update { it.copy(dialog = CashierDialog.NONE, error = null) }
     }
 
+    fun dismissSuccessModal() {
+        _state.update { it.copy(successModal = null) }
+    }
+
     fun updateAmount(value: String) {
         _state.update { it.copy(amountInput = value.filter { c -> c.isDigit() || c == ',' || c == '.' }) }
     }
@@ -129,8 +144,14 @@ class CashierViewModel(
                     applyStatus(status)
                     _state.update {
                         it.copy(
+                            // A abertura foi bem-sucedida: garantimos o estado "aberto"
+                            // mesmo que a resposta da API não traga o campo open=true.
+                            open = true,
                             dialog = CashierDialog.NONE,
-                            message = "Caixa aberto com troco R$ ${"%.2f".format(amount)}",
+                            successModal = CashierSuccessUi(
+                                title = "Caixa aberto",
+                                detail = "Troco inicial: R$ ${"%.2f".format(amount)}",
+                            ),
                         )
                     }
                 }
@@ -189,25 +210,43 @@ class CashierViewModel(
             _state.update { it.copy(error = "Informe quanto há na gaveta") }
             return
         }
+        // Snapshot do turno enquanto ainda está aberto: a resposta de fechamento
+        // da API nem sempre traz session/totals, então usamos o que já temos na tela.
+        val preSession = _state.value.session
+        val preTotals = _state.value.totals
+        val preMovements = _state.value.movements
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
                 cashierRepository.close(counted, _state.value.notesInput)
             }
                 .onSuccess { status ->
+                    val payload = buildClosePayload(status, preSession, preTotals, preMovements, counted)
                     _state.update {
                         it.copy(
                             loading = false,
-                            open = status.open,
-                            session = status.session,
-                            totals = status.totals,
-                            movements = status.movements,
+                            open = false,
+                            session = status.session ?: preSession,
+                            totals = status.totals ?: preTotals,
+                            movements = status.movements.ifEmpty { preMovements },
                             closeSummary = status.summary,
+                            lastClosePayload = payload ?: it.lastClosePayload,
                             dialog = CashierDialog.NONE,
-                            message = "Caixa fechado",
                         )
                     }
-                    printCloseSummary(status)
+                    val printed = printPayload(payload)
+                    _state.update {
+                        it.copy(
+                            successModal = CashierSuccessUi(
+                                title = "Caixa fechado",
+                                detail = if (printed) {
+                                    "O relatório do turno foi enviado para a impressora."
+                                } else {
+                                    "Turno encerrado. Use \"Reimprimir último fechamento\" para sair o relatório."
+                                },
+                            ),
+                        )
+                    }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }
@@ -216,38 +255,106 @@ class CashierViewModel(
     }
 
     fun printCurrentSummary() {
-        val summary = _state.value.closeSummary
-        if (summary != null) {
-            printFromCloseSummary(summary)
-            _state.update { it.copy(message = "Relatório enviado à impressora") }
-            return
+        val printed = attemptPrintSummary()
+        _state.update {
+            if (printed) {
+                it.copy(message = "Relatório enviado à impressora", error = null)
+            } else {
+                it.copy(error = "Nenhum turno para imprimir")
+            }
         }
-        val session = _state.value.session
-        val totals = _state.value.totals
+    }
+
+    /**
+     * Imprime o resumo do caixa usando a melhor fonte disponível:
+     * primeiro o comprovante guardado no último fechamento ([CashierUiState.lastClosePayload]),
+     * depois o [CashierUiState.closeSummary] e por fim a sessão/totais atuais.
+     * Retorna `false` quando não há dados para imprimir.
+     */
+    private fun attemptPrintSummary(): Boolean {
+        val s = _state.value
+        s.lastClosePayload?.let { return printPayload(it) }
+
+        val summary = s.closeSummary
+        val session = summary?.session ?: s.session
+        val totals = summary?.totals ?: s.totals
         if (session == null || totals == null) {
-            _state.update { it.copy(error = "Nenhum turno para imprimir") }
-            return
+            Log.w(TAG, "Resumo de caixa não impresso: session=${session != null}, totals=${totals != null}")
+            return false
         }
-        printer.printCashierSummary(buildPrintPayload(session, totals, _state.value.movements, null))
-        _state.update { it.copy(message = "Relatório enviado à impressora", error = null) }
-    }
-
-    private fun printCloseSummary(status: CashierStatusDto) {
-        val summary = status.summary ?: return
-        printFromCloseSummary(summary)
-    }
-
-    private fun printFromCloseSummary(summary: CashierCloseSummaryDto) {
-        val session = summary.session ?: return
-        val totals = summary.totals ?: return
-        printer.printCashierSummary(
+        val movements = summary?.movements?.takeIf { it.isNotEmpty() } ?: s.movements
+        return printPayload(
             buildPrintPayload(
                 session = session,
                 totals = totals,
-                movements = summary.movements,
-                difference = summary.difference,
-                countedBalance = summary.countedBalance,
+                movements = movements,
+                difference = summary?.difference ?: session.difference,
+                countedBalance = summary?.countedBalance ?: session.countedBalance,
             ),
+        )
+    }
+
+    /** Envia um comprovante de caixa para a impressora. Retorna `false` se nulo ou se falhar. */
+    private fun printPayload(payload: CashierPrintPayload?): Boolean {
+        if (payload == null) {
+            Log.w(TAG, "Resumo de caixa não impresso: sem dados do turno")
+            return false
+        }
+        return runCatching {
+            printer.printCashierSummary(payload)
+            Log.i(TAG, "Resumo de caixa enviado para impressão (${payload.saleCount} vendas)")
+        }.onFailure { e ->
+            Log.e(TAG, "Falha ao imprimir resumo de caixa", e)
+        }.isSuccess
+    }
+
+    /**
+     * Monta o comprovante de fechamento priorizando os dados que já temos:
+     * o snapshot do turno aberto (preTotals/preSession) + o valor contado informado.
+     * A resposta da API de fechamento é usada quando traz os campos.
+     */
+    private fun buildClosePayload(
+        status: CashierStatusDto,
+        preSession: CashierSessionDto?,
+        preTotals: CashierTotalsDto?,
+        preMovements: List<CashierMovementDto>,
+        counted: Double,
+    ): CashierPrintPayload? {
+        val summary = status.summary
+        val totals = summary?.totals ?: status.totals ?: preTotals ?: return null
+        val session = summary?.session ?: status.session ?: preSession
+        val movements = summary?.movements?.takeIf { it.isNotEmpty() }
+            ?: status.movements.takeIf { it.isNotEmpty() }
+            ?: preMovements
+        val difference = summary?.difference
+            ?: status.session?.difference
+            ?: (counted - totals.expectedDrawer)
+        val closedLabel = session?.closedAt?.let { formatInstantLabel(it) }
+            ?: formatInstantLabel(Instant.now().toString())
+        return CashierPrintPayload(
+            deviceName = configStore.getDeviceName(),
+            producerName = configStore.getProducerName(),
+            operatorName = configStore.getOperatorName().ifBlank { session?.operatorName ?: "" },
+            openedAtLabel = formatInstantLabel(session?.openedAt),
+            closedAtLabel = closedLabel,
+            openingBalance = totals.openingBalance,
+            cashSales = totals.cashSales,
+            withdrawals = totals.withdrawals,
+            expenses = totals.expenses,
+            expectedDrawer = totals.expectedDrawer,
+            countedBalance = summary?.countedBalance ?: counted,
+            difference = difference,
+            saleCount = totals.saleCount,
+            grandTotal = totals.grandTotal,
+            byPaymentMethod = totals.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
+            movements = movements.map {
+                CashierPrintMovement(
+                    typeLabel = if (it.type == "expense") "Despesa" else "Sangria",
+                    amount = it.amount,
+                    description = it.description,
+                    timeLabel = it.createdAt?.let { ts -> formatInstantLabel(ts) },
+                )
+            },
         )
     }
 
@@ -312,5 +419,9 @@ class CashierViewModel(
                 .withZone(zone)
                 .format(instant)
         }.getOrDefault(iso)
+    }
+
+    private companion object {
+        const val TAG = "Gate8Cashier"
     }
 }

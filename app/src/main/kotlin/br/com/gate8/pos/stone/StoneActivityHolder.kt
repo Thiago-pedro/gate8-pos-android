@@ -13,6 +13,9 @@ class StoneActivityHolder {
     private val _pixQrCode = MutableStateFlow<Bitmap?>(null)
     val pixQrCode: StateFlow<Bitmap?> = _pixQrCode.asStateFlow()
 
+    /** Handler para abortar o pagamento em andamento (registrado pelo bridge da Stone). */
+    private var cancelHandler: (() -> Unit)? = null
+
     fun attach(activity: Activity) {
         activityRef = WeakReference(activity)
     }
@@ -34,5 +37,14 @@ class StoneActivityHolder {
 
     fun clearPixQrCode() {
         _pixQrCode.value = null
+    }
+
+    fun setCancelHandler(handler: (() -> Unit)?) {
+        cancelHandler = handler
+    }
+
+    /** Aciona o cancelamento do pagamento atual, se houver. */
+    fun requestCancel() {
+        cancelHandler?.invoke()
     }
 }

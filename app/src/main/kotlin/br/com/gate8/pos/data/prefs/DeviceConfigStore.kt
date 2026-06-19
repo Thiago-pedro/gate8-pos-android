@@ -81,6 +81,16 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_STONE_CODE, code.trim()).apply()
     }
 
+    /**
+     * Modo ficha na conveniência: quando ligado, cada unidade de item sai em uma ficha
+     * separada (ex.: 2 copões = 2 fichas). Desligado (padrão), tudo sai em um recibo só.
+     */
+    fun isConvenienceTicketMode(): Boolean = prefs.getBoolean(KEY_CONVENIENCE_TICKET_MODE, false)
+
+    fun setConvenienceTicketMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CONVENIENCE_TICKET_MODE, enabled).apply()
+    }
+
     fun getDeviceShortId(): String {
         val fromName = getDeviceName()?.takeIf { it.isNotBlank() }
         if (fromName != null) return fromName.take(12)
@@ -118,5 +128,6 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_OPERATOR = "operator_name"
         private const val KEY_STONE_CODE = "stone_code"
         private const val KEY_SHORT_ID = "device_short_id"
+        private const val KEY_CONVENIENCE_TICKET_MODE = "convenience_ticket_mode"
     }
 }

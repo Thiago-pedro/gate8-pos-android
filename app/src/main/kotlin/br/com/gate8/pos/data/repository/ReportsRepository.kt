@@ -5,6 +5,7 @@ import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.ReportsBrandRowDto
 import br.com.gate8.pos.data.remote.dto.ReportsDeviceDto
+import br.com.gate8.pos.data.remote.dto.ReportsItemRowDto
 import br.com.gate8.pos.data.remote.dto.ReportsPaymentRowDto
 import br.com.gate8.pos.data.remote.dto.ReportsPeriodDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
@@ -60,6 +61,11 @@ class ReportsRepository(
                 ReportsBrandRowDto("Visa", 8, 1420.0),
                 ReportsBrandRowDto("Mastercard", 4, 780.0),
                 ReportsBrandRowDto("Elo", 2, 280.0),
+            ),
+            topItems = listOf(
+                ReportsItemRowDto("Copão Whisky", 18, 270.0),
+                ReportsItemRowDto("Cerveja Lata", 14, 140.0),
+                ReportsItemRowDto("Água", 9, 45.0),
             ),
         )
     }

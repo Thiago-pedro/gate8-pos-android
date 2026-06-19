@@ -9,7 +9,12 @@ import android.graphics.Bitmap
 interface StonePosPrinter {
     val isAvailable: Boolean
 
-    fun printLines(activity: Activity, lines: List<String>, bitmap: Bitmap? = null)
+    fun printLines(
+        activity: Activity,
+        lines: List<String>,
+        bitmap: Bitmap? = null,
+        logoScale: Float = 1f,
+    )
 
     fun printCardReceipt(activity: Activity, transactionId: String?, nsu: String?, merchantCopy: Boolean)
 
@@ -19,7 +24,12 @@ interface StonePosPrinter {
 class StonePosPrinterUnavailable : StonePosPrinter {
     override val isAvailable: Boolean = false
 
-    override fun printLines(activity: Activity, lines: List<String>, bitmap: Bitmap?) = Unit
+    override fun printLines(
+        activity: Activity,
+        lines: List<String>,
+        bitmap: Bitmap?,
+        logoScale: Float,
+    ) = Unit
 
     override fun printCardReceipt(
         activity: Activity,
