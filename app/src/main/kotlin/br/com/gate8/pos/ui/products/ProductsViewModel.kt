@@ -67,8 +67,10 @@ data class ProductsUiState(
     val pixExpired: Boolean = false,
     /** Quando true, mostra o modal de "pagamento cancelado". */
     val paymentCancelled: Boolean = false,
-    /** Quando true, mostra o modal de "falha na leitura do cartão". */
+    /** Quando true, mostra o modal de falha no pagamento (leitura ou autorização). */
     val paymentFailed: Boolean = false,
+    /** Motivo real devolvido pela maquininha/Stone (ex.: "Transação não aprovada"). */
+    val paymentFailedReason: String? = null,
     val catalog: CatalogResponseDto? = null,
     /** Incrementado a cada refresh bem-sucedido para forçar recomposição da grade. */
     val catalogVersion: Int = 0,
@@ -241,7 +243,7 @@ class ProductsViewModel(
     }
 
     fun dismissPaymentFailed() {
-        _state.update { it.copy(paymentFailed = false) }
+        _state.update { it.copy(paymentFailed = false, paymentFailedReason = null) }
     }
 
     fun checkout(method: PaymentMethodApi) {
@@ -271,7 +273,12 @@ class ProductsViewModel(
                         is PixExpiredException ->
                             it.copy(loading = false, payingMethod = null, pixExpired = true)
                         else ->
-                            it.copy(loading = false, payingMethod = null, paymentFailed = true)
+                            it.copy(
+                                loading = false,
+                                payingMethod = null,
+                                paymentFailed = true,
+                                paymentFailedReason = err?.message,
+                            )
                     }
                 }
                 return@launch

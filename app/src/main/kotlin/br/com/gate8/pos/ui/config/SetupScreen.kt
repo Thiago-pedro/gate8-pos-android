@@ -231,6 +231,14 @@ fun SetupScreen(
                     },
                     onClick = vm::saveAndActivateStone,
                 )
+
+                Spacer(Modifier.height(10.dp))
+
+                Gate8MenuButton(
+                    title = if (state.stoneActivating) "Reativando…" else "Reativar terminal (recarregar tabelas)",
+                    subtitle = "Use se a leitura de cartao falhar (Missing AID). Precisa de WiFi.",
+                    onClick = vm::reactivateTerminal,
+                )
             }
 
             Spacer(Modifier.height(28.dp))

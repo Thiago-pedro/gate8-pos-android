@@ -19,6 +19,17 @@ interface StonePosPrinter {
     fun printCardReceipt(activity: Activity, transactionId: String?, nsu: String?, merchantCopy: Boolean)
 
     fun reprintCardReceipt(activity: Activity, transactionId: String, merchantCopy: Boolean)
+
+    /**
+     * Imprime um ingresso numa única tirada: logo + [topLines] + QR (gerado de [qrContent])
+     * + [bottomLines]. O QR sai centralizado e em tamanho reduzido na bobina.
+     */
+    fun printTicket(
+        activity: Activity,
+        topLines: List<String>,
+        qrContent: String,
+        bottomLines: List<String>,
+    )
 }
 
 class StonePosPrinterUnavailable : StonePosPrinter {
@@ -39,4 +50,11 @@ class StonePosPrinterUnavailable : StonePosPrinter {
     ) = Unit
 
     override fun reprintCardReceipt(activity: Activity, transactionId: String, merchantCopy: Boolean) = Unit
+
+    override fun printTicket(
+        activity: Activity,
+        topLines: List<String>,
+        qrContent: String,
+        bottomLines: List<String>,
+    ) = Unit
 }

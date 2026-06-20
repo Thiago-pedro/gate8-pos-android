@@ -57,8 +57,18 @@ data class CheckinResult(
     val holderName: String? = null,
 )
 
+/** Ingressos emitidos para um item da venda (item_index → códigos dos tickets). */
+data class SaleTicketGroup(
+    val itemIndex: Int,
+    val codes: List<String>,
+)
+
 data class SaleSuccess(
     val saleId: String,
     val duplicated: Boolean,
-    val ticketCodes: List<String>,
-)
+    val ticketGroups: List<SaleTicketGroup>,
+    val purchaseCode: String? = null,
+) {
+    /** Lista achatada dos códigos (compatibilidade com quem só precisa dos códigos). */
+    val ticketCodes: List<String> get() = ticketGroups.flatMap { it.codes }
+}

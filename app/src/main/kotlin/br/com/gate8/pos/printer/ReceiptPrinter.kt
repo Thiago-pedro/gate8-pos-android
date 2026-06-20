@@ -21,7 +21,8 @@ interface ReceiptPrinter {
         authorization: String?,
     )
 
-    fun printTicketQr(code: String, holder: String?, description: String)
+    /** Imprime um ingresso completo (logo, evento/lote/data/local, portador, preço, QR e código). */
+    fun printTicket(payload: TicketPrintPayload)
 
     fun printReportSummary(payload: ReportPrintPayload)
 
@@ -81,7 +82,7 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         authorization: String?,
     ) = Unit
 
-    override fun printTicketQr(code: String, holder: String?, description: String) = Unit
+    override fun printTicket(payload: TicketPrintPayload) = Unit
 
     override fun printReportSummary(payload: ReportPrintPayload) = Unit
 

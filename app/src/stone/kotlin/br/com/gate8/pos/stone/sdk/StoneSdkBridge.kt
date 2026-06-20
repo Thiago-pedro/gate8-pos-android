@@ -13,6 +13,14 @@ interface StoneSdkBridge {
 
     suspend fun ensureActivated(stoneCode: String?): Result<StoneActivationOutcome>
 
+    /**
+     * Reativa o terminal forçando a recarga das tabelas EMV (AIDs/CAPKs) no pinpad,
+     * mesmo que o StoneCode já esteja ativado. Use quando a leitura de cartão falha
+     * com "Missing AID" / INTERNAL_ERROR (tabelas sobrescritas por outro app Stone).
+     */
+    suspend fun forceReactivate(): Result<String> =
+        Result.failure(StoneSdkNotLinkedException())
+
     /** StoneCodes conhecidos no POS (init + sessão). Útil quando o terminal já veio ativado. */
     fun knownActiveStoneCodes(): List<String>
 

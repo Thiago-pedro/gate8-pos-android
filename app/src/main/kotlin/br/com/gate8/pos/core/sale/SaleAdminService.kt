@@ -10,6 +10,7 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.printer.ReceiptPrinter
+import br.com.gate8.pos.printer.TicketPrintPayload
 
 class SaleAdminService(
     private val lastSaleStore: LastSaleStore,
@@ -81,8 +82,17 @@ class SaleAdminService(
             stoneTransactionId = sale.transactionId,
             isReprint = true,
         )
+        val ticketLine = sale.lines.firstOrNull()
         sale.ticketCodes.forEach { code ->
-            printer.printTicketQr(code, null, "Ingresso")
+            printer.printTicket(
+                TicketPrintPayload(
+                    eventName = ticketLine?.description ?: "Ingresso",
+                    batchName = "",
+                    holderName = null,
+                    price = ticketLine?.unitPrice ?: 0.0,
+                    validationCode = code,
+                ),
+            )
         }
         return Result.success("Comprovante reimpresso")
     }

@@ -10,6 +10,9 @@ import br.com.gate8.pos.R
 import br.com.stone.posandroid.providers.PosPrintProvider
 import br.com.stone.posandroid.providers.PosPrintReceiptProvider
 import br.com.stone.posandroid.providers.PosReprintReceiptProvider
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatWriter
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -121,6 +124,40 @@ class StonePosPrinterLive : StonePosPrinter {
         }
     }
 
+    override fun printTicket(
+        activity: Activity,
+        topLines: List<String>,
+        qrContent: String,
+        bottomLines: List<String>,
+    ) {
+        enqueue(activity, "PosPrintProvider-ticket") { latch ->
+            val provider = PosPrintProvider(activity)
+            logoBitmap(activity)?.let { provider.addBitmap(scaleLogo(it, 1f)) }
+            topLines.forEach { line -> provider.addLine(line) }
+            qrBitmap(qrContent)?.let { provider.addBitmap(scaleLogo(it, QR_SCALE)) }
+            bottomLines.forEach { line -> provider.addLine(line) }
+            provider.connectionCallback = callback("PosPrintProvider-ticket", latch)
+            provider.execute()
+        }
+    }
+
+    /** Gera o QR Code do ingresso como bitmap preto/branco (conteúdo = código de validação). */
+    private fun qrBitmap(content: String, sizePx: Int = 360): Bitmap? = runCatching {
+        val hints = mapOf(EncodeHintType.MARGIN to 1)
+        val matrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+        val w = matrix.width
+        val h = matrix.height
+        val pixels = IntArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                pixels[y * w + x] = if (matrix.get(x, y)) Color.BLACK else Color.WHITE
+            }
+        }
+        Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply {
+            setPixels(pixels, 0, w, 0, 0, w, h)
+        }
+    }.onFailure { Log.w(TAG, "qrBitmap", it) }.getOrNull()
+
     override fun reprintCardReceipt(activity: Activity, transactionId: String, merchantCopy: Boolean) {
         enqueue(activity, "PosReprintReceiptProvider") { latch ->
             val transaction = resolveTransaction(activity, transactionId, null)
@@ -197,5 +234,7 @@ class StonePosPrinterLive : StonePosPrinter {
         private const val PRINTER_MAX_HEIGHT_PX = 595
         private const val PRINT_TIMEOUT_SEC = 30L
         private const val BLACK_THRESHOLD = 210.0
+        // Fração da largura da bobina ocupada pelo QR do ingresso (centralizado).
+        private const val QR_SCALE = 0.6f
     }
 }

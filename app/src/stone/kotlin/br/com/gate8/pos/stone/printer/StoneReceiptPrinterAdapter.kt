@@ -7,6 +7,7 @@ import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
+import br.com.gate8.pos.printer.TicketPrintPayload
 import br.com.gate8.pos.stone.StoneActivityHolder
 
 class StoneReceiptPrinterAdapter(
@@ -85,12 +86,14 @@ class StoneReceiptPrinterAdapter(
         )
     }
 
-    override fun printTicketQr(code: String, holder: String?, description: String) {
+    override fun printTicket(payload: TicketPrintPayload) {
         val activity = activityHolder.runCatching { requireActivity() }.getOrNull() ?: return
         if (!posPrinter.isAvailable) return
-        posPrinter.printLines(
-            activity,
-            Gate8ReceiptTextBuilder.ticketBlock(code, holder, description),
+        posPrinter.printTicket(
+            activity = activity,
+            topLines = Gate8ReceiptTextBuilder.ticketTopLines(payload),
+            qrContent = payload.validationCode,
+            bottomLines = Gate8ReceiptTextBuilder.ticketBottomLines(payload),
         )
     }
 

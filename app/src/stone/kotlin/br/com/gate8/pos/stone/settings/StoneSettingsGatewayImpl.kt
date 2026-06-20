@@ -50,4 +50,11 @@ class StoneSettingsGatewayImpl(
             }
         }
     }
+
+    override suspend fun reactivateTerminal(): Result<String> {
+        if (!bridge.isLinked) {
+            return Result.failure(StoneSdkNotLinkedException())
+        }
+        return bridge.forceReactivate()
+    }
 }

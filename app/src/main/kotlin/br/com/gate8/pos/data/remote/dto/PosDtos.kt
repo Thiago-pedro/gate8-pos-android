@@ -1,8 +1,10 @@
 package br.com.gate8.pos.data.remote.dto
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNames
 
 @Serializable
 data class CatalogResponseDto(
@@ -107,11 +109,16 @@ data class SaleItemDto(
     @SerialName("unit_price") val unitPrice: Double,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class CreateSaleResponseDto(
     @SerialName("sale_id") val saleId: String? = null,
     val duplicated: Boolean = false,
     val tickets: List<SaleTicketGroupDto> = emptyList(),
+    /** Código da compra (ex.: "GT8-BFNR6D"), no nível raiz — usado no ingresso impresso. */
+    @SerialName("purchase_code")
+    @JsonNames("purchase_code", "purchase_order_code", "order_code", "codigo_de_compra")
+    val purchaseCode: String? = null,
     val error: String? = null,
     val available: Int? = null,
 )

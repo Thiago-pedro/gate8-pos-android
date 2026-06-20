@@ -21,10 +21,18 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.domain.model.SaleTicketGroup
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.printer.ReceiptPrinter
+import br.com.gate8.pos.printer.TicketPrintPayload
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -312,9 +320,7 @@ class PdvViewModel(
                         pay.authorization,
                         stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
                     )
-                    success.ticketCodes.forEach { code ->
-                        printer.printTicketQr(code, configStore.getOperatorName(), "Ingresso")
-                    }
+                    printTickets(success.ticketGroups, cart, success.purchaseCode)
                     saleAdmin.recordCheckout(
                         saleId = success.saleId,
                         clientReference = clientRef,
@@ -373,5 +379,49 @@ class PdvViewModel(
         viewModelScope.launch {
             pendingSaleSync.syncAll()
         }
+    }
+
+    /** Imprime um ingresso por código emitido, com os dados do evento/lote do catálogo. */
+    private fun printTickets(
+        groups: List<SaleTicketGroup>,
+        cart: List<CartLine>,
+        purchaseCode: String?,
+    ) {
+        val events = _state.value.catalog?.events.orEmpty()
+        groups.forEach { group ->
+            val line = cart.getOrNull(group.itemIndex)
+            val event = events.firstOrNull { it.id == line?.eventId }
+            val batch = event?.ticketBatches?.firstOrNull { it.id == line?.batchId }
+            group.codes.forEach { code ->
+                printer.printTicket(
+                    TicketPrintPayload(
+                        eventName = event?.name ?: line?.description ?: "Ingresso",
+                        batchName = batch?.name ?: "",
+                        eventDateLabel = formatEventDate(event?.eventDate),
+                        venue = event?.location,
+                        holderName = line?.holderName ?: configStore.getOperatorName(),
+                        price = batch?.price ?: line?.unitPrice ?: 0.0,
+                        validationCode = code,
+                        purchaseCode = purchaseCode,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Formata a data do evento ("dd/MM/yyyy às HH:mm") tolerando vários formatos da API. */
+    private fun formatEventDate(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        return runCatching { OffsetDateTime.parse(raw).atZoneSameInstant(eventZone).format(eventDateFmt) }
+            .recoverCatching { LocalDateTime.parse(raw).format(eventDateFmt) }
+            .recoverCatching { LocalDate.parse(raw).format(eventDateOnlyFmt) }
+            .getOrDefault(raw)
+    }
+
+    private companion object {
+        private val brLocale = Locale("pt", "BR")
+        private val eventZone = ZoneId.of("America/Sao_Paulo")
+        private val eventDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
+        private val eventDateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
     }
 }

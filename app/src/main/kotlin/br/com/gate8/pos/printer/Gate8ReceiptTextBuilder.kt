@@ -234,13 +234,66 @@ object Gate8ReceiptTextBuilder {
         }
     }
 
-    fun ticketBlock(code: String, holder: String?, description: String): List<String> = buildList {
-        addAll(header(title = "INGRESSO"))
-        add(description)
-        holder?.takeIf { it.isNotBlank() }?.let { add(row("TITULAR:", it)) }
+    /** Quebra um texto longo (ex.: endereço) em várias linhas centralizadas. */
+    private fun centerWrap(text: String): List<String> {
+        if (text.isBlank()) return emptyList()
+        val words = text.trim().split(Regex("\\s+"))
+        val lines = mutableListOf<String>()
+        var current = StringBuilder()
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (units(candidate) > UNIT_BUDGET && current.isNotEmpty()) {
+                lines.add(center(current.toString()))
+                current = StringBuilder(word)
+            } else {
+                current = StringBuilder(candidate)
+            }
+        }
+        if (current.isNotEmpty()) lines.add(center(current.toString()))
+        return lines
+    }
+
+    /**
+     * Parte de cima do ingresso (acima do QR): evento, lote, data, local, portador e preço.
+     * A logo Gate8 é impressa como bitmap no topo (ver StonePosPrinterLive.printTicket).
+     */
+    fun ticketTopLines(p: TicketPrintPayload): List<String> = buildList {
         add(divider())
-        add(center("CODIGO"))
-        add(center(code))
+        add(center(p.eventName.uppercase(brLocale)))
+        add(divider())
+        if (p.batchName.isNotBlank()) add(center(p.batchName.uppercase(brLocale)))
+        p.eventDateLabel?.takeIf { it.isNotBlank() }?.let { add(center(it)) }
+        p.venue?.takeIf { it.isNotBlank() }?.let {
+            add("")
+            addAll(centerWrap(it))
+        }
+        add(divider())
+        p.holderName?.takeIf { it.isNotBlank() }?.let {
+            add(center("PORTADOR"))
+            add(center(it))
+            add("")
+        }
+        add(center(money(p.price)))
+        add(divider())
+        add("")
+    }
+
+    /** Parte de baixo do ingresso (abaixo do QR): código manual, compra, validade e emissão. */
+    fun ticketBottomLines(p: TicketPrintPayload): List<String> = buildList {
+        add("")
+        add(center(p.validationCode))
+        add(center("Codigo para validacao manual"))
+        p.purchaseCode?.takeIf { it.isNotBlank() }?.let { add(center("Compra $it")) }
+        add("")
+        add(center("** VALIDO **"))
+        add(center("Emitido: ${timeFormat.format(Date())}"))
+        add("")
+        addAll(
+            centerWrap(
+                "A criterio da organizacao, podera ser solicitado documento " +
+                    "original com foto para acesso ao evento.",
+            ),
+        )
         addAll(footer())
     }
 

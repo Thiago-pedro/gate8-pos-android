@@ -127,9 +127,11 @@ fun ProductsScreen(
     }
 
     if (state.paymentFailed) {
+        val reason = state.paymentFailedReason?.takeIf { it.isNotBlank() }
         Gate8AlertDialog(
-            title = "Falha na leitura do cartão",
-            detail = "Não foi possível ler o cartão. Os itens continuam no carrinho — tente novamente.",
+            title = "Pagamento não concluído",
+            detail = (reason ?: "Não foi possível concluir o pagamento.") +
+                " Os itens continuam no carrinho — tente novamente.",
             icon = Icons.Filled.CreditCard,
             onDismiss = { vm.dismissPaymentFailed() },
         )

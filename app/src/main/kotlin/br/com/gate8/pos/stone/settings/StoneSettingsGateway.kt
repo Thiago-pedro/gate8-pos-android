@@ -11,4 +11,7 @@ interface StoneSettingsGateway {
     fun posActiveStoneCodesHint(): String?
 
     suspend fun saveAndActivate(stoneCode: String): Result<String>
+
+    /** Reativa o terminal e recarrega as tabelas EMV no pinpad (corrige "Missing AID"). */
+    suspend fun reactivateTerminal(): Result<String>
 }

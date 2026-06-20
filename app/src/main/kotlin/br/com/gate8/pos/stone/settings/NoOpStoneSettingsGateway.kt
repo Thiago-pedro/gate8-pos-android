@@ -11,4 +11,7 @@ class NoOpStoneSettingsGateway : StoneSettingsGateway {
 
     override suspend fun saveAndActivate(stoneCode: String): Result<String> =
         Result.failure(UnsupportedOperationException())
+
+    override suspend fun reactivateTerminal(): Result<String> =
+        Result.failure(UnsupportedOperationException())
 }

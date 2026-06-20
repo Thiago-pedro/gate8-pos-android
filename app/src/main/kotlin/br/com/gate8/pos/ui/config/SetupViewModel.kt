@@ -223,6 +223,21 @@ class SetupViewModel(
         }
     }
 
+    fun reactivateTerminal() {
+        if (_state.value.stoneActivating) return
+        viewModelScope.launch {
+            _state.update { it.copy(stoneActivating = true, error = null, message = null) }
+            val result = stoneSettings.reactivateTerminal()
+            _state.update {
+                it.copy(
+                    stoneActivating = false,
+                    message = result.getOrNull(),
+                    error = result.exceptionOrNull()?.message,
+                )
+            }
+        }
+    }
+
     fun saveOperator() {
         val name = _state.value.operatorName.trim().ifBlank { "Operador POS" }
         configStore.setOperatorName(name)

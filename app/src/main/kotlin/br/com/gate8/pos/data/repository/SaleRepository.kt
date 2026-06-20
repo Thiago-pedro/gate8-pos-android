@@ -9,6 +9,7 @@ import br.com.gate8.pos.data.remote.dto.ApiErrorDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.VoidSaleRequestDto
 import br.com.gate8.pos.domain.model.SaleSuccess
+import br.com.gate8.pos.domain.model.SaleTicketGroup
 import kotlinx.serialization.json.Json
 
 class SaleRepository(
@@ -49,7 +50,9 @@ class SaleRepository(
                     ?: throw ApiException(response.code(), "Resposta vazia do servidor")
                 val saleId = body.saleId
                     ?: throw ApiException(response.code(), "sale_id ausente na resposta")
-                val codes = body.tickets.flatMap { g -> g.tickets.map { it.code } }
+                val groups = body.tickets.map { g ->
+                    SaleTicketGroup(itemIndex = g.itemIndex, codes = g.tickets.map { it.code })
+                }
                 pendingSaleDao.upsert(
                     PendingSaleEntity(
                         clientReference = request.clientReference,
@@ -60,7 +63,12 @@ class SaleRepository(
                         lastAttemptAt = System.currentTimeMillis(),
                     ),
                 )
-                return SaleSuccess(saleId = saleId, duplicated = body.duplicated, ticketCodes = codes)
+                return SaleSuccess(
+                    saleId = saleId,
+                    duplicated = body.duplicated,
+                    ticketGroups = groups,
+                    purchaseCode = body.purchaseCode,
+                )
             }
             400, 409 -> throw parseErrorBody(response.code(), response.errorBody()?.string())
             401 -> throw ApiException(401, "Token inválido — verifique g8pos_ no admin")

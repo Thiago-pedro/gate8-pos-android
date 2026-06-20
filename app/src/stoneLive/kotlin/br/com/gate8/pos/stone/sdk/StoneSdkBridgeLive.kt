@@ -100,6 +100,20 @@ class StoneSdkBridgeLive(
         }
     }
 
+    override suspend fun forceReactivate(): Result<String> {
+        val code = config.getStoneCode()?.trim().orEmpty()
+        if (code.isBlank()) {
+            return Result.failure(
+                IllegalStateException("Informe o StoneCode em Configurações antes de reativar."),
+            )
+        }
+        Log.i(TAG, "Forçando reativação/recarga de tabelas EMV para StoneCode $code")
+        return runCatching {
+            activateStoneCode(code)
+            "Terminal reativado e tabelas EMV recarregadas."
+        }
+    }
+
     override suspend fun charge(
         amount: Double,
         method: PaymentMethodApi,
