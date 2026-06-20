@@ -24,6 +24,7 @@ import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.SaleTicketGroup
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
+import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -48,16 +49,36 @@ data class PdvUiState(
     val pixExpired: Boolean = false,
     /** Quando true, mostra o modal de "pagamento cancelado". */
     val paymentCancelled: Boolean = false,
+    /** Quando true, mostra o modal de "pagamento não concluído" (falha na maquininha). */
+    val paymentFailed: Boolean = false,
+    /** Motivo real da falha vindo da Stone (ex.: CONNECTIVITY_ERROR). */
+    val paymentFailedReason: String? = null,
     val catalog: CatalogResponseDto? = null,
     val catalogVersion: Int = 0,
     val selectedEventId: String? = null,
     val cart: List<CartLine> = emptyList(),
     val message: String? = null,
+    /** Quando preenchido, mostra o modal de "venda concluída" (igual conveniência). */
+    val saleSuccessMessage: String? = null,
     val error: String? = null,
     val lastSaleId: String? = null,
     val lastTicketCodes: List<String> = emptyList(),
     val showCart: Boolean = false,
     val cashierOpen: Boolean = false,
+    /** Quando preenchido, mostra o prompt "imprimir via do cliente?" antes dos ingressos. */
+    val pendingClientCopy: PendingClientCopy? = null,
+)
+
+/**
+ * Impressão de ingresso aguardando o operador responder se quer a via do cliente.
+ * Guarda o que falta imprimir (via cliente opcional + ingressos).
+ */
+data class PendingClientCopy(
+    val cart: List<CartLine>,
+    val ticketGroups: List<SaleTicketGroup>,
+    val purchaseCode: String?,
+    val pay: PaymentResult,
+    val successMessage: String,
 )
 
 class PdvViewModel(
@@ -195,7 +216,7 @@ class PdvViewModel(
             }
             s.copy(
                 cart = newCart,
-                message = if (newCart.isEmpty()) null else "Ingresso removido",
+                message = null,
                 showCart = if (newCart.isEmpty()) false else s.showCart,
             )
         }
@@ -229,6 +250,14 @@ class PdvViewModel(
 
     fun dismissPaymentCancelled() {
         _state.update { it.copy(paymentCancelled = false) }
+    }
+
+    fun dismissPaymentFailed() {
+        _state.update { it.copy(paymentFailed = false, paymentFailedReason = null) }
+    }
+
+    fun dismissSaleSuccess() {
+        _state.update { it.copy(saleSuccessMessage = null) }
     }
 
     private fun trimCart(cart: List<CartLine>, events: List<EventCatalogDto>): List<CartLine> {
@@ -269,7 +298,12 @@ class PdvViewModel(
                         is PixExpiredException ->
                             it.copy(loading = false, payingMethod = null, pixExpired = true)
                         else ->
-                            it.copy(loading = false, payingMethod = null, error = err?.message)
+                            it.copy(
+                                loading = false,
+                                payingMethod = null,
+                                paymentFailed = true,
+                                paymentFailedReason = err?.message,
+                            )
                     }
                 }
                 return@launch
@@ -312,15 +346,6 @@ class PdvViewModel(
 
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
-                    printer.printReceipt(
-                        cart,
-                        total,
-                        method.apiValue,
-                        pay.nsu,
-                        pay.authorization,
-                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                    )
-                    printTickets(success.ticketGroups, cart, success.purchaseCode)
                     saleAdmin.recordCheckout(
                         saleId = success.saleId,
                         clientReference = clientRef,
@@ -330,20 +355,12 @@ class PdvViewModel(
                         payment = pay,
                         ticketCodes = success.ticketCodes,
                     )
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            cart = emptyList(),
-                            showCart = false,
-                            message = if (success.duplicated) {
-                                "Venda já sincronizada (${success.saleId})"
-                            } else {
-                                "Venda OK: ${success.saleId}"
-                            },
-                            lastSaleId = success.saleId,
-                            lastTicketCodes = success.ticketCodes,
-                        )
+                    val successMsg = if (success.duplicated) {
+                        "Venda já registrada!"
+                    } else {
+                        "Venda concluída com sucesso!"
                     }
+                    beginTicketPrint(cart, method, pay, success, successMsg)
                     schedulePendingSync()
                 }
                 .onFailure { e ->
@@ -354,14 +371,7 @@ class PdvViewModel(
                         }
                         else -> e.message ?: "Falha na API — venda na fila offline"
                     }
-                    printer.printReceipt(
-                        cart,
-                        total,
-                        method.apiValue,
-                        pay.nsu,
-                        pay.authorization,
-                        stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
-                    )
+                    printStoneVias(method, pay)
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
@@ -379,6 +389,75 @@ class PdvViewModel(
         viewModelScope.launch {
             pendingSaleSync.syncAll()
         }
+    }
+
+    /**
+     * Fluxo igual à conveniência: em cartão/Pix imprime a via do lojista e pergunta
+     * se quer a via do cliente; os ingressos só saem depois (em [answerClientCopy]).
+     * Em dinheiro não há via — imprime o ingresso direto.
+     */
+    private fun beginTicketPrint(
+        cart: List<CartLine>,
+        method: PaymentMethodApi,
+        pay: PaymentResult,
+        success: br.com.gate8.pos.domain.model.SaleSuccess,
+        successMessage: String,
+    ) {
+        val isCardLike = method != PaymentMethodApi.CASH &&
+            (!pay.transactionId.isNullOrBlank() || !pay.nsu.isNullOrBlank())
+        if (isCardLike) {
+            printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
+            _state.update {
+                it.copy(
+                    loading = false,
+                    cart = emptyList(),
+                    showCart = false,
+                    lastSaleId = success.saleId,
+                    lastTicketCodes = success.ticketCodes,
+                    pendingClientCopy = PendingClientCopy(
+                        cart = cart,
+                        ticketGroups = success.ticketGroups,
+                        purchaseCode = success.purchaseCode,
+                        pay = pay,
+                        successMessage = successMessage,
+                    ),
+                )
+            }
+        } else {
+            printTickets(success.ticketGroups, cart, success.purchaseCode)
+            _state.update {
+                it.copy(
+                    loading = false,
+                    cart = emptyList(),
+                    showCart = false,
+                    saleSuccessMessage = successMessage,
+                    lastSaleId = success.saleId,
+                    lastTicketCodes = success.ticketCodes,
+                )
+            }
+        }
+    }
+
+    /** Resposta do operador ao prompt "imprimir via do cliente?" — depois saem os ingressos. */
+    fun answerClientCopy(printClientCopy: Boolean) {
+        val pending = _state.value.pendingClientCopy ?: return
+        if (printClientCopy) {
+            printer.printCardCopy(pending.pay.transactionId, pending.pay.nsu, merchantCopy = false)
+        }
+        printTickets(pending.ticketGroups, pending.cart, pending.purchaseCode)
+        _state.update {
+            it.copy(pendingClientCopy = null, saleSuccessMessage = pending.successMessage)
+        }
+    }
+
+    /**
+     * Caminho de falha da API (offline): imprime as vias da Stone sem prompt.
+     * Em dinheiro não imprime via nenhuma.
+     */
+    private fun printStoneVias(method: PaymentMethodApi, pay: PaymentResult) {
+        if (method == PaymentMethodApi.CASH) return
+        printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
+        printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = false)
     }
 
     /** Imprime um ingresso por código emitido, com os dados do evento/lote do catálogo. */
@@ -399,6 +478,7 @@ class PdvViewModel(
                         batchName = batch?.name ?: "",
                         eventDateLabel = formatEventDate(event?.eventDate),
                         venue = event?.location,
+                        terminalName = configStore.getDeviceName(),
                         holderName = line?.holderName ?: configStore.getOperatorName(),
                         price = batch?.price ?: line?.unitPrice ?: 0.0,
                         validationCode = code,

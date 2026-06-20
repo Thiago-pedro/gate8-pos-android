@@ -10,6 +10,8 @@ data class TicketPrintPayload(
     val batchName: String,
     val eventDateLabel: String? = null,
     val venue: String? = null,
+    /** Nome do terminal/maquininha (ex.: "CX1"). */
+    val terminalName: String? = null,
     val holderName: String? = null,
     val price: Double,
     /** Conteúdo do QR e do código de validação manual (ex.: "008A2FE2"). */

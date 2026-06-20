@@ -134,7 +134,10 @@ class StonePosPrinterLive : StonePosPrinter {
             val provider = PosPrintProvider(activity)
             logoBitmap(activity)?.let { provider.addBitmap(scaleLogo(it, 1f)) }
             topLines.forEach { line -> provider.addLine(line) }
+            provider.addLine("")
             qrBitmap(qrContent)?.let { provider.addBitmap(scaleLogo(it, QR_SCALE)) }
+            provider.addLine("")
+            provider.addLine("")
             bottomLines.forEach { line -> provider.addLine(line) }
             provider.connectionCallback = callback("PosPrintProvider-ticket", latch)
             provider.execute()

@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Prefixo fixo do nome do operador para identificar vendas feitas na maquininha. */
+private const val OPERATOR_PREFIX = "POS - "
+
 data class SetupUiState(
     val operatorName: String = "",
     val stoneCode: String = "",
@@ -64,7 +67,7 @@ class SetupViewModel(
         val terminal = hardwareInfo.readTerminal()
         _state.update {
             it.copy(
-                operatorName = configStore.getOperatorName(),
+                operatorName = stripOperatorPrefix(configStore.getOperatorName()),
                 stoneCode = stoneSettings.getSavedStoneCode(),
                 showStoneSection = stoneSettings.showStoneSection,
                 stonePixConfigured = stoneSettings.pixCredentialsConfigured(),
@@ -146,6 +149,11 @@ class SetupViewModel(
         _state.update { it.copy(showClearPendingConfirm = false) }
     }
 
+    /** Fecha o modal de aviso (sucesso ou erro) da tela de configurações. */
+    fun dismissNotice() {
+        _state.update { it.copy(message = null, error = null) }
+    }
+
     fun confirmClearPendingQueue() {
         viewModelScope.launch {
             val removed = saleRepository.discardPendingQueue()
@@ -200,7 +208,17 @@ class SetupViewModel(
         saleRepository.listPending().count { it.status == PendingSaleStatus.PENDING_SYNC }
 
     fun updateOperator(name: String) {
-        _state.update { it.copy(operatorName = name) }
+        _state.update { it.copy(operatorName = stripOperatorPrefix(name)) }
+    }
+
+    /** Remove o prefixo fixo "POS - " caso o valor salvo/colado já o contenha. */
+    private fun stripOperatorPrefix(value: String): String {
+        val trimmed = value.trim()
+        return if (trimmed.startsWith(OPERATOR_PREFIX, ignoreCase = true)) {
+            trimmed.substring(OPERATOR_PREFIX.length).trim()
+        } else {
+            trimmed
+        }
     }
 
     fun updateStoneCode(code: String) {
@@ -239,11 +257,12 @@ class SetupViewModel(
     }
 
     fun saveOperator() {
-        val name = _state.value.operatorName.trim().ifBlank { "Operador POS" }
+        val typed = stripOperatorPrefix(_state.value.operatorName).ifBlank { "Operador" }
+        val name = OPERATOR_PREFIX + typed
         configStore.setOperatorName(name)
         _state.update {
             it.copy(
-                operatorName = name,
+                operatorName = typed,
                 message = "Operador salvo",
                 error = null,
             )

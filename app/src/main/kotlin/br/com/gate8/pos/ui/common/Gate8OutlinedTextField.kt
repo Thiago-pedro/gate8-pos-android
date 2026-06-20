@@ -17,6 +17,7 @@ fun Gate8OutlinedTextField(
     label: String,
     modifier: Modifier = Modifier,
     placeholder: String? = null,
+    prefix: String? = null,
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
@@ -25,6 +26,7 @@ fun Gate8OutlinedTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         placeholder = placeholder?.let { { Text(it) } },
+        prefix = prefix?.let { { Text(it) } },
         singleLine = singleLine,
         modifier = modifier,
         keyboardOptions = keyboardOptions,

@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.pdv
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Tune
@@ -58,6 +60,8 @@ import br.com.gate8.pos.ui.common.Gate8CartLineUi
 import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.common.Gate8CartSheet
+import br.com.gate8.pos.ui.common.Gate8ConfirmModal
+import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
 import br.com.gate8.pos.ui.common.paymentLoadingMessage
 import br.com.gate8.pos.ui.common.Gate8QuantitySelector
@@ -96,6 +100,25 @@ fun PdvScreen(
         onCancel = { vm.cancelPayment() },
     )
 
+    if (state.pendingClientCopy != null) {
+        Gate8ConfirmModal(
+            title = "Imprimir via do cliente?",
+            message = "A via do lojista já saiu. Imprimir também a via do cliente? " +
+                "Em seguida sai o ingresso.",
+            confirmLabel = "Sim, imprimir",
+            dismissLabel = "Não",
+            onConfirm = { vm.answerClientCopy(true) },
+            onDismiss = { vm.answerClientCopy(false) },
+        )
+    }
+
+    state.saleSuccessMessage?.let { msg ->
+        Gate8SuccessDialog(
+            title = msg,
+            onDismiss = { vm.dismissSaleSuccess() },
+        )
+    }
+
     if (state.pixExpired) {
         Gate8AlertDialog(
             title = "QR Code expirado",
@@ -111,6 +134,17 @@ fun PdvScreen(
             icon = Icons.Filled.Cancel,
             accent = Gate8Colors.AccentBlue,
             onDismiss = { vm.dismissPaymentCancelled() },
+        )
+    }
+
+    if (state.paymentFailed) {
+        val reason = state.paymentFailedReason?.takeIf { it.isNotBlank() }
+        Gate8AlertDialog(
+            title = "Pagamento não concluído",
+            detail = (reason ?: "Não foi possível concluir o pagamento.") +
+                " Os itens continuam no carrinho — tente novamente.",
+            icon = Icons.Filled.CreditCard,
+            onDismiss = { vm.dismissPaymentFailed() },
         )
     }
 
@@ -485,6 +519,8 @@ private fun TicketBatchCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Gate8Colors.CardSurface.copy(alpha = if (soldOut) 0.55f else 1f))
+            .border(1.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
+            .clickable(enabled = canIncrement, onClick = onIncrement)
             .padding(12.dp),
     ) {
         Text(

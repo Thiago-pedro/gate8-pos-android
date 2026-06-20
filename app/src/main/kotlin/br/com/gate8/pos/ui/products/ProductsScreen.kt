@@ -421,7 +421,7 @@ private fun ProductGridCard(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 6.dp, vertical = 6.dp)
-                .height(104.dp),
+                .height(122.dp),
         ) {
             Text(
                 product.name,

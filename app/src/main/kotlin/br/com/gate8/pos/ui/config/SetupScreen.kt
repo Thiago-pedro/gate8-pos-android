@@ -52,10 +52,12 @@ import androidx.compose.ui.unit.dp
 
 import androidx.compose.ui.unit.sp
 
+import br.com.gate8.pos.ui.common.Gate8AlertDialog
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8MenuButton
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
+import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 
 import br.com.gate8.pos.ui.theme.Gate8Colors
 
@@ -167,6 +169,10 @@ fun SetupScreen(
 
                 label = "Nome do operador",
 
+                prefix = "POS - ",
+
+                placeholder = "Tulio",
+
                 modifier = Modifier.fillMaxWidth(),
 
             )
@@ -184,22 +190,6 @@ fun SetupScreen(
             )
 
 
-
-            state.message?.let {
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(it, color = Gate8Colors.Success, fontSize = 13.sp)
-
-            }
-
-            state.error?.let {
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
-
-            }
 
             if (state.showStoneSection) {
                 Spacer(Modifier.height(20.dp))
@@ -230,14 +220,6 @@ fun SetupScreen(
                         "PIX: credenciais sandbox em local.properties"
                     },
                     onClick = vm::saveAndActivateStone,
-                )
-
-                Spacer(Modifier.height(10.dp))
-
-                Gate8MenuButton(
-                    title = if (state.stoneActivating) "Reativando…" else "Reativar terminal (recarregar tabelas)",
-                    subtitle = "Use se a leitura de cartao falhar (Missing AID). Precisa de WiFi.",
-                    onClick = vm::reactivateTerminal,
                 )
             }
 
@@ -284,6 +266,21 @@ fun SetupScreen(
 
     }
 
+    }
+
+    state.message?.let { msg ->
+        Gate8SuccessDialog(
+            title = msg,
+            onDismiss = { vm.dismissNotice() },
+        )
+    }
+
+    state.error?.let { err ->
+        Gate8AlertDialog(
+            title = "Atenção",
+            detail = err,
+            onDismiss = { vm.dismissNotice() },
+        )
     }
 
 }

@@ -268,9 +268,8 @@ object Gate8ReceiptTextBuilder {
             addAll(centerWrap(it))
         }
         add(divider())
-        p.holderName?.takeIf { it.isNotBlank() }?.let {
-            add(center("PORTADOR"))
-            add(center(it))
+        p.terminalName?.takeIf { it.isNotBlank() }?.let {
+            add(center("DISPOSITIVO: $it"))
             add("")
         }
         add(center(money(p.price)))
@@ -280,8 +279,10 @@ object Gate8ReceiptTextBuilder {
 
     /** Parte de baixo do ingresso (abaixo do QR): código manual, compra, validade e emissão. */
     fun ticketBottomLines(p: TicketPrintPayload): List<String> = buildList {
+        // Código curto de validação manual = 8 primeiros alfanuméricos da hash (igual ao site).
+        val manualCode = p.validationCode.filter { it.isLetterOrDigit() }.take(8).uppercase(brLocale)
         add("")
-        add(center(p.validationCode))
+        add(center(manualCode))
         add(center("Codigo para validacao manual"))
         p.purchaseCode?.takeIf { it.isNotBlank() }?.let { add(center("Compra $it")) }
         add("")
