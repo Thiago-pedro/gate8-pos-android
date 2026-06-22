@@ -115,6 +115,7 @@ class LoginViewModel(
                 configStore.setDeviceId(result.deviceId)
                 configStore.setDeviceName(result.deviceName)
                 configStore.setProducerName(result.producerName)
+                configStore.setMerchantName(result.merchantName)
                 configStore.setProducerToken(token)
                 _state.update { it.copy(loading = false) }
                 _navigation.tryEmit(LoginNavigation.Home)

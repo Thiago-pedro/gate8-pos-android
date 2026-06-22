@@ -94,7 +94,7 @@ val appModule = module {
     single { get<Gate8Database>().catalogDao() }
     single { get<Gate8Database>().pendingSaleDao() }
 
-    single { CatalogRepository(get(), get(), get(), get()) }
+    single { CatalogRepository(get(), get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
     single { CheckinRepository(get()) }
     single { LoginRepository(get(), get()) }

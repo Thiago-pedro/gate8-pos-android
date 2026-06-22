@@ -6,6 +6,7 @@ sealed class LoginResult {
         val deviceId: String,
         val deviceName: String,
         val producerName: String,
+        val merchantName: String?,
     ) : LoginResult()
 
     data class Pending(val deviceName: String?) : LoginResult()

@@ -48,6 +48,7 @@ interface PosApiService {
     suspend fun getReportsSummary(
         @Query("from") from: String,
         @Query("to") to: String,
+        @Query("segment") segment: String,
     ): Response<ReportsSummaryDto>
 
     @GET("api/public/pos/cashier/status")

@@ -2,16 +2,17 @@ package br.com.gate8.pos.ui.reports
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -94,13 +95,14 @@ fun ReportsScreen(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        SectionLabel("Período")
+        Spacer(Modifier.height(10.dp))
+        FlowRow(
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ReportPeriod.entries.forEach { period ->
                 PeriodChip(
@@ -111,7 +113,16 @@ fun ReportsScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
+
+        SectionLabel("Categoria")
+        Spacer(Modifier.height(10.dp))
+        SegmentTabs(
+            selected = state.segment,
+            onSelect = vm::selectSegment,
+        )
+
+        Spacer(Modifier.height(18.dp))
 
         Column(
             Modifier
@@ -196,6 +207,62 @@ fun ReportsScreen(
         )
     }
     }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        color = Gate8Colors.TextSecondary,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun SegmentTabs(
+    selected: ReportSegment,
+    onSelect: (ReportSegment) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ReportSegment.entries.forEachIndexed { index, segment ->
+            if (index > 0) {
+                Text(
+                    "|",
+                    color = Gate8Colors.TextSecondary.copy(alpha = 0.4f),
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+            }
+            val isSelected = segment == selected
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onSelect(segment) }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    segment.label,
+                    color = if (isSelected) Gate8Colors.AccentBlue else Gate8Colors.TextSecondary,
+                    fontSize = 15.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                )
+                Spacer(Modifier.height(5.dp))
+                Box(
+                    Modifier
+                        .height(2.5.dp)
+                        .width(if (isSelected) 22.dp else 0.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (isSelected) Gate8Colors.AccentBlue else Color.Transparent),
+                )
+            }
+        }
     }
 }
 

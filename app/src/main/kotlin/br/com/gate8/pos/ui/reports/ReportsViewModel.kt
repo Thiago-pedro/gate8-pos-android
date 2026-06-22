@@ -30,9 +30,16 @@ enum class ReportPeriod(val label: String) {
     CUSTOM("Personalizado"),
 }
 
+enum class ReportSegment(val label: String, val apiValue: String) {
+    ALL("Tudo", "all"),
+    TICKET("Bilheteria", "ticket"),
+    PRODUCT("Conveniência", "product"),
+}
+
 data class ReportsUiState(
     val loading: Boolean = false,
     val period: ReportPeriod = ReportPeriod.TODAY,
+    val segment: ReportSegment = ReportSegment.ALL,
     val customFrom: LocalDate? = null,
     val customTo: LocalDate? = null,
     val showCustomDialog: Boolean = false,
@@ -79,6 +86,12 @@ class ReportsViewModel(
         }
     }
 
+    fun selectSegment(segment: ReportSegment) {
+        if (_state.value.segment == segment) return
+        _state.update { it.copy(segment = segment) }
+        load()
+    }
+
     fun dismissCustomDialog() {
         _state.update { it.copy(showCustomDialog = false) }
     }
@@ -120,8 +133,9 @@ class ReportsViewModel(
         printer.printReportSummary(
             ReportPrintPayload(
                 periodLabel = _state.value.periodLabel,
+                segmentLabel = _state.value.segment.takeIf { it != ReportSegment.ALL }?.label,
                 deviceName = data.device?.name ?: configStore.getDeviceName(),
-                producerName = configStore.getProducerName(),
+                producerName = configStore.getEstablishmentName(),
                 saleCount = s.saleCount,
                 voidCount = s.voidCount,
                 grossTotal = s.grossTotal,
@@ -142,7 +156,7 @@ class ReportsViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, printMessage = null, periodLabel = label) }
             val cashier = runCatching { cashierRepository.fetchStatus() }.getOrNull()
-            runCatching { reportsRepository.fetchSummary(from, to) }
+            runCatching { reportsRepository.fetchSummary(from, to, _state.value.segment.apiValue) }
                 .onSuccess { summary ->
                     val isDemo = summary.device?.id == "demo"
                     _state.update {

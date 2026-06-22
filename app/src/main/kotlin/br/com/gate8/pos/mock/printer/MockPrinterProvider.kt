@@ -16,6 +16,7 @@ class MockPrinterProvider : ReceiptPrinter {
         authorization: String?,
         stoneTransactionId: String?,
         isReprint: Boolean,
+        saleDateMillis: Long?,
     ) {
         val sb = StringBuilder("=== GATE8 CUPOM (MOCK) ===\n")
         lines.forEach { l ->

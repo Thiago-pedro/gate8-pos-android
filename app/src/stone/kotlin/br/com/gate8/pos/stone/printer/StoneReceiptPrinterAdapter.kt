@@ -28,6 +28,7 @@ class StoneReceiptPrinterAdapter(
         authorization: String?,
         stoneTransactionId: String?,
         isReprint: Boolean,
+        saleDateMillis: Long?,
     ) {
         val activity = activityHolder.runCatching { requireActivity() }.getOrNull()
         if (activity == null) {
@@ -60,6 +61,8 @@ class StoneReceiptPrinterAdapter(
             authorization = authorization,
             isReprint = isReprint,
             terminalName = deviceName(),
+            saleDate = saleDateMillis?.let { java.util.Date(it) },
+            establishmentName = configStore.getEstablishmentName(),
         )
         posPrinter.printLines(activity, textLines)
     }
@@ -82,6 +85,7 @@ class StoneReceiptPrinterAdapter(
                 nsu = nsu,
                 authorization = authorization,
                 terminalName = deviceName(),
+                establishmentName = configStore.getEstablishmentName(),
             ),
         )
     }
@@ -144,6 +148,7 @@ class StoneReceiptPrinterAdapter(
                 authorization = authorization,
                 isReprint = isReprint,
                 terminalName = deviceName(),
+                establishmentName = configStore.getEstablishmentName(),
             ),
         )
     }
@@ -164,7 +169,7 @@ class StoneReceiptPrinterAdapter(
                         unitPrice = line.unitPrice,
                         terminalName = terminalName,
                         authorization = authorization,
-                        producerName = configStore.getProducerName(),
+                        producerName = configStore.getEstablishmentName(),
                     ),
                     logoScale = FICHA_LOGO_SCALE,
                 )

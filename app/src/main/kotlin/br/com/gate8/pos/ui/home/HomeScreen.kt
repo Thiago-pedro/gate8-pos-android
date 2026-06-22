@@ -81,9 +81,10 @@ fun HomeScreen(
             ) {
                 Spacer(Modifier.height(28.dp))
 
-                setupState.producerName?.let {
+                val establishmentName = setupState.merchantName ?: setupState.producerName
+                establishmentName?.let {
                     Text(
-                        "Produtor: $it",
+                        "Estabelecimento: $it",
                         color = Gate8Colors.TextSecondary,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
@@ -98,7 +99,7 @@ fun HomeScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = if (setupState.producerName != null) 4.dp else 0.dp),
+                            .padding(top = if (establishmentName != null) 4.dp else 0.dp),
                     )
                 }
 

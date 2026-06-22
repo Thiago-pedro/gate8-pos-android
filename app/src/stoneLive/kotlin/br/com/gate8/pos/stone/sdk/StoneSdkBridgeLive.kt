@@ -393,7 +393,9 @@ class StoneSdkBridgeLive(
             // Captura posterior (setCapture false + CaptureTransactionProvider) não é usada no Gate8:
             // bilheteria/conveniência exige pagamento confirmado na hora.
             setCapture(true)
-            setShortName(SHORT_NAME)
+            // Nome do estabelecimento (merchant_name) na transação; fallback "Gate8".
+            val merchant = config.getEstablishmentName()?.trim()?.takeIf { it.isNotEmpty() } ?: SHORT_NAME
+            setShortName(merchant.take(SHORT_NAME_MAX))
             // PIX exige os dados do sub-merchant para montar o payload do QR Code.
             // Sem eles a SDK falha instantaneamente (INTERNAL_ERROR) antes de exibir o QR.
             if (method == PaymentMethodApi.PIX) {
@@ -429,6 +431,8 @@ class StoneSdkBridgeLive(
     companion object {
         private const val APP_NAME = "Gate8"
         private const val SHORT_NAME = "Gate8"
+        // Limite defensivo para o nome curto do estabelecimento na transação Stone.
+        private const val SHORT_NAME_MAX = 30
         private const val TAG = "Gate8Stone"
 
         // Dados reais do estabelecimento (sub-merchant) da conta Stone da Gate8.

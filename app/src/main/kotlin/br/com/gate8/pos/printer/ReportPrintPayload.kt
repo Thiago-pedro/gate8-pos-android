@@ -28,6 +28,8 @@ data class ReportCashierInfo(
 
 data class ReportPrintPayload(
     val periodLabel: String,
+    /** Escopo do relatório: "Bilheteria", "Conveniência" ou null (geral). */
+    val segmentLabel: String? = null,
     val deviceName: String?,
     val producerName: String?,
     val saleCount: Int,

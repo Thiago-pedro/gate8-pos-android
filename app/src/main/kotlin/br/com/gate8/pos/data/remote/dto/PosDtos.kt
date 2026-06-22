@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonNames
 @Serializable
 data class CatalogResponseDto(
     val device: DeviceDto,
+    @SerialName("merchant_name") val merchantName: String? = null,
     val event: EventSummaryDto? = null,
     val events: List<EventCatalogDto> = emptyList(),
     val products: List<ProductDto> = emptyList(),
@@ -189,5 +190,6 @@ data class LoginResponseDto(
     @SerialName("device_id") val deviceId: String? = null,
     @SerialName("device_name") val deviceName: String? = null,
     @SerialName("producer_name") val producerName: String? = null,
+    @SerialName("merchant_name") val merchantName: String? = null,
     val error: String? = null,
 )

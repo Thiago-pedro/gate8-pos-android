@@ -11,6 +11,8 @@ interface ReceiptPrinter {
         authorization: String?,
         stoneTransactionId: String? = null,
         isReprint: Boolean = false,
+        // Quando informado (reimpressão), usa a data/hora original da venda.
+        saleDateMillis: Long? = null,
     )
 
     fun printVoidReceipt(
@@ -72,6 +74,7 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         authorization: String?,
         stoneTransactionId: String?,
         isReprint: Boolean,
+        saleDateMillis: Long?,
     ) = Unit
 
     override fun printVoidReceipt(

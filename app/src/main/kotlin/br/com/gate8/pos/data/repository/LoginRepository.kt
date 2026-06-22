@@ -41,6 +41,7 @@ class LoginRepository(
                 deviceId = deviceId,
                 deviceName = response.deviceName ?: "Maquininha",
                 producerName = response.producerName ?: "Produtor",
+                merchantName = response.merchantName,
             )
         }
         "pending" -> LoginResult.Pending(response.deviceName)

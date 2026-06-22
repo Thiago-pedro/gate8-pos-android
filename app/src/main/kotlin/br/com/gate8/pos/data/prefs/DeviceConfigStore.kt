@@ -56,6 +56,25 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_PRODUCER_NAME, name).apply()
     }
 
+    /** Nome do estabelecimento configurado pelo produtor (vem de /login e /catalog). */
+    fun getMerchantName(): String? =
+        prefs.getString(KEY_MERCHANT_NAME, null)?.takeIf { it.isNotBlank() }
+
+    fun setMerchantName(name: String?) {
+        val trimmed = name?.trim().orEmpty()
+        if (trimmed.isEmpty()) {
+            prefs.edit().remove(KEY_MERCHANT_NAME).apply()
+        } else {
+            prefs.edit().putString(KEY_MERCHANT_NAME, trimmed).apply()
+        }
+    }
+
+    /**
+     * Nome do estabelecimento para exibir/imprimir: usa o `merchant_name` quando
+     * configurado e cai para o `producer_name` como fallback final.
+     */
+    fun getEstablishmentName(): String? = getMerchantName() ?: getProducerName()
+
     fun getDeviceName(): String? = prefs.getString(KEY_DEVICE_NAME, null)
 
     fun setDeviceName(name: String) {
@@ -113,6 +132,7 @@ class DeviceConfigStore(context: Context) {
             .remove(KEY_TOKEN)
             .remove(KEY_DEVICE_ID)
             .remove(KEY_PRODUCER_NAME)
+            .remove(KEY_MERCHANT_NAME)
             .remove(KEY_DEVICE_NAME)
             .apply()
     }
@@ -123,6 +143,7 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_FINGERPRINT = "device_fingerprint"
         private const val KEY_PRODUCER_TOKEN = "producer_token"
         private const val KEY_PRODUCER_NAME = "producer_name"
+        private const val KEY_MERCHANT_NAME = "pos_merchant_name"
         private const val KEY_DEVICE_NAME = "device_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_OPERATOR = "operator_name"

@@ -143,6 +143,10 @@ object Gate8ReceiptTextBuilder {
         authorization: String?,
         isReprint: Boolean,
         terminalName: String = MERCHANT_NAME,
+        // Data da venda; na reimpressão deve ser a data original (não a de agora).
+        saleDate: Date? = null,
+        // Nome do estabelecimento (merchant_name) — impresso no topo do comprovante.
+        establishmentName: String? = null,
     ): List<String> = buildList {
         addAll(
             header(
@@ -150,7 +154,11 @@ object Gate8ReceiptTextBuilder {
                 subtitle = if (isReprint) "** REIMPRESSAO **" else null,
             ),
         )
-        add(row("DATA:", timeFormat.format(Date())))
+        establishmentName?.takeIf { it.isNotBlank() }?.let {
+            add(center(it.uppercase(brLocale)))
+            add("")
+        }
+        add(row("DATA:", timeFormat.format(saleDate ?: Date())))
         add(row("DISPOSITIVO:", terminalName))
         add(divider())
         add(row("DESCRICAO", "VALOR (R$)"))
@@ -172,8 +180,13 @@ object Gate8ReceiptTextBuilder {
         nsu: String?,
         authorization: String?,
         terminalName: String = MERCHANT_NAME,
+        establishmentName: String? = null,
     ): List<String> = buildList {
         addAll(header(title = "COMPROVANTE DE ESTORNO"))
+        establishmentName?.takeIf { it.isNotBlank() }?.let {
+            add(center(it.uppercase(brLocale)))
+            add("")
+        }
         add(row("DATA:", timeFormat.format(Date())))
         add(row("DISPOSITIVO:", terminalName))
         add(divider())
@@ -299,7 +312,12 @@ object Gate8ReceiptTextBuilder {
     }
 
     fun reportSummary(payload: ReportPrintPayload): List<String> = buildList {
-        addAll(header(title = "RELATORIO"))
+        addAll(
+            header(
+                title = "RELATORIO",
+                subtitle = payload.segmentLabel?.uppercase(brLocale),
+            ),
+        )
         payload.producerName?.let { add(dotLeaderRow("PRODUTOR:", it)) }
         payload.deviceName?.let { add(dotLeaderRow("MAQUININHA:", it)) }
         add(dotLeaderRow("PERIODO:", payload.periodLabel))

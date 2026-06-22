@@ -81,6 +81,7 @@ class SaleAdminService(
             sale.authorization,
             stoneTransactionId = sale.transactionId,
             isReprint = true,
+            saleDateMillis = sale.createdAt,
         )
         val ticketLine = sale.lines.firstOrNull()
         sale.ticketCodes.forEach { code ->

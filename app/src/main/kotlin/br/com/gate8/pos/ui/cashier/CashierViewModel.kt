@@ -379,7 +379,7 @@ class CashierViewModel(
             ?: formatInstantLabel(Instant.now().toString())
         return CashierPrintPayload(
             deviceName = configStore.getDeviceName(),
-            producerName = configStore.getProducerName(),
+            producerName = configStore.getEstablishmentName(),
             operatorName = configStore.getOperatorName().ifBlank { session?.operatorName ?: "" },
             openedAtLabel = formatInstantLabel(session?.openedAt),
             closedAtLabel = closedLabel,
@@ -413,7 +413,7 @@ class CashierViewModel(
     ): CashierPrintPayload {
         return CashierPrintPayload(
             deviceName = configStore.getDeviceName(),
-            producerName = configStore.getProducerName(),
+            producerName = configStore.getEstablishmentName(),
             operatorName = configStore.getOperatorName().ifBlank { session.operatorName },
             openedAtLabel = formatInstantLabel(session.openedAt),
             closedAtLabel = session.closedAt?.let { formatInstantLabel(it) },

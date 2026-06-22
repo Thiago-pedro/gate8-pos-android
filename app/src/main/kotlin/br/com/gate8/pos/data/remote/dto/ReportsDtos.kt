@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class ReportsSummaryDto(
     val period: ReportsPeriodDto,
     val device: ReportsDeviceDto? = null,
+    val segment: String? = null,
     val summary: ReportsTotalsDto,
     @SerialName("by_payment_method") val byPaymentMethod: List<ReportsPaymentRowDto> = emptyList(),
     @SerialName("by_brand") val byBrand: List<ReportsBrandRowDto> = emptyList(),
