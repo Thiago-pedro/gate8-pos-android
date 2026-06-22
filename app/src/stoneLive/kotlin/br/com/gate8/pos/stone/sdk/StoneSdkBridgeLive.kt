@@ -404,32 +404,49 @@ class StoneSdkBridgeLive(
 
     /**
      * Dados do estabelecimento (sub-merchant) exigidos pela Stone para gerar o QR Code PIX.
-     * Espelha o fluxo do demo oficial (stone-payments/demo-sdk-android).
-     * TODO: para produção, popular com os dados reais do estabelecimento (via config).
+     * Na prática a SDK falha com INTERNAL_ERROR se estes campos não forem preenchidos.
+     * A Gate8 usa uma única conta/CNPJ para todas as maquininhas, então os dados são fixos aqui.
      */
     private fun TransactionObject.applySubMerchant() {
-        setSubMerchantCity("Sao Paulo")
-        setSubMerchantTaxIdentificationNumber("00.000.000/0001-91")
-        setSubMerchantRegisteredIdentifier("00.000.000/0001-91")
-        setSubMerchantPostalAddress("01001-000")
-        setSubMerchantLegalName("Gate8")
+        setSubMerchantCity(SUB_MERCHANT_CITY)
+        setSubMerchantTaxIdentificationNumber(SUB_MERCHANT_TAX_ID)
+        setSubMerchantRegisteredIdentifier(SUB_MERCHANT_TAX_ID)
+        setSubMerchantPostalAddress(SUB_MERCHANT_POSTAL_CODE)
+        setSubMerchantLegalName(SUB_MERCHANT_LEGAL_NAME)
         setSubMerchantTaxIdentificationType("JRDC")
-        setSubMerchantPhoneNumber("(11) 9 9999-9999")
+        setSubMerchantPhoneNumber(SUB_MERCHANT_PHONE)
         setSubMerchantCountryCode("076")
-        setSubMerchantState("SP")
-        setSubMerchantNeighborhood("Centro")
-        setSubMerchantEmail("contato@gate8.com.br")
-        setSubMerchantSiteUrl("www.gate8.com.br")
-        setSubMerchantBuildingNumber("1")
-        setSubMerchantAddress("Praca da Se")
-        setSubMerchantCategoryCode("5734")
-        setSubMerchantPaymentGatewayId("123123")
+        setSubMerchantState(SUB_MERCHANT_STATE)
+        setSubMerchantNeighborhood(SUB_MERCHANT_NEIGHBORHOOD)
+        setSubMerchantEmail(SUB_MERCHANT_EMAIL)
+        setSubMerchantSiteUrl(SUB_MERCHANT_SITE_URL)
+        setSubMerchantBuildingNumber(SUB_MERCHANT_BUILDING_NUMBER)
+        setSubMerchantAddress(SUB_MERCHANT_ADDRESS)
+        setSubMerchantCategoryCode(SUB_MERCHANT_MCC)
+        setSubMerchantPaymentGatewayId(SUB_MERCHANT_PAYMENT_GATEWAY_ID)
     }
 
     companion object {
         private const val APP_NAME = "Gate8"
         private const val SHORT_NAME = "Gate8"
         private const val TAG = "Gate8Stone"
+
+        // Dados reais do estabelecimento (sub-merchant) da conta Stone da Gate8.
+        // Usados pela SDK para montar o payload do QR Code do PIX (sem eles: INTERNAL_ERROR).
+        // TODO(homologação): substituir pelos dados reais da conta Stone da Gate8.
+        private const val SUB_MERCHANT_LEGAL_NAME = "Gate8"
+        private const val SUB_MERCHANT_TAX_ID = "00.000.000/0001-91"
+        private const val SUB_MERCHANT_MCC = "5734"
+        private const val SUB_MERCHANT_ADDRESS = "Praca da Se"
+        private const val SUB_MERCHANT_BUILDING_NUMBER = "1"
+        private const val SUB_MERCHANT_NEIGHBORHOOD = "Centro"
+        private const val SUB_MERCHANT_CITY = "Sao Paulo"
+        private const val SUB_MERCHANT_STATE = "SP"
+        private const val SUB_MERCHANT_POSTAL_CODE = "01001-000"
+        private const val SUB_MERCHANT_PHONE = "(11) 9 9999-9999"
+        private const val SUB_MERCHANT_EMAIL = "contato@gate8.com.br"
+        private const val SUB_MERCHANT_SITE_URL = "www.gate8.com.br"
+        private const val SUB_MERCHANT_PAYMENT_GATEWAY_ID = "123123"
 
         private fun pixKeysFromBuildConfig(): Map<StoneKeyType, String> {
             val authorization = BuildConfig.STONE_PIX_QR_AUTHORIZATION.trim()

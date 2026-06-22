@@ -241,6 +241,29 @@ fun CashierScreen(
                 CashierDialog.NONE -> Unit
             }
 
+            state.pendingCloseConfirm?.let { brk ->
+                val sobra = brk.difference > 0
+                val diffAbs = "%.2f".format(kotlin.math.abs(brk.difference))
+                Gate8ConfirmDialog(
+                    title = "Quebra de caixa",
+                    message = if (sobra) {
+                        "Há SOBRA de R$ $diffAbs na gaveta.\n\n" +
+                            "Esperado: R$ ${"%.2f".format(brk.expected)}\n" +
+                            "Contado: R$ ${"%.2f".format(brk.counted)}\n\n" +
+                            "Deseja fechar o caixa mesmo assim?"
+                    } else {
+                        "Está FALTANDO R$ $diffAbs na gaveta.\n\n" +
+                            "Esperado: R$ ${"%.2f".format(brk.expected)}\n" +
+                            "Contado: R$ ${"%.2f".format(brk.counted)}\n\n" +
+                            "Deseja fechar o caixa mesmo assim?"
+                    },
+                    confirmLabel = if (state.loading) "Aguarde…" else "Fechar mesmo assim",
+                    dismissLabel = "Voltar e corrigir",
+                    onConfirm = { if (!state.loading) vm.confirmCloseAnyway() },
+                    onDismiss = vm::dismissCloseConfirm,
+                )
+            }
+
             state.successModal?.let { success ->
                 Gate8SuccessDialog(
                     title = success.title,

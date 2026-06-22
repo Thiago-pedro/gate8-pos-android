@@ -20,7 +20,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 enum class CashierDialog {
@@ -35,6 +38,13 @@ enum class CashierDialog {
 data class CashierSuccessUi(
     val title: String,
     val detail: String? = null,
+)
+
+/** Aviso de quebra de caixa: diferença entre o contado e o esperado ao fechar. */
+data class CashierBreakUi(
+    val counted: Double,
+    val expected: Double,
+    val difference: Double,
 )
 
 data class CashierUiState(
@@ -55,6 +65,8 @@ data class CashierUiState(
     /** Comprovante do último fechamento, montado localmente, para (re)impressão. */
     val lastClosePayload: CashierPrintPayload? = null,
     val operatorLabel: String = "",
+    /** Quando preenchido, mostra o aviso de quebra de caixa pedindo confirmação. */
+    val pendingCloseConfirm: CashierBreakUi? = null,
 )
 
 class CashierViewModel(
@@ -110,7 +122,7 @@ class CashierViewModel(
     }
 
     fun dismissDialog() {
-        _state.update { it.copy(dialog = CashierDialog.NONE, error = null) }
+        _state.update { it.copy(dialog = CashierDialog.NONE, error = null, pendingCloseConfirm = null) }
     }
 
     fun dismissSuccessModal() {
@@ -210,6 +222,35 @@ class CashierViewModel(
             _state.update { it.copy(error = "Informe quanto há na gaveta") }
             return
         }
+        // Se há divergência entre o contado e o esperado, avisa da quebra de caixa
+        // e pede confirmação antes de fechar de fato.
+        val expected = _state.value.totals?.expectedDrawer ?: 0.0
+        val diff = counted - expected
+        if (kotlin.math.abs(diff) >= 0.01) {
+            _state.update {
+                it.copy(
+                    pendingCloseConfirm = CashierBreakUi(counted, expected, diff),
+                    error = null,
+                )
+            }
+            return
+        }
+        performClose(counted)
+    }
+
+    /** Confirma o fechamento mesmo com quebra de caixa (sobra/falta). */
+    fun confirmCloseAnyway() {
+        val pending = _state.value.pendingCloseConfirm ?: return
+        _state.update { it.copy(pendingCloseConfirm = null) }
+        performClose(pending.counted)
+    }
+
+    /** Cancela o aviso de quebra e volta para o modal de fechamento. */
+    fun dismissCloseConfirm() {
+        _state.update { it.copy(pendingCloseConfirm = null) }
+    }
+
+    private fun performClose(counted: Double) {
         // Snapshot do turno enquanto ainda está aberto: a resposta de fechamento
         // da API nem sempre traz session/totals, então usamos o que já temos na tela.
         val preSession = _state.value.session
@@ -230,7 +271,7 @@ class CashierViewModel(
                             totals = status.totals ?: preTotals,
                             movements = status.movements.ifEmpty { preMovements },
                             closeSummary = status.summary,
-                            lastClosePayload = payload ?: it.lastClosePayload,
+                            lastClosePayload = payload,
                             dialog = CashierDialog.NONE,
                         )
                     }
@@ -319,10 +360,15 @@ class CashierViewModel(
         preTotals: CashierTotalsDto?,
         preMovements: List<CashierMovementDto>,
         counted: Double,
-    ): CashierPrintPayload? {
+    ): CashierPrintPayload {
         val summary = status.summary
-        val totals = summary?.totals ?: status.totals ?: preTotals ?: return null
         val session = summary?.session ?: status.session ?: preSession
+        // Sem vendas, os totais podem vir nulos. Em vez de não imprimir, sintetizamos um
+        // resumo a partir do troco inicial (esperado = abertura) para imprimir SEMPRE.
+        val totals = summary?.totals ?: status.totals ?: preTotals ?: run {
+            val opening = preSession?.openingBalance ?: session?.openingBalance ?: 0.0
+            CashierTotalsDto(openingBalance = opening, expectedDrawer = opening)
+        }
         val movements = summary?.movements?.takeIf { it.isNotEmpty() }
             ?: status.movements.takeIf { it.isNotEmpty() }
             ?: preMovements
@@ -413,15 +459,29 @@ class CashierViewModel(
 
     private fun formatInstantLabel(iso: String?): String {
         if (iso.isNullOrBlank()) return "—"
-        return runCatching {
-            val instant = Instant.parse(iso)
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-                .withZone(zone)
-                .format(instant)
-        }.getOrDefault(iso)
+        val instant = parseInstant(iso) ?: return iso
+        return DATE_LABEL_FORMAT.withZone(zone).format(instant)
+    }
+
+    /**
+     * Aceita os vários formatos que o backend pode mandar (ISO com `Z`, com offset `+00:00`,
+     * Postgres `2026-06-22 03:00:00+00`, ou sem fuso) e devolve sempre um [Instant] em UTC.
+     */
+    private fun parseInstant(raw: String): Instant? {
+        // Normaliza: espaço -> 'T' e offset curto "+00"/"-03" -> "+00:00"/"-03:00".
+        val s = raw.trim()
+            .replace(' ', 'T')
+            .replace(Regex("([+-]\\d{2})$"), "$1:00")
+        runCatching { return Instant.parse(s) }
+        runCatching { return OffsetDateTime.parse(s).toInstant() }
+        // Sem fuso na string: o backend grava em UTC, então assumimos UTC.
+        runCatching { return LocalDateTime.parse(s).toInstant(ZoneOffset.UTC) }
+        return null
     }
 
     private companion object {
         const val TAG = "Gate8Cashier"
+        val DATE_LABEL_FORMAT: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
     }
 }
