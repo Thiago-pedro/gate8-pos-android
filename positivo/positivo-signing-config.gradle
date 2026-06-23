@@ -24,10 +24,14 @@ android {
         }
         // Build de teste em PRODUCAO: herda do debug (sem minify, com logs),
         // mas NAO recebe a dependencia envconfig -> a SDK Stone usa o ambiente de PRODUCAO.
-        // Instala lado a lado (sufixo .prod) para nao sobrescrever o app de Sandbox.
+        // Por padrao usa sufixo .prod para instalar lado a lado com o app de Sandbox.
+        // Com -PprodCleanId o package fica LIMPO (br.com.gate8.pos.terminal) -> usado para
+        // gerar o APK de homologacao/producao real (mesmo package que vai para os clientes).
         positivoProd {
             initWith debug
-            applicationIdSuffix ".prod"
+            if (!project.hasProperty("prodCleanId")) {
+                applicationIdSuffix ".prod"
+            }
             signingConfig signingConfigs.positivo
             matchingFallbacks = ['release', 'debug']
         }
