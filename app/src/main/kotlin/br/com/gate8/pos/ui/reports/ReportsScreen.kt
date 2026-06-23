@@ -173,14 +173,6 @@ fun ReportsScreen(
             enabled = !state.loading && state.data != null,
             centerText = true,
         )
-        Spacer(Modifier.height(10.dp))
-        Gate8MenuButton(
-            title = "Atualizar relatório",
-            subtitle = "Buscar dados mais recentes",
-            onClick = vm::refresh,
-            enabled = !state.loading,
-            centerText = true,
-        )
         state.printMessage?.let {
             Spacer(Modifier.height(10.dp))
             Text(

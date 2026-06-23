@@ -40,6 +40,12 @@ import androidx.compose.runtime.collectAsState
 
 import androidx.compose.runtime.getValue
 
+import androidx.compose.runtime.mutableStateOf
+
+import androidx.compose.runtime.remember
+
+import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Modifier
 
 import androidx.compose.ui.draw.clip
@@ -80,6 +86,8 @@ fun SetupScreen(
     val state by vm.state.collectAsState()
 
     val scrollState = rememberScrollState()
+
+    var showCashierOpenWarning by remember { mutableStateOf(false) }
 
 
 
@@ -250,9 +258,17 @@ fun SetupScreen(
 
                 onClick = {
 
-                    vm.logout()
+                    if (state.cashierOpen) {
 
-                    onLogout()
+                        showCashierOpenWarning = true
+
+                    } else {
+
+                        vm.logout()
+
+                        onLogout()
+
+                    }
 
                 },
 
@@ -280,6 +296,16 @@ fun SetupScreen(
             title = "Atenção",
             detail = err,
             onDismiss = { vm.dismissNotice() },
+        )
+    }
+
+    if (showCashierOpenWarning) {
+        Gate8AlertDialog(
+            title = "Caixa aberto",
+            detail = "Feche o caixa antes de sair ou trocar de produtor. " +
+                "Volte à tela inicial e abra \"Caixa\" para fazer o fechamento.",
+            buttonLabel = "Entendi",
+            onDismiss = { showCashierOpenWarning = false },
         )
     }
 

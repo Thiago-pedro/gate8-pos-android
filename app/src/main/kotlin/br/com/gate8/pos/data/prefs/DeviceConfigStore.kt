@@ -87,8 +87,10 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_DEVICE_ID, id).apply()
     }
 
-    fun getOperatorName(): String =
-        prefs.getString(KEY_OPERATOR, "Operador POS") ?: "Operador POS"
+    fun getOperatorName(): String = prefs.getString(KEY_OPERATOR, "")?.trim().orEmpty()
+
+    /** Há um operador definido neste terminal? Usado para exigir o nome antes de operar. */
+    fun hasOperatorName(): Boolean = getOperatorName().isNotBlank()
 
     fun setOperatorName(name: String) {
         prefs.edit().putString(KEY_OPERATOR, name).apply()
@@ -134,6 +136,10 @@ class DeviceConfigStore(context: Context) {
             .remove(KEY_PRODUCER_NAME)
             .remove(KEY_MERCHANT_NAME)
             .remove(KEY_DEVICE_NAME)
+            .remove(KEY_OPERATOR)
+            // Zera a identidade da maquininha: o próximo login gera um novo
+            // fingerprint e o dispositivo precisa ser liberado de novo no painel.
+            .remove(KEY_FINGERPRINT)
             .apply()
     }
 

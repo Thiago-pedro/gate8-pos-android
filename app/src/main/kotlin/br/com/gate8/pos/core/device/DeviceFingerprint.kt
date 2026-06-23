@@ -17,17 +17,27 @@ object DeviceFingerprint {
         store.getFingerprint()?.let { existing ->
             if (existing.length >= MIN_LENGTH) return existing
         }
+        // Mantemos o serial/ID do hardware como prefixo (ajuda o painel a correlacionar
+        // a mesma máquina física) e adicionamos um sufixo aleatório por registro.
+        // Assim, ao sair/trocar produtor o fingerprint é zerado e o próximo login
+        // entra como um dispositivo NOVO, que precisa ser liberado no painel.
+        val suffix = UUID.randomUUID().toString().take(8)
         val stoneSerial = hardware?.readTerminal()?.serialNumber
-        if (!stoneSerial.isNullOrBlank()) {
-            val fingerprint = "stone-$stoneSerial"
-            store.setFingerprint(fingerprint)
-            return fingerprint
+        val base = when {
+            !stoneSerial.isNullOrBlank() -> "stone-$stoneSerial"
+            else -> {
+                val androidId = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ANDROID_ID,
+                )
+                if (!androidId.isNullOrBlank() && androidId != "9774d56d682e549c") {
+                    "aid-$androidId"
+                } else {
+                    "uuid"
+                }
+            }
         }
-        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-        val fingerprint = when {
-            !androidId.isNullOrBlank() && androidId != "9774d56d682e549c" -> "aid-$androidId"
-            else -> "uuid-${UUID.randomUUID()}"
-        }
+        val fingerprint = "$base-$suffix"
         store.setFingerprint(fingerprint)
         return fingerprint
     }

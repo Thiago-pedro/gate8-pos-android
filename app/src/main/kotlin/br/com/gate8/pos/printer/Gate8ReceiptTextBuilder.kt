@@ -396,22 +396,22 @@ object Gate8ReceiptTextBuilder {
 
     fun cashierSummary(payload: CashierPrintPayload): List<String> = buildList {
         addAll(header(title = "RESUMO DE CAIXA"))
-        payload.producerName?.let { add(row("PRODUTOR:", it)) }
-        payload.deviceName?.let { add(row("MAQUININHA:", it)) }
-        payload.operatorName?.let { add(row("OPERADOR:", it)) }
-        add(row("ABERTURA:", payload.openedAtLabel))
-        payload.closedAtLabel?.let { add(row("FECHAMENTO:", it)) }
+        payload.producerName?.let { add(dotLeaderRow("PRODUTOR:", it)) }
+        payload.deviceName?.let { add(dotLeaderRow("MAQUININHA:", it)) }
+        payload.operatorName?.let { add(dotLeaderRow("OPERADOR:", it)) }
+        add(dotLeaderRow("ABERTURA:", payload.openedAtLabel))
+        payload.closedAtLabel?.let { add(dotLeaderRow("FECHAMENTO:", it)) }
         add(divider())
-        add(row("TROCO INICIAL:", money(payload.openingBalance)))
-        add(row("VENDAS CASH:", money(payload.cashSales)))
-        add(row("SANGRIAS:", money(payload.withdrawals)))
-        add(row("DESPESAS:", money(payload.expenses)))
-        add(row("ESPERADO:", money(payload.expectedDrawer)))
-        payload.countedBalance?.let { add(row("CONTADO:", money(it))) }
-        payload.difference?.let { add(row("DIFERENCA:", money(it))) }
+        add(dotLeaderRow("TROCO INICIAL:", money(payload.openingBalance)))
+        add(dotLeaderRow("VENDAS CASH:", money(payload.cashSales)))
+        add(dotLeaderRow("SANGRIAS:", money(payload.withdrawals)))
+        add(dotLeaderRow("DESPESAS:", money(payload.expenses)))
+        add(dotLeaderRow("ESPERADO:", money(payload.expectedDrawer)))
+        payload.countedBalance?.let { add(dotLeaderRow("CONTADO:", money(it))) }
+        payload.difference?.let { add(dotLeaderRow("DIFERENCA:", money(it))) }
         add(divider())
-        add(row("VENDAS:", payload.saleCount.toString()))
-        add(row("TOTAL:", money(payload.grandTotal)))
+        add(dotLeaderRow("VENDAS:", payload.saleCount.toString()))
+        add(dotLeaderRow("TOTAL:", money(payload.grandTotal)))
         addAll(footer())
     }
 }

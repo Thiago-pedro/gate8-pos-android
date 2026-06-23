@@ -23,6 +23,8 @@ private const val OPERATOR_PREFIX = "POS - "
 
 data class SetupUiState(
     val operatorName: String = "",
+    /** Não há operador definido: é obrigatório informar antes de operar/vender. */
+    val operatorMissing: Boolean = false,
     val stoneCode: String = "",
     val showStoneSection: Boolean = false,
     val stonePixConfigured: Boolean = false,
@@ -69,6 +71,7 @@ class SetupViewModel(
         _state.update {
             it.copy(
                 operatorName = stripOperatorPrefix(configStore.getOperatorName()),
+                operatorMissing = !configStore.hasOperatorName(),
                 stoneCode = stoneSettings.getSavedStoneCode(),
                 showStoneSection = stoneSettings.showStoneSection,
                 stonePixConfigured = stoneSettings.pixCredentialsConfigured(),
@@ -259,12 +262,23 @@ class SetupViewModel(
     }
 
     fun saveOperator() {
-        val typed = stripOperatorPrefix(_state.value.operatorName).ifBlank { "Operador" }
+        val typed = stripOperatorPrefix(_state.value.operatorName)
+        if (typed.isBlank()) {
+            _state.update {
+                it.copy(
+                    operatorMissing = true,
+                    error = "Informe o nome do operador.",
+                    message = null,
+                )
+            }
+            return
+        }
         val name = OPERATOR_PREFIX + typed
         configStore.setOperatorName(name)
         _state.update {
             it.copy(
                 operatorName = typed,
+                operatorMissing = false,
                 message = "Operador salvo",
                 error = null,
             )

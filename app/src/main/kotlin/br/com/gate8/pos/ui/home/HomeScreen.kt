@@ -1,6 +1,8 @@
 package br.com.gate8.pos.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,11 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +41,7 @@ import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
 import br.com.gate8.pos.ui.common.Gate8HeaderLogo
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.common.Gate8MenuButton
+import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.config.SetupViewModel
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
@@ -236,6 +242,71 @@ fun HomeScreen(
                 onDismiss = vm::dismissClearPendingConfirm,
             )
         }
+
+        if (setupState.operatorMissing) {
+            OperatorRequiredDialog(
+                value = setupState.operatorName,
+                onValueChange = vm::updateOperator,
+                onSave = vm::saveOperator,
+            )
+        }
+        }
+    }
+}
+
+@Composable
+private fun OperatorRequiredDialog(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 28.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.97f))
+                .padding(horizontal = 22.dp, vertical = 24.dp),
+        ) {
+            Text(
+                "Operador obrigatório",
+                color = Gate8Colors.TextOnLight,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Informe o nome do operador para começar a operar. Ele aparece nos comprovantes e nos relatórios desta sessão.",
+                color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+            Spacer(Modifier.height(16.dp))
+            Gate8OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                label = "Nome do operador",
+                prefix = "POS - ",
+                placeholder = "Tulio",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(20.dp))
+            Gate8MenuButton(
+                title = "Salvar e continuar",
+                subtitle = "Vincula o operador a esta sessão",
+                onClick = onSave,
+                enabled = value.isNotBlank(),
+                centerText = true,
+            )
         }
     }
 }

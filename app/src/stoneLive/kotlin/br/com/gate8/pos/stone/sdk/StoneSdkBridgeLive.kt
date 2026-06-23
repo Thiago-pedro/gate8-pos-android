@@ -326,18 +326,48 @@ class StoneSdkBridgeLive(
         val fromAuthorize = provider.messageFromAuthorize?.trim().orEmpty()
         val fromErrors = provider.listOfErrors?.joinToString().orEmpty().trim()
         val status = provider.transactionStatus ?: transaction.transactionStatus
+        // A mensagem do adquirente já vem em português (ex.: "Não autorizada"); quando ela não
+        // existe, traduzimos os códigos técnicos da SDK (CARD_REMOVED_BY_USER, INTERNAL_ERROR…)
+        // para um texto claro ao operador. O código cru continua no Log.e para diagnóstico.
         val base = when {
-            fromAuthorize.isNotBlank() -> fromAuthorize
-            fromErrors.isNotBlank() -> fromErrors
-            status != null -> "Transação não aprovada ($status)"
-            else -> "Transação não aprovada"
+            fromAuthorize.isNotBlank() -> withTrailingPeriod(fromAuthorize)
+            else -> translateStoneError(fromErrors, status?.name.orEmpty())
         }
         return if (method == PaymentMethodApi.PIX) {
-            "$base. Se o cliente pagou, confira na Conta Stone antes de cobrar de novo."
+            "$base Se o cliente pagou, confira na Conta Stone antes de cobrar de novo."
         } else {
             base
         }
     }
+
+    /** Converte os códigos técnicos da SDK Stone em mensagens em português para o operador. */
+    private fun translateStoneError(errors: String, statusName: String): String {
+        val haystack = "$errors $statusName".uppercase()
+        return when {
+            haystack.contains("CARD_REMOVED") ->
+                "Cartão removido antes de concluir. Tente novamente sem retirar o cartão."
+            haystack.contains("DECLIN") || haystack.contains("DENIED") ||
+                haystack.contains("REJECTED") || haystack.contains("NOT_AUTHORIZED") ->
+                "Não autorizada."
+            haystack.contains("CANCEL") ->
+                "Transação cancelada."
+            haystack.contains("TIMEOUT") || haystack.contains("TIMER") || haystack.contains("TIME_OUT") ->
+                "Tempo esgotado. Tente novamente."
+            haystack.contains("COMMUNICATION") || haystack.contains("CONNECTION") ||
+                haystack.contains("NETWORK") || haystack.contains("SERVER") ->
+                "Falha de comunicação. Verifique a internet e tente novamente."
+            haystack.contains("PINPAD") || haystack.contains("READER") ->
+                "Falha no leitor de cartão. Tente novamente."
+            haystack.contains("CARD") && (haystack.contains("ERROR") || haystack.contains("READ")) ->
+                "Falha na leitura do cartão. Tente novamente, de preferência inserindo o chip."
+            haystack.contains("INTERNAL_ERROR") || haystack.contains("WITH_ERROR") ->
+                "Não foi possível processar o pagamento. Tente novamente."
+            else -> "Transação não aprovada."
+        }
+    }
+
+    private fun withTrailingPeriod(text: String): String =
+        if (text.isEmpty() || text.last() in ".!?") text else "$text."
 
     private fun requireUser(): UserModel {
         val code = config.getStoneCode()?.trim().orEmpty()
