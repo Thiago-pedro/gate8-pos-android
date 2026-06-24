@@ -71,6 +71,18 @@ android {
             buildConfigField("String", "TERMINAL_MODEL", "\"sunmi_p2\"")
             versionNameSuffix = "-sunmi-p2"
         }
+        create("sunmiSeriesP") {
+            dimension = "model"
+            // Mesma dependência do Sunmi P2 (stone-sdk-posandroid-sunmi); cobre o Sunmi P2 A11 (Android 11).
+            buildConfigField("String", "TERMINAL_MODEL", "\"sunmi_p2_a11\"")
+            versionNameSuffix = "-sunmi-p2-a11"
+        }
+        create("tectoySeriesT") {
+            dimension = "model"
+            // Série T cobre a Tectoy T8 — dependência stone-sdk-posandroid-tectoy.
+            buildConfigField("String", "TERMINAL_MODEL", "\"tectoy_t8\"")
+            versionNameSuffix = "-tectoy-t8"
+        }
     }
 
     buildTypes {
@@ -84,6 +96,18 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        // Build de PRODUCAO para terminais que aceitam assinatura debug:
+        // Sunmi P2, Sunmi P2 A11, Tectoy T8 e generic. (No demo oficial da Stone, tectoySeriesT
+        // e sunmi usam signingConfigs.debug; so a Positivo exige JKS propria -> positivoProd.)
+        // Herda do debug (sem minify, com logs) e NAO recebe envconfig -> SDK Stone usa PRODUCAO.
+        // Com -PprodCleanId o package fica LIMPO (br.com.gate8.pos.terminal) -> APK de homologacao.
+        create("prod") {
+            initWith(getByName("debug"))
+            // initWith copia o applicationIdSuffix ".debug" do build type debug; sobrescrevemos:
+            // com -PprodCleanId o package fica LIMPO (null), senao usa ".prod" (lado a lado c/ sandbox).
+            applicationIdSuffix = if (project.hasProperty("prodCleanId")) null else ".prod"
+            matchingFallbacks += listOf("release", "debug")
         }
     }
 
@@ -125,10 +149,14 @@ if (stoneSdkLinked) {
         create("stoneGenericImplementation")
         create("stonePositivoSeriesLImplementation")
         create("stoneSunmiImplementation")
+        create("stoneSunmiSeriesPImplementation")
+        create("stoneTectoySeriesTImplementation")
         create("stoneGenericDebugImplementation")
         create("stonePositivoSeriesLDebugImplementation")
         create("stonePositivoSeriesLPositivoImplementation")
         create("stoneSunmiDebugImplementation")
+        create("stoneSunmiSeriesPDebugImplementation")
+        create("stoneTectoySeriesTDebugImplementation")
     }
 }
 
@@ -170,6 +198,8 @@ dependencies {
         "stonePositivoSeriesLDebugImplementation"(envConfig)
         "stonePositivoSeriesLPositivoImplementation"(envConfig)
         "stoneSunmiDebugImplementation"(envConfig)
+        "stoneSunmiSeriesPDebugImplementation"(envConfig)
+        "stoneTectoySeriesTDebugImplementation"(envConfig)
 
         "stoneGenericImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
         "stoneGenericImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
@@ -183,5 +213,15 @@ dependencies {
         "stoneSunmiImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
         "stoneSunmiImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
         "stoneSunmiImplementation"("br.com.stone:stone-sdk-posandroid-sunmi:$stoneSdkVersion")
+
+        // Sunmi P2 A11: mesma lib de provider do Sunmi P2.
+        "stoneSunmiSeriesPImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
+        "stoneSunmiSeriesPImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
+        "stoneSunmiSeriesPImplementation"("br.com.stone:stone-sdk-posandroid-sunmi:$stoneSdkVersion")
+
+        // Tectoy T8: provider especifico da Tectoy.
+        "stoneTectoySeriesTImplementation"("br.com.stone:stone-sdk:$stoneSdkVersion")
+        "stoneTectoySeriesTImplementation"("br.com.stone:stone-sdk-posandroid:$stoneSdkVersion")
+        "stoneTectoySeriesTImplementation"("br.com.stone:stone-sdk-posandroid-tectoy:$stoneSdkVersion")
     }
 }
