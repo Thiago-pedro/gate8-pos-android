@@ -22,9 +22,9 @@ object DeviceFingerprint {
         // Assim, ao sair/trocar produtor o fingerprint é zerado e o próximo login
         // entra como um dispositivo NOVO, que precisa ser liberado no painel.
         val suffix = UUID.randomUUID().toString().take(8)
-        val stoneSerial = hardware?.readTerminal()?.serialNumber
+        val terminalSerial = hardware?.readTerminal()?.serialNumber
         val base = when {
-            !stoneSerial.isNullOrBlank() -> "stone-$stoneSerial"
+            !terminalSerial.isNullOrBlank() -> "mp-$terminalSerial"
             else -> {
                 val androidId = Settings.Secure.getString(
                     context.contentResolver,

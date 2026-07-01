@@ -14,7 +14,7 @@ class MockPrinterProvider : ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
-        stoneTransactionId: String?,
+        acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
     ) {

@@ -11,7 +11,7 @@ import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.device.PosHardwareInfo
-import br.com.gate8.pos.stone.settings.StoneSettingsGateway
+import br.com.gate8.pos.payment.TerminalSettingsGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,11 +25,9 @@ data class SetupUiState(
     val operatorName: String = "",
     /** Não há operador definido: é obrigatório informar antes de operar/vender. */
     val operatorMissing: Boolean = false,
-    val stoneCode: String = "",
-    val showStoneSection: Boolean = false,
-    val stonePixConfigured: Boolean = false,
-    val stonePosHint: String? = null,
-    val stoneActivating: Boolean = false,
+    val terminalId: String = "",
+    val showTerminalSection: Boolean = false,
+    val terminalSaving: Boolean = false,
     val producerName: String? = null,
     val merchantName: String? = null,
     val deviceName: String? = null,
@@ -55,7 +53,7 @@ class SetupViewModel(
     private val pendingSaleSync: PendingSaleSync,
     private val saleRepository: SaleRepository,
     private val cashierRepository: CashierRepository,
-    private val stoneSettings: StoneSettingsGateway,
+    private val terminalSettings: TerminalSettingsGateway,
     private val hardwareInfo: PosHardwareInfo,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
@@ -72,10 +70,8 @@ class SetupViewModel(
             it.copy(
                 operatorName = stripOperatorPrefix(configStore.getOperatorName()),
                 operatorMissing = !configStore.hasOperatorName(),
-                stoneCode = stoneSettings.getSavedStoneCode(),
-                showStoneSection = stoneSettings.showStoneSection,
-                stonePixConfigured = stoneSettings.pixCredentialsConfigured(),
-                stonePosHint = stoneSettings.posActiveStoneCodesHint(),
+                terminalId = terminalSettings.getTerminalId(),
+                showTerminalSection = terminalSettings.showTerminalSection,
                 producerName = configStore.getProducerName(),
                 merchantName = configStore.getMerchantName(),
                 deviceName = configStore.getDeviceName(),
@@ -226,34 +222,19 @@ class SetupViewModel(
         }
     }
 
-    fun updateStoneCode(code: String) {
-        _state.update { it.copy(stoneCode = code) }
+    fun updateTerminalId(id: String) {
+        _state.update { it.copy(terminalId = id) }
     }
 
-    fun saveAndActivateStone() {
-        if (_state.value.stoneActivating) return
+    fun saveTerminalId() {
+        if (_state.value.terminalSaving) return
         viewModelScope.launch {
-            _state.update { it.copy(stoneActivating = true, error = null, message = null) }
-            val result = stoneSettings.saveAndActivate(_state.value.stoneCode)
+            _state.update { it.copy(terminalSaving = true, error = null, message = null) }
+            val result = terminalSettings.saveTerminalId(_state.value.terminalId)
             _state.update {
                 it.copy(
-                    stoneActivating = false,
-                    stoneCode = stoneSettings.getSavedStoneCode(),
-                    message = result.getOrNull(),
-                    error = result.exceptionOrNull()?.message,
-                )
-            }
-        }
-    }
-
-    fun reactivateTerminal() {
-        if (_state.value.stoneActivating) return
-        viewModelScope.launch {
-            _state.update { it.copy(stoneActivating = true, error = null, message = null) }
-            val result = stoneSettings.reactivateTerminal()
-            _state.update {
-                it.copy(
-                    stoneActivating = false,
+                    terminalSaving = false,
+                    terminalId = terminalSettings.getTerminalId(),
                     message = result.getOrNull(),
                     error = result.exceptionOrNull()?.message,
                 )

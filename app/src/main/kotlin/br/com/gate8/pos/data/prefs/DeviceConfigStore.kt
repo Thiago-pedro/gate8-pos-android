@@ -96,10 +96,10 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_OPERATOR, name).apply()
     }
 
-    fun getStoneCode(): String? = prefs.getString(KEY_STONE_CODE, null)
+    fun getMercadoPagoTerminalId(): String? = prefs.getString(KEY_MP_TERMINAL_ID, null)
 
-    fun setStoneCode(code: String) {
-        prefs.edit().putString(KEY_STONE_CODE, code.trim()).apply()
+    fun setMercadoPagoTerminalId(terminalId: String) {
+        prefs.edit().putString(KEY_MP_TERMINAL_ID, terminalId.trim()).apply()
     }
 
     /**
@@ -153,7 +153,7 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_DEVICE_NAME = "device_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_OPERATOR = "operator_name"
-        private const val KEY_STONE_CODE = "stone_code"
+        private const val KEY_MP_TERMINAL_ID = "mp_terminal_id"
         private const val KEY_SHORT_ID = "device_short_id"
         private const val KEY_CONVENIENCE_TICKET_MODE = "convenience_ticket_mode"
     }

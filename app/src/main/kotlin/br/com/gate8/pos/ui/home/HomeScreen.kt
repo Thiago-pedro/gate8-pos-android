@@ -235,7 +235,7 @@ fun HomeScreen(
             Gate8ConfirmDialog(
                 title = "Limpar fila local?",
                 message = "Remove ${setupState.pendingSyncCount} venda(s) que não subiram ao servidor. " +
-                    "Use se foram testes com erro de estoque. Não desfaz pagamentos reais na Stone.",
+                    "Use se foram testes com erro de estoque. Não desfaz pagamentos reais na adquirente.",
                 confirmLabel = "Limpar fila",
                 dismissLabel = "Cancelar",
                 onConfirm = vm::confirmClearPendingQueue,

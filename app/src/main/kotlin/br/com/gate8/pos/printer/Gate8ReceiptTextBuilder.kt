@@ -9,10 +9,10 @@ import java.util.Locale
  * Gera o texto dos comprovantes da Gate8 em um layout único e padronizado para
  * todos os recibos (venda, reimpressão, estorno, ingresso, relatório e caixa).
  *
- * Largura fixa de 32 colunas (papel 58mm dos terminais Stone POS).
+ * Largura fixa de 32 colunas (papel 58mm dos terminais POS).
  */
 object Gate8ReceiptTextBuilder {
-    // A fonte da impressora Stone POS é PROPORCIONAL: pontos/espaços são estreitos
+    // Fonte proporcional em impressoras POS: pontos/espaços são estreitos
     // e letras/números são largos. Por isso contar caracteres não funciona (linhas
     // com mesma contagem cabem ou quebram dependendo de quantas letras têm). Usamos
     // um orçamento em "unidades": ' '/'.' = 1 unidade, demais = 2 unidades. A bobina
@@ -105,7 +105,7 @@ object Gate8ReceiptTextBuilder {
     private fun amount(value: Double): String = String.format(brLocale, "%,.2f", value)
 
     // A logo grafica da Gate8 e impressa como bitmap no topo de todo recibo
-    // (ver StonePosPrinterLive.printLines), por isso o cabecalho textual nao
+    // A logo Gate8 pode ser impressa como bitmap no topo; o cabecalho textual nao
     // repete o nome "GATE8" aqui.
     private fun header(title: String, subtitle: String? = null): List<String> = buildList {
         add(divider())
@@ -204,7 +204,7 @@ object Gate8ReceiptTextBuilder {
 
     /**
      * Ficha individual da conveniência (modo ficha). A logo Gate8 (reduzida) é
-     * impressa como bitmap no topo (ver StonePosPrinterLive.printLines). Abaixo vão:
+     * impressa como bitmap no topo. Abaixo vão:
      * data/hora, terminal (nome do dispositivo), nome do item e preço unitário,
      * todos centralizados. Sem nome do estabelecimento e sem CNPJ.
      */
@@ -268,7 +268,7 @@ object Gate8ReceiptTextBuilder {
 
     /**
      * Parte de cima do ingresso (acima do QR): evento, lote, data, local, portador e preço.
-     * A logo Gate8 é impressa como bitmap no topo (ver StonePosPrinterLive.printTicket).
+     * A logo Gate8 pode ser impressa como bitmap no topo do ingresso.
      */
     fun ticketTopLines(p: TicketPrintPayload): List<String> = buildList {
         add(divider())

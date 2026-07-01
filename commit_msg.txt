@@ -1,0 +1,5 @@
+refactor(pos): migra Stone para Mercado Pago Point
+
+Remove flavor/SDK Stone (stone, stoneLive, positivo, PackageCloud).
+Novo flavor mercadopago com MercadoPagoPaymentGateway e Terminal ID.
+Campo de venda stone renomeado para acquirer. Build simplificado mock+mercadopago.

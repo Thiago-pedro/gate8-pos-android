@@ -13,5 +13,3 @@ app/build/
 *.aab
 *.keystore
 !debug.keystore
-positivo/*.jks
-positivo/positivo-keystore.properties

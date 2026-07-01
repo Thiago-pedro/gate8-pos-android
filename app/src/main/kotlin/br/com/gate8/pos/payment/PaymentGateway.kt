@@ -28,7 +28,7 @@ interface PaymentGateway {
         clientReference: String? = null,
     ): PaymentResult
 
-    /** Estorno/cancelamento na adquirente (Stone ou mock). */
+    /** Estorno/cancelamento na adquirente (Mercado Pago ou mock). */
     suspend fun voidTransaction(
         transactionId: String,
         nsu: String?,

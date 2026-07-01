@@ -41,7 +41,7 @@ class MockPaymentGateway : PaymentGateway {
                 PaymentMethodApi.PIX -> "Pix"
                 else -> "MOCK"
             },
-            transactionId = clientReference ?: "mock-stone-${UUID.randomUUID()}",
+            transactionId = clientReference ?: "mock-mp-${UUID.randomUUID()}",
         )
     }
 

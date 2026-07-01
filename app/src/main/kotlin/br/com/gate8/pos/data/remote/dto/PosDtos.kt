@@ -85,12 +85,13 @@ data class CreateSaleRequestDto(
     @SerialName("operator_name") val operatorName: String,
     @SerialName("payment_method") val paymentMethod: String,
     @SerialName("total_amount") val totalAmount: Double,
-    val stone: StonePaymentDto? = null,
+    @SerialName("acquirer")
+    val acquirer: AcquirerPaymentDto? = null,
     val items: List<SaleItemDto>,
 )
 
 @Serializable
-data class StonePaymentDto(
+data class AcquirerPaymentDto(
     val nsu: String,
     val authorization: String,
     val brand: String? = null,

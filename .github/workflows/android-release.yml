@@ -27,14 +27,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build mockGenericDebug APK
+      - name: Build mockDebug APK
         uses: gradle/gradle-build-action@v3
         with:
-          arguments: :app:assembleMockGenericDebug --no-daemon --stacktrace
+          arguments: :app:assembleMockDebug --no-daemon --stacktrace
 
       - name: Prepare release asset
         run: |
-          APK=$(find app/build/outputs/apk/mock/generic/debug -name "*.apk" | head -1)
+          APK=$(find app/build/outputs/apk/mock/debug -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
             echo "APK not found"
             find app/build/outputs -name "*.apk"
@@ -55,7 +55,7 @@ jobs:
             - Branch: ${{ github.ref_name }}
             - Workflow: ${{ github.run_id }}
 
-            Instale na maquininha e configure `g8pos_...` em **Configuração**.
+            Instale no dispositivo e configure `g8pos_...` em **Configuração**.
           files: gate8-pos-mock-debug.apk
           make_latest: true
           generate_release_notes: false

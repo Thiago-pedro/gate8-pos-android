@@ -14,7 +14,7 @@ import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
-import br.com.gate8.pos.data.remote.dto.StonePaymentDto
+import br.com.gate8.pos.data.remote.dto.AcquirerPaymentDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
@@ -51,7 +51,7 @@ data class PdvUiState(
     val paymentCancelled: Boolean = false,
     /** Quando true, mostra o modal de "pagamento não concluído" (falha na maquininha). */
     val paymentFailed: Boolean = false,
-    /** Motivo real da falha vindo da Stone (ex.: CONNECTIVITY_ERROR). */
+    /** Motivo real da falha vindo da adquirente. */
     val paymentFailedReason: String? = null,
     val catalog: CatalogResponseDto? = null,
     val catalogVersion: Int = 0,
@@ -315,7 +315,7 @@ class PdvViewModel(
                 operatorName = configStore.getOperatorName(),
                 paymentMethod = method.apiValue,
                 totalAmount = total,
-                stone = if (method == PaymentMethodApi.CASH) null else StonePaymentDto(
+                acquirer = if (method == PaymentMethodApi.CASH) null else AcquirerPaymentDto(
                     nsu = pay.nsu,
                     authorization = pay.authorization,
                     brand = pay.brand,
@@ -371,13 +371,13 @@ class PdvViewModel(
                         }
                         else -> e.message ?: "Falha na API — venda na fila offline"
                     }
-                    printStoneVias(method, pay)
+                    printAcquirerVias(method, pay)
                     saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
                     _state.update {
                         it.copy(
                             loading = false,
                             error = msg,
-                            message = "Pagamento OK na Stone (mock). Venda salva para sync: $clientRef",
+                            message = "Pagamento OK na adquirente. Venda salva para sync: $clientRef",
                         )
                     }
                     schedulePendingSync()
@@ -451,10 +451,10 @@ class PdvViewModel(
     }
 
     /**
-     * Caminho de falha da API (offline): imprime as vias da Stone sem prompt.
+     * Caminho de falha da API (offline): imprime as vias da adquirente sem prompt.
      * Em dinheiro não imprime via nenhuma.
      */
-    private fun printStoneVias(method: PaymentMethodApi, pay: PaymentResult) {
+    private fun printAcquirerVias(method: PaymentMethodApi, pay: PaymentResult) {
         if (method == PaymentMethodApi.CASH) return
         printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
         printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = false)

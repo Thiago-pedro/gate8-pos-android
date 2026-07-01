@@ -199,35 +199,33 @@ fun SetupScreen(
 
 
 
-            if (state.showStoneSection) {
+            if (state.showTerminalSection) {
                 Spacer(Modifier.height(20.dp))
 
-                SectionTitle("Stone")
+                SectionTitle("Mercado Pago Point")
 
                 Spacer(Modifier.height(8.dp))
 
                 Gate8OutlinedTextField(
-                    value = state.stoneCode,
-                    onValueChange = vm::updateStoneCode,
-                    label = "StoneCode",
+                    value = state.terminalId,
+                    onValueChange = vm::updateTerminalId,
+                    label = "Terminal ID",
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                state.stonePosHint?.let { hint ->
-                    Spacer(Modifier.height(6.dp))
-                    Text(hint, color = Gate8Colors.TextSecondary, fontSize = 12.sp)
-                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "ID do terminal Point em modo PDV (ex.: NEWLAND_N950__N950NCB801293324).",
+                    color = Gate8Colors.TextSecondary,
+                    fontSize = 12.sp,
+                )
 
                 Spacer(Modifier.height(10.dp))
 
                 Gate8MenuButton(
-                    title = if (state.stoneActivating) "Ativando…" else "Ativar terminal Stone",
-                    subtitle = if (state.stonePixConfigured) {
-                        "PIX configurado no build"
-                    } else {
-                        "PIX: credenciais sandbox em local.properties"
-                    },
-                    onClick = vm::saveAndActivateStone,
+                    title = if (state.terminalSaving) "Salvando…" else "Salvar terminal",
+                    subtitle = "Necessário para cobranças via API de Orders",
+                    onClick = vm::saveTerminalId,
                 )
             }
 

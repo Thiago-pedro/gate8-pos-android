@@ -3,7 +3,7 @@ package br.com.gate8.pos
 import android.app.Application
 import br.com.gate8.pos.di.appModule
 import br.com.gate8.pos.di.flavorModules
-import br.com.gate8.pos.stone.runtime.StoneRuntime
+import br.com.gate8.pos.payment.PaymentRuntime
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -15,6 +15,6 @@ class Gate8PosApplication : Application() {
             androidContext(this@Gate8PosApplication)
             modules(appModule, *flavorModules().toTypedArray())
         }
-        GlobalContext.get().get<StoneRuntime>().onApplicationStart()
+        GlobalContext.get().get<PaymentRuntime>().onApplicationStart()
     }
 }

@@ -79,7 +79,7 @@ class SaleAdminService(
             sale.paymentLabel,
             sale.nsu,
             sale.authorization,
-            stoneTransactionId = sale.transactionId,
+            acquirerTransactionId = sale.transactionId,
             isReprint = true,
             saleDateMillis = sale.createdAt,
         )

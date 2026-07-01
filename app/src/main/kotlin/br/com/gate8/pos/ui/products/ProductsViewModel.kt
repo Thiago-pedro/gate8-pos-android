@@ -15,7 +15,7 @@ import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
-import br.com.gate8.pos.data.remote.dto.StonePaymentDto
+import br.com.gate8.pos.data.remote.dto.AcquirerPaymentDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
@@ -69,7 +69,7 @@ data class ProductsUiState(
     val paymentCancelled: Boolean = false,
     /** Quando true, mostra o modal de falha no pagamento (leitura ou autorização). */
     val paymentFailed: Boolean = false,
-    /** Motivo real devolvido pela maquininha/Stone (ex.: "Transação não aprovada"). */
+    /** Motivo real devolvido pela maquininha/adquirente (ex.: "Transação não aprovada"). */
     val paymentFailedReason: String? = null,
     val catalog: CatalogResponseDto? = null,
     /** Incrementado a cada refresh bem-sucedido para forçar recomposição da grade. */
@@ -290,7 +290,7 @@ class ProductsViewModel(
                 operatorName = configStore.getOperatorName(),
                 paymentMethod = method.apiValue,
                 totalAmount = total,
-                stone = if (method == PaymentMethodApi.CASH) null else StonePaymentDto(
+                acquirer = if (method == PaymentMethodApi.CASH) null else AcquirerPaymentDto(
                     nsu = pay.nsu,
                     authorization = pay.authorization,
                     brand = pay.brand,
@@ -411,7 +411,7 @@ class ProductsViewModel(
             method.apiValue,
             pay.nsu,
             pay.authorization,
-            stoneTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+            acquirerTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
         )
         if (configStore.isConvenienceTicketMode()) {
             printer.printConvenienceTickets(cart, terminalName(), pay.authorization)

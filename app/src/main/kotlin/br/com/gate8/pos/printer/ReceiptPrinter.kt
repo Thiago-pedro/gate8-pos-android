@@ -9,7 +9,7 @@ interface ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
-        stoneTransactionId: String? = null,
+        acquirerTransactionId: String? = null,
         isReprint: Boolean = false,
         // Quando informado (reimpressão), usa a data/hora original da venda.
         saleDateMillis: Long? = null,
@@ -31,7 +31,7 @@ interface ReceiptPrinter {
     fun printCashierSummary(payload: CashierPrintPayload)
 
     /**
-     * Imprime uma única via do comprovante de cartão/Pix da Stone (lojista ou cliente).
+     * Imprime uma única via do comprovante de cartão/Pix da adquirente (lojista ou cliente).
      * Permite controlar a ordem e perguntar ao operador se deve sair a via do cliente.
      */
     fun printCardCopy(
@@ -42,7 +42,7 @@ interface ReceiptPrinter {
     )
 
     /**
-     * Imprime apenas o comprovante textual da Gate8 (sem as vias de cartão da Stone).
+     * Imprime apenas o comprovante textual da Gate8 (sem as vias de cartão da adquirente).
      */
     fun printSaleSummary(
         lines: List<CartLine>,
@@ -72,7 +72,7 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         paymentLabel: String,
         nsu: String?,
         authorization: String?,
-        stoneTransactionId: String?,
+        acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
     ) = Unit
