@@ -18,7 +18,6 @@ import br.com.gate8.pos.data.remote.dto.CreateMpOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderActionResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
-import br.com.gate8.pos.data.remote.dto.MpRefundRequestDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -91,6 +90,5 @@ interface PosApiService {
     suspend fun refundMpOrder(
         @Path("id") mpOrderId: String,
         @Header("X-Idempotency-Key") idempotencyKey: String,
-        @Body body: MpRefundRequestDto = MpRefundRequestDto(),
     ): Response<MpOrderActionResponseDto>
 }

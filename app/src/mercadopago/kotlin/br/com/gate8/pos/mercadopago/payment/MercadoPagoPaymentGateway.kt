@@ -7,7 +7,6 @@ import br.com.gate8.pos.data.remote.dto.ApiErrorDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
-import br.com.gate8.pos.data.remote.dto.MpRefundRequestDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
@@ -141,7 +140,6 @@ class MercadoPagoPaymentGateway(
         val response = api.refundMpOrder(
             orderId,
             idempotencyKey("refund", orderId),
-            MpRefundRequestDto(amount = amount),
         )
         if (!response.isSuccessful) {
             val message = parseErrorMessage(response)
