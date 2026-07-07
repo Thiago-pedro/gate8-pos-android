@@ -1,5 +1,6 @@
 package br.com.gate8.pos.mock.payment
 
+import br.com.gate8.pos.data.remote.dto.MpSaleDraftDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
@@ -20,6 +21,7 @@ class MockPaymentGateway : PaymentGateway {
         amount: Double,
         method: PaymentMethodApi,
         clientReference: String?,
+        saleDraft: MpSaleDraftDto?,
     ): PaymentResult {
         cancelRequested = false
         repeat(16) {

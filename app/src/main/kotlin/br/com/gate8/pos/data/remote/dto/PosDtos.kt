@@ -176,6 +176,35 @@ data class CreateMpOrderRequestDto(
     @SerialName("client_reference") val clientReference: String,
     @SerialName("payment_method") val paymentMethod: String,
     val description: String = "Gate8 POS",
+    @SerialName("sale_draft") val saleDraft: MpSaleDraftDto? = null,
+)
+
+@Serializable
+data class MpSaleDraftDto(
+    @SerialName("operator_name") val operatorName: String,
+    @SerialName("payment_method") val paymentMethod: String,
+    @SerialName("total_amount") val totalAmount: Double,
+    val items: List<SaleItemDto>,
+)
+
+@Serializable
+data class ReconcileMpOrderRequestDto(
+    @SerialName("operator_name") val operatorName: String? = null,
+    @SerialName("payment_method") val paymentMethod: String? = null,
+    @SerialName("total_amount") val totalAmount: Double? = null,
+    val items: List<SaleItemDto>? = null,
+)
+
+@Serializable
+data class ReconcileMpOrderResponseDto(
+    @SerialName("sale_id") val saleId: String? = null,
+    val duplicated: Boolean = false,
+    val reconciled: Boolean = false,
+    @SerialName("mp_order_id") val mpOrderId: String? = null,
+    val tickets: List<SaleTicketGroupDto> = emptyList(),
+    @SerialName("purchase_code") val purchaseCode: String? = null,
+    val error: String? = null,
+    val message: String? = null,
 )
 
 @Serializable

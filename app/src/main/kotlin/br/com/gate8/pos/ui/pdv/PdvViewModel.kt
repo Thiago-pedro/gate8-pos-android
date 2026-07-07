@@ -2,9 +2,11 @@ package br.com.gate8.pos.ui.pdv
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
-import br.com.gate8.pos.core.network.ApiException
+import br.com.gate8.pos.core.sale.SaleDraftFactory
+import br.com.gate8.pos.ui.common.PaymentUserMessages
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
@@ -23,6 +25,9 @@ import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.SaleTicketGroup
 import br.com.gate8.pos.payment.PaymentCancelledException
+import br.com.gate8.pos.payment.MpOrderReconciliation
+import br.com.gate8.pos.payment.chargeResilient
+import br.com.gate8.pos.payment.tryReconcileAfterPaymentFailure
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.payment.PixExpiredException
@@ -88,6 +93,7 @@ class PdvViewModel(
     private val printer: ReceiptPrinter,
     private val saleAdmin: SaleAdminService,
     private val pendingSaleSync: PendingSaleSync,
+    private val mpOrderReconciliation: MpOrderReconciliation,
     private val configStore: DeviceConfigStore,
     private val cashierRepository: CashierRepository,
     private val json: Json,
@@ -285,12 +291,25 @@ class PdvViewModel(
             configStore.getDeviceShortId(),
             isDebug,
         )
+        val operatorName = configStore.getOperatorName()
+        val saleDraft = if (method != PaymentMethodApi.CASH) {
+            SaleDraftFactory.mpSaleDraft(cart, total, method, operatorName)
+        } else {
+            null
+        }
 
         viewModelScope.launch {
             _state.update { it.copy(loading = true, payingMethod = method, error = null, message = null) }
-            val payment = runCatching { paymentGateway.charge(total, method, clientRef) }
+            val payment = runCatching {
+                paymentGateway.chargeResilient(total, method, clientRef, saleDraft)
+            }
             if (payment.isFailure) {
                 val err = payment.exceptionOrNull()
+                val recovered = tryReconcileAfterPaymentFailure(mpOrderReconciliation, err, method)
+                if (recovered != null) {
+                    completeRecoveredCheckout(cart, total, method, clientRef, recovered)
+                    return@launch
+                }
                 _state.update {
                     when (err) {
                         is PaymentCancelledException ->
@@ -302,7 +321,7 @@ class PdvViewModel(
                                 loading = false,
                                 payingMethod = null,
                                 paymentFailed = true,
-                                paymentFailedReason = err?.message,
+                                paymentFailedReason = PaymentUserMessages.failureReason(err),
                             )
                     }
                 }
@@ -312,7 +331,7 @@ class PdvViewModel(
 
             val request = CreateSaleRequestDto(
                 clientReference = clientRef,
-                operatorName = configStore.getOperatorName(),
+                operatorName = operatorName,
                 paymentMethod = method.apiValue,
                 totalAmount = total,
                 acquirer = if (method == PaymentMethodApi.CASH) null else AcquirerPaymentDto(
@@ -383,6 +402,32 @@ class PdvViewModel(
                     schedulePendingSync()
                 }
         }
+    }
+
+    private fun completeRecoveredCheckout(
+        cart: List<CartLine>,
+        total: Double,
+        method: PaymentMethodApi,
+        clientRef: String,
+        recovered: MpOrderReconciliation.RecoveredCheckout,
+    ) {
+        val pay = recovered.payment
+        val success = recovered.saleSuccess
+        saleAdmin.recordCheckout(
+            saleId = success.saleId,
+            clientReference = clientRef,
+            cart = cart,
+            total = total,
+            method = method,
+            payment = pay,
+            ticketCodes = success.ticketCodes,
+        )
+        val successMsg = if (success.duplicated) {
+            "Venda já registrada!"
+        } else {
+            "Venda recuperada com sucesso!"
+        }
+        beginTicketPrint(cart, method, pay, success, successMsg)
     }
 
     private fun schedulePendingSync() {

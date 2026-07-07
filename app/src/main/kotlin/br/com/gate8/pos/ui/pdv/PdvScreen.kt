@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Tune
@@ -56,6 +55,7 @@ import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8AlertDialog
+import br.com.gate8.pos.ui.common.PaymentFailedAlert
 import br.com.gate8.pos.ui.common.Gate8CartLineUi
 import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
@@ -103,8 +103,7 @@ fun PdvScreen(
     if (state.pendingClientCopy != null) {
         Gate8ConfirmModal(
             title = "Imprimir via do cliente?",
-            message = "A via do lojista já saiu. Imprimir também a via do cliente? " +
-                "Em seguida sai o ingresso.",
+            message = "A via do lojista já saiu.\n\nImprimir também a via do cliente? Em seguida sai o ingresso.",
             confirmLabel = "Sim, imprimir",
             dismissLabel = "Não",
             onConfirm = { vm.answerClientCopy(true) },
@@ -122,7 +121,8 @@ fun PdvScreen(
     if (state.pixExpired) {
         Gate8AlertDialog(
             title = "QR Code expirado",
-            detail = "O tempo para pagar o Pix acabou. Gere um novo QR Code para tentar novamente.",
+            reason = "O tempo para pagar o Pix acabou.",
+            detail = "Gere um novo QR Code para tentar novamente.",
             onDismiss = { vm.dismissPixExpired() },
         )
     }
@@ -130,7 +130,8 @@ fun PdvScreen(
     if (state.paymentCancelled) {
         Gate8AlertDialog(
             title = "Pagamento cancelado",
-            detail = "A cobrança foi cancelada. Os itens continuam no carrinho.",
+            reason = "A cobrança foi cancelada.",
+            detail = "Os itens continuam no carrinho.",
             icon = Icons.Filled.Cancel,
             accent = Gate8Colors.AccentBlue,
             onDismiss = { vm.dismissPaymentCancelled() },
@@ -138,12 +139,8 @@ fun PdvScreen(
     }
 
     if (state.paymentFailed) {
-        val reason = state.paymentFailedReason?.takeIf { it.isNotBlank() }
-        Gate8AlertDialog(
-            title = "Pagamento não concluído",
-            detail = (reason ?: "Não foi possível concluir o pagamento.") +
-                " Os itens continuam no carrinho — tente novamente.",
-            icon = Icons.Filled.CreditCard,
+        PaymentFailedAlert(
+            reason = state.paymentFailedReason,
             onDismiss = { vm.dismissPaymentFailed() },
         )
     }

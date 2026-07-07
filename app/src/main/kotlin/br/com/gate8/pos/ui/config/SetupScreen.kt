@@ -300,8 +300,8 @@ fun SetupScreen(
     if (showCashierOpenWarning) {
         Gate8AlertDialog(
             title = "Caixa aberto",
-            detail = "Feche o caixa antes de sair ou trocar de produtor. " +
-                "Volte à tela inicial e abra \"Caixa\" para fazer o fechamento.",
+            reason = "Feche o caixa antes de sair ou trocar de produtor.",
+            detail = "Volte à tela inicial e abra \"Caixa\" para fazer o fechamento.",
             buttonLabel = "Entendi",
             onDismiss = { showCashierOpenWarning = false },
         )

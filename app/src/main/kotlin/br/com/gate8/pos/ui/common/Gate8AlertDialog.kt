@@ -31,17 +31,23 @@ import br.com.gate8.pos.ui.theme.Gate8Colors
 
 /**
  * Modal de alerta/aviso reutilizável (ex.: QR Code Pix expirado).
- * Ícone colorido configurável, título, detalhe opcional e botão de OK.
+ * Ícone colorido configurável, título, motivo em destaque, detalhe opcional e botão OK.
  */
 @Composable
 fun Gate8AlertDialog(
     title: String,
+    /** Motivo principal — exibido em destaque (negrito, cor primária). */
+    reason: String? = null,
+    /** Texto complementar abaixo do motivo (cor secundária). */
     detail: String? = null,
     icon: ImageVector = Icons.Filled.Schedule,
     accent: Color = Gate8Colors.Error,
     buttonLabel: String = "OK",
     onDismiss: () -> Unit,
 ) {
+    val prominentText = reason?.takeIf { it.isNotBlank() }
+    val secondaryText = detail?.takeIf { it.isNotBlank() }
+    val legacyDetailOnly = prominentText == null && secondaryText != null
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -85,12 +91,25 @@ fun Gate8AlertDialog(
                     textAlign = TextAlign.Center,
                 )
 
-                if (!detail.isNullOrBlank()) {
-                    Spacer(Modifier.height(8.dp))
+                if (prominentText != null) {
+                    Spacer(Modifier.height(10.dp))
                     Text(
-                        detail,
+                        prominentText,
+                        color = Gate8Colors.TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 22.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                if (secondaryText != null) {
+                    Spacer(Modifier.height(if (prominentText != null) 8.dp else 10.dp))
+                    Text(
+                        secondaryText,
                         color = Gate8Colors.TextSecondary,
-                        fontSize = 14.sp,
+                        fontSize = if (legacyDetailOnly) 14.sp else 13.sp,
+                        lineHeight = 20.sp,
                         textAlign = TextAlign.Center,
                     )
                 }

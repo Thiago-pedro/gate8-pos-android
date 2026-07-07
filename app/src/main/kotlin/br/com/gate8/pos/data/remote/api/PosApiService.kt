@@ -16,6 +16,8 @@ import br.com.gate8.pos.data.remote.dto.CashierOpenRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderResponseDto
+import br.com.gate8.pos.data.remote.dto.ReconcileMpOrderRequestDto
+import br.com.gate8.pos.data.remote.dto.ReconcileMpOrderResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderActionResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
@@ -91,4 +93,10 @@ interface PosApiService {
         @Path("id") mpOrderId: String,
         @Header("X-Idempotency-Key") idempotencyKey: String,
     ): Response<MpOrderActionResponseDto>
+
+    @POST("api/public/pos/payments/mp/orders/{id}/reconcile")
+    suspend fun reconcileMpOrder(
+        @Path("id") mpOrderId: String,
+        @Body body: ReconcileMpOrderRequestDto = ReconcileMpOrderRequestDto(),
+    ): Response<ReconcileMpOrderResponseDto>
 }

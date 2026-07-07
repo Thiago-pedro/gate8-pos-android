@@ -6,29 +6,23 @@ import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.ApiErrorDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.CreateMpOrderResponseDto
-import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
+import br.com.gate8.pos.data.remote.dto.MpSaleDraftDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
-import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.payment.VoidResult
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import retrofit2.Response
 
 /**
  * Pagamentos via Mercado Pago Point (proxy Gate8 → API de Orders MP).
- *
- * 1. [charge] cria order no backend (`POST /payments/mp/orders`).
- * 2. O terminal Point recebe a cobrança (operador em "Inserir valor" se necessário).
- * 3. Polling em `GET /payments/mp/orders/{id}` até `processed` ou falha.
- * 4. O caller registra a venda em `POST /sales` com `acquirer`.
  */
 class MercadoPagoPaymentGateway(
     private val config: DeviceConfigStore,
     private val api: PosApiService,
 ) : PaymentGateway {
+
+    private val poller = MercadoPagoOrderPoller(api)
 
     @Volatile
     private var cancelRequested = false
@@ -40,6 +34,7 @@ class MercadoPagoPaymentGateway(
         amount: Double,
         method: PaymentMethodApi,
         clientReference: String?,
+        saleDraft: MpSaleDraftDto?,
     ): PaymentResult {
         val terminalId = config.getMercadoPagoTerminalId()?.trim().orEmpty()
         if (terminalId.isBlank()) {
@@ -71,58 +66,34 @@ class MercadoPagoPaymentGateway(
                     terminalId = terminalId,
                     clientReference = reference,
                     paymentMethod = method.apiValue,
+                    saleDraft = saleDraft,
                 ),
             ),
         )
         val orderId = created.mpOrderId
         currentOrderId = orderId
 
-        val deadline = System.currentTimeMillis() + POLL_TIMEOUT_MS
         try {
-            while (System.currentTimeMillis() < deadline) {
-                if (cancelRequested) {
+            return poller.waitForPayment(
+                orderId = orderId,
+                method = method,
+                isCancelRequested = { cancelRequested },
+                onCancelRequested = {
                     runCatching { api.cancelMpOrder(orderId, idempotencyKey("cancel", orderId)) }
-                    throw PaymentCancelledException()
-                }
-                delay(POLL_INTERVAL_MS)
-                if (cancelRequested) {
-                    runCatching { api.cancelMpOrder(orderId, idempotencyKey("cancel", orderId)) }
-                    throw PaymentCancelledException()
-                }
-
-                val status = requireMpOrderStatus(api.getMpOrder(orderId))
-                when (status.status.lowercase()) {
-                    "processed" -> {
-                        val acquirer = status.acquirer
-                            ?: throw IllegalStateException("Pagamento aprovado sem dados da adquirente.")
-                        return PaymentResult(
-                            method = method,
-                            nsu = acquirer.nsu,
-                            authorization = acquirer.authorization,
-                            brand = acquirer.brand.orEmpty(),
-                            transactionId = acquirer.transactionId,
-                        )
-                    }
-                    "failed", "rejected" -> {
-                        val detail = status.statusDetail?.takeIf { it.isNotBlank() }
-                        throw ApiException(
-                            402,
-                            detail ?: "Pagamento recusado na maquininha.",
-                            errorCode = status.status,
-                        )
-                    }
-                    "expired", "canceled", "cancelled" -> {
-                        throw expiredOrCancelled(method)
-                    }
-                }
-            }
-            runCatching { api.cancelMpOrder(orderId, idempotencyKey("cancel", orderId)) }
-            throw expiredOrCancelled(method, timedOut = true)
+                },
+                mainDeadlineMs = System.currentTimeMillis() + MercadoPagoOrderPoller.POLL_TIMEOUT_MS,
+                gracePeriodMs = MercadoPagoOrderPoller.GRACE_PERIOD_MS,
+            )
         } finally {
             currentOrderId = null
             cancelRequested = false
         }
     }
+
+    override suspend fun recoverOrder(
+        mpOrderId: String,
+        method: PaymentMethodApi,
+    ): PaymentResult? = poller.recoverPayment(mpOrderId.trim(), method)
 
     override suspend fun voidTransaction(
         transactionId: String,
@@ -142,8 +113,7 @@ class MercadoPagoPaymentGateway(
             idempotencyKey("refund", orderId),
         )
         if (!response.isSuccessful) {
-            val message = parseErrorMessage(response)
-            return VoidResult(success = false, message = message)
+            return VoidResult(success = false, message = parseErrorMessage(response))
         }
         val body = response.body()
         return VoidResult(
@@ -156,33 +126,10 @@ class MercadoPagoPaymentGateway(
         cancelRequested = true
     }
 
-    private fun expiredOrCancelled(method: PaymentMethodApi, timedOut: Boolean = false): Exception {
-        if (method == PaymentMethodApi.PIX) {
-            return PixExpiredException()
-        }
-        return if (timedOut) {
-            Exception("Tempo esgotado aguardando pagamento na maquininha.")
-        } else {
-            PaymentCancelledException()
-        }
-    }
-
     private fun requireCreateMpOrder(response: Response<CreateMpOrderResponseDto>): CreateMpOrderResponseDto {
         if (response.isSuccessful) {
             return response.body()
                 ?: throw IllegalStateException("Resposta vazia ao criar cobrança na Point.")
-        }
-        throw ApiException(
-            response.code(),
-            parseErrorMessage(response),
-            errorCode = peekErrorCode(response.errorBody()?.string()),
-        )
-    }
-
-    private fun requireMpOrderStatus(response: Response<MpOrderStatusResponseDto>): MpOrderStatusResponseDto {
-        if (response.isSuccessful) {
-            return response.body()
-                ?: throw IllegalStateException("Resposta vazia ao consultar cobrança na Point.")
         }
         throw ApiException(
             response.code(),
@@ -214,9 +161,6 @@ class MercadoPagoPaymentGateway(
     private fun idempotencyKey(action: String, orderId: String): String = "$action-$orderId"
 
     companion object {
-        private const val POLL_INTERVAL_MS = 2_000L
-        private const val POLL_TIMEOUT_MS = 10 * 60 * 1_000L
-
         private val json = Json { ignoreUnknownKeys = true }
     }
 }

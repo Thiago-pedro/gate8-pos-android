@@ -4,6 +4,7 @@ import androidx.room.Room
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.data.local.db.Gate8Database
 import br.com.gate8.pos.core.sale.PendingSaleSync
+import br.com.gate8.pos.payment.MpOrderReconciliation
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.prefs.LastSaleStore
@@ -58,6 +59,7 @@ val appModule = module {
     }
     single { SaleAdminService(get(), get(), get(), get()) }
     single { PendingSaleSync(get(), get()) }
+    single { MpOrderReconciliation(get()) }
 
     single {
         val logging = HttpLoggingInterceptor().apply {
@@ -68,7 +70,9 @@ val appModule = module {
             .addInterceptor(AuthInterceptor(get(), get()))
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .build()
     }
 
@@ -106,8 +110,8 @@ val appModule = module {
     viewModel { RefundViewModel(get(), get()) }
     viewModel { ReportsViewModel(get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
-    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
-    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
 }
