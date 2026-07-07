@@ -14,10 +14,16 @@ import br.com.gate8.pos.data.remote.dto.CashierMovementRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierOperatorRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierOpenRequestDto
 import br.com.gate8.pos.data.remote.dto.CashierStatusDto
+import br.com.gate8.pos.data.remote.dto.CreateMpOrderRequestDto
+import br.com.gate8.pos.data.remote.dto.CreateMpOrderResponseDto
+import br.com.gate8.pos.data.remote.dto.MpOrderActionResponseDto
+import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
+import br.com.gate8.pos.data.remote.dto.MpRefundRequestDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -68,4 +74,23 @@ interface PosApiService {
 
     @PATCH("api/public/pos/cashier/operator")
     suspend fun updateCashierOperator(@Body body: CashierOperatorRequestDto): Response<CashierStatusDto>
+
+    @POST("api/public/pos/payments/mp/orders")
+    suspend fun createMpOrder(@Body body: CreateMpOrderRequestDto): Response<CreateMpOrderResponseDto>
+
+    @GET("api/public/pos/payments/mp/orders/{id}")
+    suspend fun getMpOrder(@Path("id") mpOrderId: String): Response<MpOrderStatusResponseDto>
+
+    @POST("api/public/pos/payments/mp/orders/{id}/cancel")
+    suspend fun cancelMpOrder(
+        @Path("id") mpOrderId: String,
+        @Header("X-Idempotency-Key") idempotencyKey: String,
+    ): Response<MpOrderActionResponseDto>
+
+    @POST("api/public/pos/payments/mp/orders/{id}/refund")
+    suspend fun refundMpOrder(
+        @Path("id") mpOrderId: String,
+        @Header("X-Idempotency-Key") idempotencyKey: String,
+        @Body body: MpRefundRequestDto = MpRefundRequestDto(),
+    ): Response<MpOrderActionResponseDto>
 }

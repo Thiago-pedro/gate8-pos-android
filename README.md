@@ -45,11 +45,14 @@ app/build/outputs/apk/mercadopago/debug/app-mercadopago-debug.apk
 
 Documentação da integração: `docs/MERCADOPAGO-POINT.md` (repo `qr7-backend`).
 
-Fluxo previsto:
+Fluxo:
 
-1. App cria order via backend Gate8 → API Mercado Pago (`POST /v1/orders`).
-2. Terminal Point recebe a order e processa o pagamento.
-3. App confirma e registra a venda em `/api/public/pos/sales`.
+1. App cria order via `POST /api/public/pos/payments/mp/orders` (proxy Gate8 → MP).
+2. Terminal Point recebe a cobrança (em PDV, abra **Inserir valor** se não aparecer sozinha).
+3. App faz polling em `GET /payments/mp/orders/{id}` até pagamento aprovado.
+4. App registra a venda em `POST /api/public/pos/sales` com `acquirer`.
+
+Webhook MP (configurar no painel Developers): `https://gate8.club/api/public/webhooks/mercadopago/point`
 
 ## Suporte
 

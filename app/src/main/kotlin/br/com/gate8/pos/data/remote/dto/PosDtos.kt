@@ -170,8 +170,60 @@ data class CheckinTicketDto(
 )
 
 @Serializable
+data class CreateMpOrderRequestDto(
+    val amount: Double,
+    @SerialName("terminal_id") val terminalId: String,
+    @SerialName("client_reference") val clientReference: String,
+    @SerialName("payment_method") val paymentMethod: String,
+    val description: String = "Gate8 POS",
+)
+
+@Serializable
+data class CreateMpOrderResponseDto(
+    @SerialName("mp_order_id") val mpOrderId: String,
+    @SerialName("mp_payment_id") val mpPaymentId: String? = null,
+    val status: String,
+    @SerialName("status_detail") val statusDetail: String? = null,
+    @SerialName("client_reference") val clientReference: String? = null,
+    @SerialName("expiration_time") val expirationTime: String? = null,
+)
+
+@Serializable
+data class MpOrderStatusResponseDto(
+    @SerialName("mp_order_id") val mpOrderId: String,
+    val status: String,
+    @SerialName("status_detail") val statusDetail: String? = null,
+    @SerialName("client_reference") val clientReference: String? = null,
+    val payment: MpOrderPaymentDto? = null,
+    val acquirer: AcquirerPaymentDto? = null,
+)
+
+@Serializable
+data class MpOrderPaymentDto(
+    @SerialName("mp_payment_id") val mpPaymentId: String? = null,
+    val status: String? = null,
+    val amount: String? = null,
+    @SerialName("payment_method_type") val paymentMethodType: String? = null,
+    @SerialName("payment_method_id") val paymentMethodId: String? = null,
+)
+
+@Serializable
+data class MpOrderActionResponseDto(
+    @SerialName("mp_order_id") val mpOrderId: String,
+    val status: String,
+)
+
+@Serializable
+data class MpRefundRequestDto(
+    val amount: Double? = null,
+)
+
+@Serializable
 data class ApiErrorDto(
     val error: String? = null,
+    val code: String? = null,
+    @SerialName("mp_code") val mpCode: String? = null,
+    @SerialName("mp_message") val mpMessage: String? = null,
     @SerialName("product_id") val productId: String? = null,
     val available: Int? = null,
     val details: JsonElement? = null,
