@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Android 11+ : permitir ver o cliente UriApp da Cielo Smart -->
+    <queries>
+        <package android:name="com.ads.lio.uriappclient" />
+    </queries>
+
+    <application android:requestLegacyExternalStorage="true">
+        <meta-data
+            android:name="cs_integration_type"
+            android:value="uri" />
+
+        <activity
+            android:name="br.com.gate8.pos.cielo.deeplink.CieloResponseActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data
+                    android:host="response"
+                    android:scheme="order" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

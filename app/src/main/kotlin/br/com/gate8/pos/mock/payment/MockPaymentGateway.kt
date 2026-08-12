@@ -52,6 +52,7 @@ class MockPaymentGateway : PaymentGateway {
         nsu: String?,
         amount: Double,
         method: PaymentMethodApi,
+        authorization: String?,
     ): VoidResult {
         delay(600)
         return VoidResult(

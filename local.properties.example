@@ -1,3 +1,8 @@
 ## Copie para local.properties (não commitar).
 
 sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
+
+# Cielo Smart — Deep Link (Portal de Desenvolvedores)
+CIELO_CLIENT_ID=
+CIELO_ACCESS_TOKEN=
+CIELO_MERCHANT_ID=

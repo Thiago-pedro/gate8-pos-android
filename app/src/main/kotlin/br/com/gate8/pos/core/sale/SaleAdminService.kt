@@ -115,7 +115,13 @@ class SaleAdminService(
             val method = PaymentMethodApi.fromApiValue(sale.paymentMethod)
             val txId = sale.transactionId
                 ?: return Result.failure(IllegalStateException("Sem ID de transação para estorno"))
-            val void = paymentGateway.voidTransaction(txId, sale.nsu, sale.total, method)
+            val void = paymentGateway.voidTransaction(
+                txId,
+                sale.nsu,
+                sale.total,
+                method,
+                authorization = sale.authorization,
+            )
             if (!void.success) {
                 return Result.failure(IllegalStateException(void.message))
             }

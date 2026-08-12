@@ -51,12 +51,13 @@ interface PaymentGateway {
         method: PaymentMethodApi,
     ): PaymentResult? = null
 
-    /** Estorno/cancelamento na adquirente (Mercado Pago ou mock). */
+    /** Estorno/cancelamento na adquirente (Cielo / Mercado Pago / mock). */
     suspend fun voidTransaction(
         transactionId: String,
         nsu: String?,
         amount: Double,
         method: PaymentMethodApi,
+        authorization: String? = null,
     ): VoidResult
 
     /**

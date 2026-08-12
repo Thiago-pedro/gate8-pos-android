@@ -100,6 +100,7 @@ class MercadoPagoPaymentGateway(
         nsu: String?,
         amount: Double,
         method: PaymentMethodApi,
+        authorization: String?,
     ): VoidResult {
         if (method == PaymentMethodApi.CASH) {
             return VoidResult(success = true, message = "Estorno em dinheiro — ajuste no caixa.")
