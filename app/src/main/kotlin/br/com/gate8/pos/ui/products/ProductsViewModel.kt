@@ -6,6 +6,7 @@ import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.sale.SaleDraftFactory
+import br.com.gate8.pos.ui.common.CatalogUserMessages
 import br.com.gate8.pos.ui.common.PaymentUserMessages
 import br.com.gate8.pos.core.network.isStockOrProductError
 import br.com.gate8.pos.core.network.saleErrorMessage
@@ -155,7 +156,10 @@ class ProductsViewModel(
                         it.copy(
                             loading = false,
                             catalog = cached,
-                            error = e.message ?: "Falha ao carregar produtos",
+                            error = CatalogUserMessages.fromThrowable(
+                                e,
+                                "Falha ao carregar produtos",
+                            ),
                         )
                     }
                 }

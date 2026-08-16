@@ -83,7 +83,7 @@ class CieloPaymentGateway : PaymentGateway {
                 ) {
                     throw PaymentCancelledException()
                 }
-                throw IllegalStateException(response.reason)
+                throw IllegalStateException(formatCieloError(response.code, response.reason))
             }
             is CieloDeeplinkResponse.Success -> mapPaymentSuccess(response.json, method)
         }
@@ -178,6 +178,13 @@ class CieloPaymentGateway : PaymentGateway {
                 "Credenciais Cielo ausentes. Preencha CIELO_* em local.properties.cielo.txt",
             )
         }
+    }
+
+    /** Mantém code+reason juntos para o mapper de UX (opt-in -999/-990 etc.). */
+    private fun formatCieloError(code: Int, reason: String): String {
+        val trimmed = reason.trim()
+        if (trimmed.startsWith("$code") || trimmed.startsWith("-$code")) return trimmed
+        return if (code != 0) "$code, $trimmed" else trimmed
     }
 
     companion object {
