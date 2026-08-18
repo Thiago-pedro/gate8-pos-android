@@ -411,8 +411,8 @@ class ProductsViewModel(
                 it.copy(pendingClientCopy = PendingClientCopy(cart, total, method, pay, success))
             }
         } else {
-            printSummaryAndTickets(cart, total, method, pay)
             _state.update { it.copy(saleSuccess = success) }
+            printSummaryAndTickets(cart, total, method, pay)
         }
     }
 

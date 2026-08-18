@@ -473,7 +473,6 @@ class PdvViewModel(
                 )
             }
         } else {
-            printTickets(success.ticketGroups, cart, success.purchaseCode)
             _state.update {
                 it.copy(
                     loading = false,
@@ -484,6 +483,7 @@ class PdvViewModel(
                     lastTicketCodes = success.ticketCodes,
                 )
             }
+            printTickets(success.ticketGroups, cart, success.purchaseCode)
         }
     }
 

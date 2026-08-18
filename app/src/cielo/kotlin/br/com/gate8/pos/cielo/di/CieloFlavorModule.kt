@@ -15,7 +15,7 @@ import org.koin.dsl.module
 
 val cieloFlavorModule = module {
     single<PaymentGateway> { CieloPaymentGateway() }
-    single<ReceiptPrinter> { CieloReceiptPrinter(get()) }
+    single<ReceiptPrinter> { CieloReceiptPrinter(get(), androidApplication()) }
     single<PaymentRuntime> { CieloRuntime(androidApplication()) }
     single<TerminalSettingsGateway> { CieloSettingsGatewayImpl() }
     single<PosHardwareInfo> { PosHardwareInfoUnavailable() }

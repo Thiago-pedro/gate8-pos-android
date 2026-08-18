@@ -1,5 +1,6 @@
 package br.com.gate8.pos.cielo.printer
 
+import android.content.Context
 import android.util.Log
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.domain.model.CartLine
@@ -8,12 +9,17 @@ import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.TicketPrintPayload
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 /** Impressão térmica na Cielo Smart via Deep Link `lio://print`. */
 class CieloReceiptPrinter(
     private val configStore: DeviceConfigStore,
+    private val appContext: Context,
 ) : ReceiptPrinter {
+
+    private val timeFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
 
     override fun printReceipt(
         lines: List<CartLine>,
@@ -111,22 +117,27 @@ class CieloReceiptPrinter(
         authorization: String?,
     ) {
         runCatching {
+            val logoPath = CieloLogoBitmap.prepareLogoPath(appContext)
             val producer = configStore.getEstablishmentName()
+            val now = timeFormat.format(Date())
             lines.forEach { line ->
                 repeat(line.quantity.coerceAtLeast(1)) {
-                    CieloPrintClient.printLines(
-                        Gate8ReceiptTextBuilder.convenienceTicket(
-                            description = line.description,
-                            unitPrice = line.unitPrice,
-                            terminalName = terminalName,
-                            authorization = authorization,
-                            producerName = producer,
-                        ),
+                    CieloPrintClient.printConvenienceFicha(
+                        logoPath = logoPath,
+                        producerName = producer,
+                        dateTime = now,
+                        terminalName = terminalName,
+                        itemDescription = line.description,
+                        unitPrice = money(line.unitPrice),
+                        authorization = authorization,
                     )
                 }
             }
         }.onFailure { Log.e(TAG, "printConvenienceTickets falhou", it) }
     }
+
+    private fun money(value: Double): String =
+        "R$ " + String.format(Locale("pt", "BR"), "%,.2f", value)
 
     private fun terminalName(): String =
         configStore.getDeviceName()?.takeIf { it.isNotBlank() }
