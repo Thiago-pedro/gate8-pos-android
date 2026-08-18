@@ -1,14 +1,20 @@
 package br.com.gate8.pos.cielo.printer
 
 import android.util.Log
+import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
+import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.TicketPrintPayload
+import java.util.Date
 
-/** Impressão via Logcat até integrar `lio://print` no DX8000. */
-class CieloReceiptPrinter : ReceiptPrinter {
+/** Impressão térmica na Cielo Smart via Deep Link `lio://print`. */
+class CieloReceiptPrinter(
+    private val configStore: DeviceConfigStore,
+) : ReceiptPrinter {
+
     override fun printReceipt(
         lines: List<CartLine>,
         total: Double,
@@ -19,16 +25,21 @@ class CieloReceiptPrinter : ReceiptPrinter {
         isReprint: Boolean,
         saleDateMillis: Long?,
     ) {
-        val sb = StringBuilder("=== GATE8 CUPOM (CIELO) ===\n")
-        lines.forEach { l ->
-            sb.append("${l.quantity}x ${l.description} R$ ${"%.2f".format(l.lineTotal)}\n")
-        }
-        sb.append("TOTAL R$ ${"%.2f".format(total)}\n")
-        sb.append("Pagamento: $paymentLabel\n")
-        if (isReprint) sb.append("*** REIMPRESSAO ***\n")
-        if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
-        acquirerTransactionId?.let { sb.append("Order: $it\n") }
-        Log.i(TAG, sb.toString())
+        runCatching {
+            CieloPrintClient.printLines(
+                Gate8ReceiptTextBuilder.saleReceipt(
+                    lines = lines,
+                    total = total,
+                    paymentLabel = paymentLabel,
+                    nsu = nsu,
+                    authorization = authorization,
+                    isReprint = isReprint,
+                    terminalName = terminalName(),
+                    saleDate = saleDateMillis?.let { Date(it) },
+                    establishmentName = configStore.getEstablishmentName(),
+                ),
+            )
+        }.onFailure { Log.e(TAG, "printReceipt falhou", it) }
     }
 
     override fun printVoidReceipt(
@@ -38,19 +49,39 @@ class CieloReceiptPrinter : ReceiptPrinter {
         nsu: String?,
         authorization: String?,
     ) {
-        Log.i(TAG, "=== GATE8 ESTORNO (CIELO) === total=$total method=$paymentLabel")
+        runCatching {
+            CieloPrintClient.printLines(
+                Gate8ReceiptTextBuilder.voidReceipt(
+                    lines = lines,
+                    total = total,
+                    paymentLabel = paymentLabel,
+                    nsu = nsu,
+                    authorization = authorization,
+                    terminalName = terminalName(),
+                    establishmentName = configStore.getEstablishmentName(),
+                ),
+            )
+        }.onFailure { Log.e(TAG, "printVoidReceipt falhou", it) }
     }
 
     override fun printTicket(payload: TicketPrintPayload) {
-        Log.i(TAG, "=== GATE8 INGRESSO (CIELO) === ${payload.eventName} code=${payload.validationCode}")
+        runCatching {
+            val lines = Gate8ReceiptTextBuilder.ticketTopLines(payload) +
+                Gate8ReceiptTextBuilder.ticketBottomLines(payload)
+            CieloPrintClient.printLines(lines)
+        }.onFailure { Log.e(TAG, "printTicket falhou", it) }
     }
 
     override fun printReportSummary(payload: ReportPrintPayload) {
-        Log.i(TAG, "=== GATE8 RELATORIO (CIELO) === liquido=${payload.netTotal}")
+        runCatching {
+            CieloPrintClient.printLines(Gate8ReceiptTextBuilder.reportSummary(payload))
+        }.onFailure { Log.e(TAG, "printReportSummary falhou", it) }
     }
 
     override fun printCashierSummary(payload: CashierPrintPayload) {
-        Log.i(TAG, "=== GATE8 CAIXA (CIELO) === esperado=${payload.expectedDrawer}")
+        runCatching {
+            CieloPrintClient.printLines(Gate8ReceiptTextBuilder.cashierSummary(payload))
+        }.onFailure { Log.e(TAG, "printCashierSummary falhou", it) }
     }
 
     override fun printCardCopy(
@@ -59,8 +90,8 @@ class CieloReceiptPrinter : ReceiptPrinter {
         merchantCopy: Boolean,
         isReprint: Boolean,
     ) {
-        val via = if (merchantCopy) "LOJISTA" else "CLIENTE"
-        Log.i(TAG, "=== GATE8 VIA $via (CIELO) === tx=$transactionId nsu=$nsu")
+        // Vias de cartão/Pix são impressas pela Cielo no fluxo de pagamento.
+        Log.i(TAG, "Via ${if (merchantCopy) "LOJISTA" else "CLIENTE"} — impressa pela Cielo (tx=$transactionId)")
     }
 
     override fun printSaleSummary(
@@ -79,8 +110,27 @@ class CieloReceiptPrinter : ReceiptPrinter {
         terminalName: String,
         authorization: String?,
     ) {
-        Log.i(TAG, "=== GATE8 FICHA (CIELO) === terminal=$terminalName itens=${lines.size}")
+        runCatching {
+            val producer = configStore.getEstablishmentName()
+            lines.forEach { line ->
+                repeat(line.quantity.coerceAtLeast(1)) {
+                    CieloPrintClient.printLines(
+                        Gate8ReceiptTextBuilder.convenienceTicket(
+                            description = line.description,
+                            unitPrice = line.unitPrice,
+                            terminalName = terminalName,
+                            authorization = authorization,
+                            producerName = producer,
+                        ),
+                    )
+                }
+            }
+        }.onFailure { Log.e(TAG, "printConvenienceTickets falhou", it) }
     }
+
+    private fun terminalName(): String =
+        configStore.getDeviceName()?.takeIf { it.isNotBlank() }
+            ?: configStore.getDeviceShortId()
 
     companion object {
         private const val TAG = "Gate8CieloPrint"

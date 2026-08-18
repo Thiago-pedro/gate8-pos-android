@@ -55,10 +55,18 @@ object CieloDeeplinkSession {
         return try {
             val raw = String(Base64.decode(base64, Base64.DEFAULT), StandardCharsets.UTF_8)
             val json = JSONObject(raw)
-            if (json.has("reason") && !json.has("payments") && !json.has("id")) {
+            if (json.has("payments") || json.has("id")) {
+                return CieloDeeplinkResponse.Success(json)
+            }
+            val code = json.optInt("code", 0)
+            val reason = json.optString("reason", "")
+                .ifBlank { json.optString("message", "") }
+            if (reason.isNotBlank() && code != 0) {
+                CieloDeeplinkResponse.Error(code = code, reason = reason)
+            } else if (code != 0) {
                 CieloDeeplinkResponse.Error(
-                    code = json.optInt("code", 1),
-                    reason = json.optString("reason", "Falha na operação Cielo."),
+                    code = code,
+                    reason = reason.ifBlank { "Falha na operação Cielo." },
                 )
             } else {
                 CieloDeeplinkResponse.Success(json)
