@@ -37,12 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.theme.Gate8Colors
 
 /**
- * Overlay em tela cheia exibido enquanto a maquininha aguarda o cartão (ou gera o Pix).
- * Mostra ícone grande, valor, instrução e spinner. Não aparece para dinheiro.
+ * Overlay em tela cheia enquanto a maquininha aguarda o cartão (ou gera o Pix).
+ * Não aparece para dinheiro. No flavor **cielo** fica desligado: a UI de cobrança
+ * é o app nativo Cielo via Deep Link (antes/depois só Gate8).
  */
 @Composable
 fun PaymentWaitingOverlay(
@@ -52,6 +54,7 @@ fun PaymentWaitingOverlay(
     onCancel: (() -> Unit)? = null,
 ) {
     if (!visible) return
+    if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) return
     val message = paymentLoadingMessage(method) ?: return
 
     val title: String

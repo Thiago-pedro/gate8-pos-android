@@ -2,6 +2,7 @@ package br.com.gate8.pos.ui.pdv
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
@@ -441,9 +442,10 @@ class PdvViewModel(
     }
 
     /**
-     * Fluxo igual à conveniência: em cartão/Pix imprime a via do lojista e pergunta
-     * se quer a via do cliente; os ingressos só saem depois (em [answerClientCopy]).
-     * Em dinheiro não há via — imprime o ingresso direto.
+     * Em cartão/Pix (Stone/MP): imprime via do lojista e pergunta a via do cliente;
+     * ingressos só depois ([answerClientCopy]).
+     * No flavor **cielo**: vias ficam com a Cielo — Gate8 imprime ingressos direto.
+     * Em dinheiro: ingresso direto.
      */
     private fun beginTicketPrint(
         cart: List<CartLine>,
@@ -454,7 +456,8 @@ class PdvViewModel(
     ) {
         val isCardLike = method != PaymentMethodApi.CASH &&
             (!pay.transactionId.isNullOrBlank() || !pay.nsu.isNullOrBlank())
-        if (isCardLike) {
+        val askClientCopy = isCardLike && !BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)
+        if (askClientCopy) {
             printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
             _state.update {
                 it.copy(
@@ -470,6 +473,7 @@ class PdvViewModel(
                         pay = pay,
                         successMessage = successMessage,
                     ),
+                    payingMethod = null,
                 )
             }
         } else {
@@ -481,6 +485,7 @@ class PdvViewModel(
                     saleSuccessMessage = successMessage,
                     lastSaleId = success.saleId,
                     lastTicketCodes = success.ticketCodes,
+                    payingMethod = null,
                 )
             }
             printTickets(success.ticketGroups, cart, success.purchaseCode)

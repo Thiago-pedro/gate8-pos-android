@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -40,8 +41,8 @@ data class ReportsUiState(
     val loading: Boolean = false,
     val period: ReportPeriod = ReportPeriod.TODAY,
     val segment: ReportSegment = ReportSegment.ALL,
-    val customFrom: LocalDate? = null,
-    val customTo: LocalDate? = null,
+    val customFrom: LocalDateTime? = null,
+    val customTo: LocalDateTime? = null,
     val showCustomDialog: Boolean = false,
     val data: ReportsSummaryDto? = null,
     val isDemoData: Boolean = false,
@@ -71,13 +72,14 @@ class ReportsViewModel(
 
     fun selectPeriod(period: ReportPeriod) {
         if (period == ReportPeriod.CUSTOM) {
-            val today = LocalDate.now(zone)
+            val now = LocalDateTime.now(zone).withSecond(0).withNano(0)
             _state.update {
                 it.copy(
                     period = period,
                     showCustomDialog = true,
-                    customFrom = it.customFrom ?: today.minusDays(7),
-                    customTo = it.customTo ?: today,
+                    customFrom = it.customFrom
+                        ?: now.toLocalDate().minusDays(7).atStartOfDay(),
+                    customTo = it.customTo ?: now,
                 )
             }
         } else {
@@ -96,11 +98,11 @@ class ReportsViewModel(
         _state.update { it.copy(showCustomDialog = false) }
     }
 
-    fun updateCustomFrom(value: LocalDate) {
+    fun updateCustomFrom(value: LocalDateTime) {
         _state.update { it.copy(customFrom = value) }
     }
 
-    fun updateCustomTo(value: LocalDate) {
+    fun updateCustomTo(value: LocalDateTime) {
         _state.update { it.copy(customTo = value) }
     }
 
@@ -108,11 +110,11 @@ class ReportsViewModel(
         val from = _state.value.customFrom
         val to = _state.value.customTo
         if (from == null || to == null) {
-            _state.update { it.copy(error = "Informe as duas datas") }
+            _state.update { it.copy(error = "Informe data e horário de início e fim") }
             return
         }
         if (from.isAfter(to)) {
-            _state.update { it.copy(error = "Data inicial não pode ser depois da final") }
+            _state.update { it.copy(error = "Início não pode ser depois do fim") }
             return
         }
         _state.update { it.copy(showCustomDialog = false, error = null) }
@@ -205,14 +207,15 @@ class ReportsViewModel(
                 )
             }
             ReportPeriod.CUSTOM -> {
-                val fromDate = _state.value.customFrom ?: now.toLocalDate()
-                val toDate = _state.value.customTo ?: now.toLocalDate()
-                val start = fromDate.atStartOfDay(zone)
-                val end = toDate.atTime(23, 59, 59).atZone(zone)
+                val fromDateTime = _state.value.customFrom
+                    ?: now.toLocalDate().atStartOfDay()
+                val toDateTime = _state.value.customTo ?: now.toLocalDateTime()
+                val start = fromDateTime.atZone(zone)
+                val end = toDateTime.atZone(zone)
                 Triple(
                     start.toInstant(),
                     end.toInstant(),
-                    "${formatDate(fromDate)} – ${formatDate(toDate)}",
+                    "${formatDateTime(fromDateTime)} – ${formatDateTime(toDateTime)}",
                 )
             }
         }
@@ -220,6 +223,9 @@ class ReportsViewModel(
 
     private fun formatDate(date: LocalDate): String =
         date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+
+    private fun formatDateTime(value: LocalDateTime): String =
+        value.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
 
     private fun CashierStatusDto.toReportCashierInfo(): ReportCashierInfo = ReportCashierInfo(
         open = open,

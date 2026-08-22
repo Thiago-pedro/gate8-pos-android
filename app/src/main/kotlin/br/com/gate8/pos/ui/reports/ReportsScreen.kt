@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
@@ -32,8 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,11 +49,11 @@ import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8MenuButton
-import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
@@ -433,27 +441,31 @@ private fun BreakdownRow(label: String, count: Int, total: Double, unit: String 
 
 @Composable
 private fun CustomPeriodDialog(
-    from: LocalDate?,
-    to: LocalDate?,
+    from: LocalDateTime?,
+    to: LocalDateTime?,
     onDismiss: () -> Unit,
-    onApply: (LocalDate, LocalDate) -> Unit,
+    onApply: (LocalDateTime, LocalDateTime) -> Unit,
 ) {
-    val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-    var fromText by remember(from) { mutableStateOf(from?.format(fmt) ?: "") }
-    var toText by remember(to) { mutableStateOf(to?.format(fmt) ?: "") }
+    val fmtDateTime = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+    var fromText by remember(from) {
+        mutableStateOf(from?.format(fmtDateTime)?.let(::maskDateTimeInput).orEmpty())
+    }
+    var toText by remember(to) {
+        mutableStateOf(to?.format(fmtDateTime)?.let(::maskDateTimeInput).orEmpty())
+    }
     var parseError by remember { mutableStateOf<String?>(null) }
 
     fun tryApply() {
         runCatching {
-            val f = LocalDate.parse(fromText.trim(), fmt)
-            val t = LocalDate.parse(toText.trim(), fmt)
-            if (f.isAfter(t)) throw IllegalArgumentException("Data inicial inválida")
+            val f = parseMaskedDateTime(fromText, endOfDayIfDateOnly = false)
+            val t = parseMaskedDateTime(toText, endOfDayIfDateOnly = true)
+            if (f.isAfter(t)) throw IllegalArgumentException("Início não pode ser depois do fim")
             onApply(f, t)
         }.onFailure {
             parseError = when (it) {
-                is DateTimeParseException -> "Use o formato dd/MM/aaaa"
-                is IllegalArgumentException -> "Data inicial não pode ser depois da final"
-                else -> "Datas inválidas"
+                is DateTimeParseException, is IllegalArgumentException ->
+                    it.message ?: "Digite data e horário completos"
+                else -> "Data/horário inválidos"
             }
         }
     }
@@ -483,27 +495,31 @@ private fun CustomPeriodDialog(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Informe as datas no formato dd/MM/aaaa",
+                "Teclado numérico — máscara dd/MM/aaaa HH:mm\n(8 dígitos = só data · 12 = data + hora)",
                 color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(16.dp))
-            Gate8OutlinedTextField(
-                value = fromText,
-                onValueChange = { fromText = it; parseError = null },
+            DateTimeMaskedField(
                 label = "De",
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = "04/06/2026",
+                value = fromText,
+                onValueChange = {
+                    fromText = it
+                    parseError = null
+                },
+                placeholder = "15/08/2026 20:00",
             )
             Spacer(Modifier.height(10.dp))
-            Gate8OutlinedTextField(
-                value = toText,
-                onValueChange = { toText = it; parseError = null },
+            DateTimeMaskedField(
                 label = "Até",
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = "11/06/2026",
+                value = toText,
+                onValueChange = {
+                    toText = it
+                    parseError = null
+                },
+                placeholder = "17/08/2026 14:00",
             )
             parseError?.let {
                 Spacer(Modifier.height(10.dp))
@@ -536,6 +552,102 @@ private fun CustomPeriodDialog(
                     .padding(vertical = 14.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun DateTimeMaskedField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    var field by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = value,
+                selection = TextRange(value.length),
+            ),
+        )
+    }
+    LaunchedEffect(value) {
+        if (field.text != value) {
+            field = TextFieldValue(text = value, selection = TextRange(value.length))
+        }
+    }
+
+    OutlinedTextField(
+        value = field,
+        onValueChange = { incoming ->
+            val prevDigits = field.text.filter { it.isDigit() }
+            val nextDigits = incoming.text.filter { it.isDigit() }
+            val hadFullSelection = field.selection.length == field.text.length && field.text.isNotEmpty()
+            val digits = when {
+                // Foco seleciona tudo → primeiro dígito começa a máscara do zero
+                hadFullSelection && nextDigits.length <= 1 -> nextDigits
+                nextDigits.length <= prevDigits.length -> nextDigits
+                nextDigits.startsWith(prevDigits) -> nextDigits.take(12)
+                else -> nextDigits.take(12)
+            }
+            val masked = maskDateTimeInput(digits)
+            field = TextFieldValue(
+                text = masked,
+                selection = TextRange(masked.length),
+            )
+            onValueChange(masked)
+        },
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focus ->
+                if (focus.isFocused && field.text.isNotEmpty()) {
+                    field = field.copy(selection = TextRange(0, field.text.length))
+                }
+            },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Gate8Colors.TextOnLight,
+            unfocusedTextColor = Gate8Colors.TextOnLight,
+            focusedBorderColor = Gate8Colors.AccentBlue,
+            unfocusedBorderColor = Gate8Colors.TextOnLight.copy(alpha = 0.5f),
+            focusedLabelColor = Gate8Colors.AccentBlue,
+            unfocusedLabelColor = Gate8Colors.TextOnLight,
+            cursorColor = Gate8Colors.AccentBlue,
+            focusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
+            unfocusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
+        ),
+        shape = RoundedCornerShape(12.dp),
+    )
+}
+
+/** Máscara progressiva: dígitos → `dd/MM/yyyy HH:mm` (máx. 12 dígitos). */
+private fun maskDateTimeInput(raw: String): String {
+    val digits = raw.filter { it.isDigit() }.take(12)
+    val out = StringBuilder()
+    digits.forEachIndexed { index, c ->
+        when (index) {
+            2, 4 -> out.append('/')
+            8 -> out.append(' ')
+            10 -> out.append(':')
+        }
+        out.append(c)
+    }
+    return out.toString()
+}
+
+private fun parseMaskedDateTime(raw: String, endOfDayIfDateOnly: Boolean): LocalDateTime {
+    val digits = raw.filter { it.isDigit() }
+    return when (digits.length) {
+        8 -> {
+            val date = LocalDate.parse(digits, DateTimeFormatter.ofPattern("ddMMyyyy"))
+            if (endOfDayIfDateOnly) date.atTime(23, 59) else date.atStartOfDay()
+        }
+        12 -> LocalDateTime.parse(digits, DateTimeFormatter.ofPattern("ddMMyyyyHHmm"))
+        else -> throw IllegalArgumentException(
+            "Informe 8 dígitos (data) ou 12 (data + hora)",
+        )
     }
 }
 

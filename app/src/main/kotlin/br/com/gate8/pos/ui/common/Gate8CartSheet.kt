@@ -24,18 +24,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.theme.Gate8Colors
 
 /**
  * Mensagem exibida sob o spinner enquanto o pagamento processa, conforme a forma escolhida.
- * Retorna null quando não há mensagem específica (ex.: dinheiro, processamento rápido).
+ * Retorna null quando não há mensagem específica (ex.: dinheiro, flavor Cielo — UI nativa).
  */
-fun paymentLoadingMessage(method: PaymentMethodApi?): String? = when (method) {
-    PaymentMethodApi.DEBIT, PaymentMethodApi.CREDIT ->
-        "Aproxime, insira ou passe o cartão na parte superior da maquininha"
-    PaymentMethodApi.PIX -> "Gerando o QR Code Pix..."
-    else -> null
+fun paymentLoadingMessage(method: PaymentMethodApi?): String? {
+    if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) return null
+    return when (method) {
+        PaymentMethodApi.DEBIT, PaymentMethodApi.CREDIT ->
+            "Aproxime, insira ou passe o cartão na parte superior da maquininha"
+        PaymentMethodApi.PIX -> "Gerando o QR Code Pix..."
+        else -> null
+    }
 }
 
 data class Gate8CartLineUi(

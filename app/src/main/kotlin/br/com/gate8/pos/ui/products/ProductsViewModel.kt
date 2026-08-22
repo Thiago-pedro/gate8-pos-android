@@ -2,6 +2,7 @@ package br.com.gate8.pos.ui.products
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
@@ -352,7 +353,14 @@ class ProductsViewModel(
                             "Venda concluída com sucesso!"
                         },
                     )
-                    _state.update { it.copy(loading = false, cart = emptyList(), showCart = false) }
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            payingMethod = null,
+                            cart = emptyList(),
+                            showCart = false,
+                        )
+                    }
                     beginReceiptPrint(cart, total, method, pay, successUi)
                     refreshCatalog()
                     schedulePendingSync()
@@ -380,7 +388,7 @@ class ProductsViewModel(
                 "Venda recuperada com sucesso!"
             },
         )
-        _state.update { it.copy(loading = false, cart = emptyList(), showCart = false) }
+        _state.update { it.copy(loading = false, payingMethod = null, cart = emptyList(), showCart = false) }
         beginReceiptPrint(cart, total, method, pay, successUi)
         refreshCatalog()
     }
@@ -392,9 +400,11 @@ class ProductsViewModel(
     }
 
     /**
-     * Inicia a impressão na ordem certa. Para cartão/Pix: imprime a via do lojista
-     * e pergunta se deve sair a via do cliente (via [answerClientCopy]); em dinheiro,
-     * já imprime o comprovante e as fichas.
+     * Inicia a impressão na ordem certa.
+     * Em cartão/Pix (Stone/MP): imprime via do lojista e pergunta a via do cliente.
+     * No flavor **cielo**: a Cielo já pergunta/imprime as vias — Gate8 só imprime
+     * comprovante + fichas, sem prompt duplicado.
+     * Em dinheiro: comprovante + fichas direto.
      */
     private fun beginReceiptPrint(
         cart: List<CartLine>,
@@ -405,7 +415,8 @@ class ProductsViewModel(
     ) {
         val isCardLike = method != PaymentMethodApi.CASH &&
             (!pay.transactionId.isNullOrBlank() || !pay.nsu.isNullOrBlank())
-        if (isCardLike) {
+        val askClientCopy = isCardLike && !BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)
+        if (askClientCopy) {
             printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
             _state.update {
                 it.copy(pendingClientCopy = PendingClientCopy(cart, total, method, pay, success))
