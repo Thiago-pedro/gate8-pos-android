@@ -7,6 +7,7 @@ import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.sale.SaleDraftFactory
+import br.com.gate8.pos.core.sale.SaleRequestFactory
 import br.com.gate8.pos.ui.common.CatalogUserMessages
 import br.com.gate8.pos.ui.common.PaymentUserMessages
 import br.com.gate8.pos.core.network.isStockOrProductError
@@ -18,8 +19,6 @@ import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.ProductDto
-import br.com.gate8.pos.data.remote.dto.SaleItemDto
-import br.com.gate8.pos.data.remote.dto.AcquirerPaymentDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
@@ -81,6 +80,8 @@ data class ProductsUiState(
     val catalog: CatalogResponseDto? = null,
     /** Incrementado a cada refresh bem-sucedido para forçar recomposição da grade. */
     val catalogVersion: Int = 0,
+    val showSearch: Boolean = false,
+    val searchQuery: String = "",
     val cart: List<CartLine> = emptyList(),
     val showCart: Boolean = false,
     val message: String? = null,
@@ -114,6 +115,20 @@ class ProductsViewModel(
 
     fun onScreenVisible() {
         refreshCashierStatus()
+    }
+
+    fun toggleSearch() {
+        _state.update { state ->
+            if (state.showSearch) {
+                state.copy(showSearch = false, searchQuery = "")
+            } else {
+                state.copy(showSearch = true)
+            }
+        }
+    }
+
+    fun onSearchQueryChange(value: String) {
+        _state.update { it.copy(searchQuery = value.take(80)) }
     }
 
     private fun refreshCashierStatus() {
@@ -309,30 +324,13 @@ class ProductsViewModel(
             }
             val pay = payment.getOrThrow()
 
-            val request = CreateSaleRequestDto(
+            val request = SaleRequestFactory.create(
                 clientReference = clientRef,
                 operatorName = operatorName,
-                paymentMethod = method.apiValue,
-                totalAmount = total,
-                acquirer = if (method == PaymentMethodApi.CASH) null else AcquirerPaymentDto(
-                    nsu = pay.nsu,
-                    authorization = pay.authorization,
-                    brand = pay.brand,
-                    transactionId = pay.transactionId,
-                ),
-                items = cart.map { line ->
-                    SaleItemDto(
-                        itemType = line.itemType.apiValue,
-                        productId = line.productId,
-                        batchId = line.batchId,
-                        eventId = line.eventId,
-                        holderName = line.holderName,
-                        holderEmail = line.holderEmail,
-                        description = line.description,
-                        quantity = line.quantity,
-                        unitPrice = line.unitPrice,
-                    )
-                },
+                method = method,
+                total = total,
+                payment = pay,
+                cart = cart,
             )
 
             val pending = PendingSaleEntity(

@@ -5,8 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,7 +55,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReportsScreen(
     onBack: () -> Unit,
@@ -81,7 +78,8 @@ fun ReportsScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
     ) {
         Gate8BackTopBar(onBack = onBack)
 
@@ -109,23 +107,24 @@ fun ReportsScreen(
 
         SectionLabel("Período")
         Spacer(Modifier.height(10.dp))
-        FlowRow(
+        Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             ReportPeriod.entries.forEach { period ->
                 PeriodChip(
                     label = period.label,
                     selected = state.period == period,
                     onClick = { vm.selectPeriod(period) },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
 
         Spacer(Modifier.height(18.dp))
 
-        SectionLabel("Categoria")
+        SectionLabel("Categoria", centered = true)
         Spacer(Modifier.height(10.dp))
         SegmentTabs(
             selected = state.segment,
@@ -134,47 +133,42 @@ fun ReportsScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(32.dp),
-                    color = Gate8Colors.AccentBlue,
-                )
-            } else {
-                state.error?.let {
-                    Text(it, color = Color(0xFFB3261E), fontSize = 13.sp)
-                    Spacer(Modifier.height(12.dp))
-                }
-                if (state.isDemoData) {
-                    Text(
-                        "Dados de demonstração — aguardando endpoint na API",
-                        color = Color(0xFF8A6D00),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
-                state.data?.let { data ->
-                    SummaryCard(data)
-                    Spacer(Modifier.height(12.dp))
-                    PaymentBreakdownCard(data)
-                    Spacer(Modifier.height(12.dp))
-                    BrandBreakdownCard(data)
-                    Spacer(Modifier.height(12.dp))
-                    TopItemsCard(data)
-                }
-                state.cashier?.let { cashier ->
-                    Spacer(Modifier.height(12.dp))
-                    CashierStatusCard(cashier)
-                }
+        if (state.loading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(32.dp),
+                color = Gate8Colors.AccentBlue,
+            )
+        } else {
+            state.error?.let {
+                Text(it, color = Color(0xFFB3261E), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(16.dp))
+            if (state.isDemoData) {
+                Text(
+                    "Dados de demonstração — aguardando endpoint na API",
+                    color = Color(0xFF8A6D00),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+            state.data?.let { data ->
+                SummaryCard(data)
+                Spacer(Modifier.height(12.dp))
+                PaymentBreakdownCard(data)
+                Spacer(Modifier.height(12.dp))
+                BrandBreakdownCard(data)
+                Spacer(Modifier.height(12.dp))
+                TopItemsCard(data)
+            }
+            state.cashier?.let { cashier ->
+                Spacer(Modifier.height(12.dp))
+                CashierStatusCard(cashier)
+            }
         }
+
+        Spacer(Modifier.height(20.dp))
 
         Gate8MenuButton(
             title = "Imprimir relatório",
@@ -213,12 +207,13 @@ fun ReportsScreen(
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(text: String, centered: Boolean = false) {
     Text(
         text,
         color = Gate8Colors.TextSecondary,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
+        textAlign = if (centered) TextAlign.Center else TextAlign.Start,
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -230,6 +225,7 @@ private fun SegmentTabs(
 ) {
     Row(
         Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ReportSegment.entries.forEachIndexed { index, segment ->
@@ -238,7 +234,7 @@ private fun SegmentTabs(
                     "|",
                     color = Gate8Colors.TextSecondary.copy(alpha = 0.4f),
                     fontSize = 15.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp),
                 )
             }
             val isSelected = segment == selected
@@ -247,7 +243,7 @@ private fun SegmentTabs(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable { onSelect(segment) }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 Text(
                     segment.label,
@@ -269,19 +265,26 @@ private fun SegmentTabs(
 }
 
 @Composable
-private fun PeriodChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun PeriodChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val bg = if (selected) Gate8Colors.AccentBlue else Gate8Colors.CardSurface
     val textColor = if (selected) Color.White else Gate8Colors.TextPrimary
     Text(
         label,
         color = textColor,
-        fontSize = 13.sp,
+        fontSize = 12.sp,
         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        modifier = Modifier
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
     )
 }
 
@@ -317,17 +320,26 @@ private fun PaymentBreakdownCard(data: ReportsSummaryDto) {
 
 @Composable
 private fun BrandBreakdownCard(data: ReportsSummaryDto) {
+    val hasCardSales = data.byPaymentMethod.any { row ->
+        row.method.equals("credit", ignoreCase = true) ||
+            row.method.equals("debit", ignoreCase = true)
+    }
     ReportPanel(title = "Por bandeira (cartão)") {
-        if (data.byBrand.isEmpty()) {
-            Text(
+        when {
+            data.byBrand.isNotEmpty() -> data.byBrand.forEach { row ->
+                BreakdownRow(row.brand, row.count, row.total)
+            }
+            hasCardSales -> Text(
+                "Há vendas em crédito/débito, mas a Cielo não enviou a bandeira (Visa, Mastercard…). " +
+                    "Elas aparecem só em “Por forma de pagamento”.",
+                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+            )
+            else -> Text(
                 "Sem vendas em cartão no período",
                 color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
                 fontSize = 12.sp,
             )
-        } else {
-            data.byBrand.forEach { row ->
-                BreakdownRow(row.brand, row.count, row.total)
-            }
         }
     }
 }

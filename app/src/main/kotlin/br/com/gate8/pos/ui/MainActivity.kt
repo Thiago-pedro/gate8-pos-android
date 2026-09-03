@@ -12,6 +12,7 @@ import br.com.gate8.pos.R
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.ui.cashier.CashierScreen
+import br.com.gate8.pos.ui.cashless.CashlessScreen
 import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.common.Gate8SplashHost
 import br.com.gate8.pos.ui.config.SetupScreen
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
                                         onPdv = { nav.navigate(Routes.Pdv) },
                                         onProducts = { nav.navigate(Routes.Products) },
                                         onCashier = { nav.navigate(Routes.Cashier) },
+                                        onCashless = { nav.navigate(Routes.Cashless) },
                                         onRefund = { nav.navigate(Routes.Refund) },
                                         onReports = { nav.navigate(Routes.Reports) },
                                         onSetup = { nav.navigate(Routes.Setup) },
@@ -114,6 +116,7 @@ class MainActivity : ComponentActivity() {
                                 composable(Routes.Refund) { RefundScreen(onBack = { nav.popBackStack() }) }
                                 composable(Routes.Reports) { ReportsScreen(onBack = { nav.popBackStack() }) }
                                 composable(Routes.Cashier) { CashierScreen(onBack = { nav.popBackStack() }) }
+                                composable(Routes.Cashless) { CashlessScreen(onBack = { nav.popBackStack() }) }
                                 composable(Routes.Pending) { PendingScreen(onBack = { nav.popBackStack() }) }
                             }
                         }

@@ -1,17 +1,26 @@
 package br.com.gate8.pos.data.remote.dto
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ReportsSummaryDto(
     val period: ReportsPeriodDto,
     val device: ReportsDeviceDto? = null,
     val segment: String? = null,
     val summary: ReportsTotalsDto,
-    @SerialName("by_payment_method") val byPaymentMethod: List<ReportsPaymentRowDto> = emptyList(),
-    @SerialName("by_brand") val byBrand: List<ReportsBrandRowDto> = emptyList(),
-    @SerialName("top_items") val topItems: List<ReportsItemRowDto> = emptyList(),
+    @SerialName("by_payment_method")
+    @JsonNames("byPaymentMethod")
+    val byPaymentMethod: List<ReportsPaymentRowDto> = emptyList(),
+    @SerialName("by_brand")
+    @JsonNames("byBrand")
+    val byBrand: List<ReportsBrandRowDto> = emptyList(),
+    @SerialName("top_items")
+    @JsonNames("topItems")
+    val topItems: List<ReportsItemRowDto> = emptyList(),
 )
 
 @Serializable

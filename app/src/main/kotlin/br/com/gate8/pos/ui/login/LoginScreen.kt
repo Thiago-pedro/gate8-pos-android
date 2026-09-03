@@ -90,7 +90,7 @@ fun LoginScreen(
                     onValueChange = vm::onLabelChange,
                     label = "Nome da maquininha (opcional)",
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = "Ex.: Caixa 1",
+                    placeholder = "Vazio = Caixa 1, Caixa 2…",
                 )
 
                 state.error?.let {
@@ -171,7 +171,7 @@ fun LoginPendingScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    state.pendingDeviceName?.let { "Maquininha: $it" }
+                    state.pendingDeviceName?.let { "Nome: $it" }
                         ?: "O produtor precisa liberar esta maquininha no painel.",
                     color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
                     fontSize = 14.sp,

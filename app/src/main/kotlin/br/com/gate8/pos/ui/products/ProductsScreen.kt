@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -36,9 +37,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,6 +73,7 @@ import br.com.gate8.pos.ui.common.Gate8ConfirmModal
 import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
 import br.com.gate8.pos.ui.common.paymentLoadingMessage
+import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8QuantitySelector
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
@@ -88,7 +95,26 @@ fun ProductsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val products = state.catalog?.products.orEmpty()
+    val allProducts = state.catalog?.products.orEmpty()
+    val products = remember(allProducts, state.searchQuery) {
+        val q = state.searchQuery.trim()
+        if (q.isEmpty()) {
+            allProducts
+        } else {
+            allProducts.filter { product ->
+                product.name.contains(q, ignoreCase = true) ||
+                    product.sku?.contains(q, ignoreCase = true) == true ||
+                    product.category?.contains(q, ignoreCase = true) == true ||
+                    product.description?.contains(q, ignoreCase = true) == true
+            }
+        }
+    }
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(state.showSearch) {
+        if (state.showSearch) {
+            runCatching { searchFocus.requestFocus() }
+        }
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartItemCount = state.cart.sumOf { it.quantity }
     val cartTotal = state.cart.sumOf { it.lineTotal }
@@ -153,7 +179,11 @@ fun ProductsScreen(
         modifier = Modifier.fillMaxSize(),
         background = {
         Column(Modifier.fillMaxSize()) {
-            Gate8ScreenTopBar(onMenu = onBack, onAction = { vm.refreshCatalog() })
+            Gate8ScreenTopBar(
+                onMenu = onBack,
+                onAction = { vm.toggleSearch() },
+                actionContentDescription = if (state.showSearch) "Fechar busca" else "Buscar",
+            )
 
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Row(
@@ -193,6 +223,22 @@ fun ProductsScreen(
                         }
                     }
                 }
+
+                if (state.showSearch) {
+                    Spacer(Modifier.height(12.dp))
+                    Gate8OutlinedTextField(
+                        value = state.searchQuery,
+                        onValueChange = vm::onSearchQueryChange,
+                        label = "Buscar produto",
+                        placeholder = "Nome, SKU ou categoria",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocus),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                        ),
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -214,16 +260,27 @@ fun ProductsScreen(
                 )
             }
 
-            if (state.loading && products.isEmpty()) {
+            if (state.loading && allProducts.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Gate8Colors.AccentBlue)
                 }
-            } else if (products.isEmpty()) {
+            } else if (allProducts.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Nenhum produto no catálogo.\nCadastre itens no painel Gate8.",
                         color = Gate8Colors.TextSecondary,
                         fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else if (products.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Nenhum produto encontrado para “${state.searchQuery.trim()}”.",
+                        color = Gate8Colors.TextSecondary,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp),
                     )
                 }
             } else {

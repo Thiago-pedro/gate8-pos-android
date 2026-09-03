@@ -6,7 +6,7 @@ import android.os.Bundle
 import android.util.Log
 
 /**
- * Recebe o callback Deep Link da Cielo Smart (`order://response?response=…`).
+ * Recebe o callback Deep Link da Cielo Smart (`gate8cielo://response?response=…`).
  */
 class CieloResponseActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {

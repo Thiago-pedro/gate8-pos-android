@@ -1,5 +1,7 @@
 package br.com.gate8.pos.mercadopago.di
 
+import br.com.gate8.pos.cashless.CashlessCardGateway
+import br.com.gate8.pos.cashless.UnavailableCashlessCardGateway
 import br.com.gate8.pos.device.PosHardwareInfo
 import br.com.gate8.pos.device.PosHardwareInfoUnavailable
 import br.com.gate8.pos.mercadopago.payment.MercadoPagoPaymentGateway
@@ -18,4 +20,5 @@ val mercadoPagoFlavorModule = module {
     single<PaymentRuntime> { MercadoPagoRuntime() }
     single<TerminalSettingsGateway> { MercadoPagoSettingsGatewayImpl(get()) }
     single<PosHardwareInfo> { PosHardwareInfoUnavailable() }
+    single<CashlessCardGateway> { UnavailableCashlessCardGateway() }
 }

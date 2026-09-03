@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.R
 import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
 import br.com.gate8.pos.ui.common.Gate8HeaderLogo
@@ -51,6 +52,7 @@ fun HomeScreen(
     onPdv: () -> Unit,
     onProducts: () -> Unit,
     onCashier: () -> Unit,
+    onCashless: () -> Unit = {},
     onRefund: () -> Unit,
     onReports: () -> Unit,
     onSetup: () -> Unit,
@@ -135,6 +137,15 @@ fun HomeScreen(
                     onClick = onCashier,
                     centerText = true,
                 )
+                if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) {
+                    Spacer(Modifier.height(12.dp))
+                    Gate8MenuButton(
+                        title = "Cashless",
+                        subtitle = "Consultar e adicionar saldo no Mifare",
+                        onClick = onCashless,
+                        centerText = true,
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 Gate8MenuButton(
                     title = "Cancelamento / Estorno",

@@ -20,7 +20,7 @@ import br.com.gate8.pos.ui.theme.Gate8Colors
 @Composable
 fun Gate8MenuButton(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     onClick: () -> Unit,
     enabled: Boolean = true,
     centerText: Boolean = false,
@@ -43,14 +43,16 @@ fun Gate8MenuButton(
             textAlign = textAlign,
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(
-            subtitle,
-            color = Gate8Colors.TextOnButton.copy(alpha = 0.85f * alpha),
-            fontSize = 12.sp,
-            textAlign = textAlign,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-        )
+        if (!subtitle.isNullOrBlank()) {
+            Text(
+                subtitle,
+                color = Gate8Colors.TextOnButton.copy(alpha = 0.85f * alpha),
+                fontSize = 12.sp,
+                textAlign = textAlign,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+            )
+        }
     }
 }

@@ -87,6 +87,8 @@ data class CreateSaleRequestDto(
     @SerialName("total_amount") val totalAmount: Double,
     @SerialName("acquirer")
     val acquirer: AcquirerPaymentDto? = null,
+    /** Legado Lovable — mesmas colunas `stone_*` usadas em `by_brand`. */
+    val stone: AcquirerPaymentDto? = null,
     val items: List<SaleItemDto>,
 )
 

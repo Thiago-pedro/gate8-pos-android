@@ -1,14 +1,15 @@
 package br.com.gate8.pos.cielo.payment
 
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkResponse
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
+import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
 import br.com.gate8.pos.data.remote.dto.MpSaleDraftDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.CardBrandNormalizer
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
@@ -134,8 +135,7 @@ class CieloPaymentGateway : PaymentGateway {
         return CieloDeeplinkSession.awaitResponse {
             val activity = CieloActivityHolder.get()
                 ?: throw IllegalStateException("Abra o app Gate8 na Cielo Smart para pagar.")
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            activity.startActivity(intent)
+            CieloLioLauncher.start(activity, uri)
             Log.i(TAG, "Deep link Cielo aberto: lio://$path")
         }
     }
@@ -146,12 +146,11 @@ class CieloPaymentGateway : PaymentGateway {
         val payment = payments?.optJSONObject(0)
         val cieloCode = payment?.optString("cieloCode").orEmpty()
         val authCode = payment?.optString("authCode").orEmpty()
-        val brand = payment?.optString("brand").orEmpty().ifBlank {
-            when (method) {
-                PaymentMethodApi.PIX -> "Pix"
-                else -> payment?.optJSONObject("paymentFields")
-                    ?.optString("primaryProductName").orEmpty()
-            }
+        val brand = extractBrand(payment, method)
+        if (brand.isBlank() && method != PaymentMethodApi.PIX && method != PaymentMethodApi.CASH) {
+            Log.w(TAG, "Bandeira ausente no retorno Cielo. payment=${payment?.toString()?.take(800)}")
+        } else if (brand.isNotBlank()) {
+            Log.i(TAG, "Bandeira Cielo: $brand")
         }
         if (orderId.isBlank()) {
             throw IllegalStateException("Resposta Cielo sem id da ordem.")
@@ -163,6 +162,35 @@ class CieloPaymentGateway : PaymentGateway {
             brand = brand,
             transactionId = orderId,
         )
+    }
+
+    private fun extractBrand(payment: JSONObject?, method: PaymentMethodApi): String {
+        // Pix/dinheiro não têm bandeira — payment_method já carrega a forma.
+        if (method == PaymentMethodApi.PIX || method == PaymentMethodApi.CASH) return ""
+        if (payment == null) return ""
+        val fields = payment.optJSONObject("paymentFields")
+        val card = payment.optJSONObject("card")
+        // Doc Cielo: payments[].brand (Deep Link) ou card.brand (Order Manager).
+        // NÃO usar primaryProductName (é DEBITO/CREDITO).
+        val candidates = listOf(
+            payment.optString("brand"),
+            payment.optString("cardBrand"),
+            payment.optString("brandName"),
+            payment.optString("bandeira"),
+            card?.optString("brand"),
+            card?.optString("cardBrand"),
+            card?.optString("brandName"),
+            fields?.optString("brand"),
+            fields?.optString("cardBrand"),
+            fields?.optString("brandName"),
+            fields?.optString("bandeira"),
+            fields?.optString("cardLabelApplication"),
+        )
+        return candidates
+            .asSequence()
+            .mapNotNull { CardBrandNormalizer.normalize(it) }
+            .firstOrNull()
+            .orEmpty()
     }
 
     private fun paymentCodeFor(method: PaymentMethodApi): String = when (method) {

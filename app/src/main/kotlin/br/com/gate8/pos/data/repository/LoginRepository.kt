@@ -39,7 +39,7 @@ class LoginRepository(
             LoginResult.Active(
                 deviceToken = token,
                 deviceId = deviceId,
-                deviceName = response.deviceName ?: "Maquininha",
+                deviceName = response.deviceName ?: "Caixa",
                 producerName = response.producerName ?: "Produtor",
                 merchantName = response.merchantName,
             )

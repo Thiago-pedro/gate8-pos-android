@@ -1,5 +1,7 @@
 package br.com.gate8.pos.mock.di
 
+import br.com.gate8.pos.cashless.CashlessCardGateway
+import br.com.gate8.pos.cashless.UnavailableCashlessCardGateway
 import br.com.gate8.pos.device.PosHardwareInfo
 import br.com.gate8.pos.device.PosHardwareInfoUnavailable
 import br.com.gate8.pos.mock.payment.MockPaymentGateway
@@ -17,4 +19,5 @@ val mockFlavorModule = module {
     single<PaymentRuntime> { object : PaymentRuntime {} }
     single<TerminalSettingsGateway> { NoOpTerminalSettingsGateway() }
     single<PosHardwareInfo> { PosHardwareInfoUnavailable() }
+    single<CashlessCardGateway> { UnavailableCashlessCardGateway() }
 }

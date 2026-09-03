@@ -7,6 +7,7 @@ import br.com.gate8.pos.data.remote.dto.CashierStatusDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
+import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.printer.ReportCashierInfo
 import br.com.gate8.pos.printer.ReportPrintItem
 import br.com.gate8.pos.printer.ReportPrintPayload
@@ -21,7 +22,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 enum class ReportPeriod(val label: String) {
@@ -57,6 +57,7 @@ class ReportsViewModel(
     private val printer: ReceiptPrinter,
     private val configStore: DeviceConfigStore,
     private val cashierRepository: CashierRepository,
+    private val serverClock: ServerClock,
 ) : ViewModel() {
     private val zone = ZoneId.of("America/Sao_Paulo")
     private val _state = MutableStateFlow(ReportsUiState())
@@ -72,7 +73,7 @@ class ReportsViewModel(
 
     fun selectPeriod(period: ReportPeriod) {
         if (period == ReportPeriod.CUSTOM) {
-            val now = LocalDateTime.now(zone).withSecond(0).withNano(0)
+            val now = serverClock.now().atZone(zone).toLocalDateTime().withSecond(0).withNano(0)
             _state.update {
                 it.copy(
                     period = period,
@@ -184,17 +185,18 @@ class ReportsViewModel(
     }
 
     private fun resolveRange(): Triple<Instant, Instant, String> {
-        val now = ZonedDateTime.now(zone)
+        val now = serverClock.now().atZone(zone)
+        val endOfToday = now.toLocalDate().plusDays(1).atStartOfDay(zone).minusNanos(1).toInstant()
         return when (_state.value.period) {
             ReportPeriod.TODAY -> {
                 val start = now.toLocalDate().atStartOfDay(zone)
-                Triple(start.toInstant(), now.toInstant(), "Hoje · ${formatDate(now.toLocalDate())}")
+                Triple(start.toInstant(), endOfToday, "Hoje · ${formatDate(now.toLocalDate())}")
             }
             ReportPeriod.WEEK -> {
                 val start = now.minusDays(6).toLocalDate().atStartOfDay(zone)
                 Triple(
                     start.toInstant(),
-                    now.toInstant(),
+                    endOfToday,
                     "Últimos 7 dias · ${formatDate(start.toLocalDate())} – ${formatDate(now.toLocalDate())}",
                 )
             }
@@ -202,7 +204,7 @@ class ReportsViewModel(
                 val start = now.withDayOfMonth(1).toLocalDate().atStartOfDay(zone)
                 Triple(
                     start.toInstant(),
-                    now.toInstant(),
+                    endOfToday,
                     "Mês · ${formatDate(start.toLocalDate())} – ${formatDate(now.toLocalDate())}",
                 )
             }

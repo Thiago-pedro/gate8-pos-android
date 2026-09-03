@@ -1,14 +1,12 @@
 package br.com.gate8.pos.cielo.printer
 
-import android.content.Intent
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkResponse
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
+import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,7 +15,6 @@ import java.util.concurrent.Executors
 
 /** Envia texto/imagem para a impressora térmica via `lio://print` (fila assíncrona). */
 internal object CieloPrintClient {
-    private val mainHandler = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
     private val brLocale = Locale("pt", "BR")
 
@@ -149,10 +146,8 @@ internal object CieloPrintClient {
         return CieloDeeplinkSession.awaitResponse {
             val activity = CieloActivityHolder.get()
                 ?: throw IllegalStateException("Abra o app Gate8 na Cielo Smart para imprimir.")
-            mainHandler.post {
-                activity.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                Log.i(TAG, "Deep link aberto: lio://print ${body.optString("operation")}")
-            }
+            CieloLioLauncher.start(activity, uri)
+            Log.i(TAG, "Deep link aberto: lio://print ${body.optString("operation")}")
         }
     }
 

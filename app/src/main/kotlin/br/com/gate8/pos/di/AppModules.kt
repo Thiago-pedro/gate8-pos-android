@@ -29,6 +29,7 @@ import retrofit2.Retrofit
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
 import br.com.gate8.pos.ui.cashier.CashierViewModel
+import br.com.gate8.pos.ui.cashless.CashlessViewModel
 import br.com.gate8.pos.ui.config.SetupViewModel
 import br.com.gate8.pos.ui.login.LoginViewModel
 import br.com.gate8.pos.ui.pdv.PdvViewModel
@@ -108,8 +109,13 @@ val appModule = module {
     viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
     viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { RefundViewModel(get(), get()) }
-    viewModel { ReportsViewModel(get(), get(), get(), get()) }
+    viewModel { ReportsViewModel(get(), get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
+    viewModel {
+        CashlessViewModel(
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
+        )
+    }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel { CheckinViewModel(get()) }

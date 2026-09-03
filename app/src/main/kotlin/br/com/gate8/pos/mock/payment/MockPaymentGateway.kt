@@ -40,8 +40,7 @@ class MockPaymentGateway : PaymentGateway {
             brand = when (method) {
                 PaymentMethodApi.CREDIT -> "Visa"
                 PaymentMethodApi.DEBIT -> "Mastercard"
-                PaymentMethodApi.PIX -> "Pix"
-                else -> "MOCK"
+                else -> ""
             },
             transactionId = clientReference ?: "mock-mp-${UUID.randomUUID()}",
         )

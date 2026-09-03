@@ -3,10 +3,12 @@
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="cielo.lio.permission.CASHLESS" />
 
-    <!-- Android 11+ : permitir ver o cliente UriApp da Cielo Smart -->
+    <!-- Android 11+ : UriApp (pagamento/print) + Cashless Mifare -->
     <queries>
         <package android:name="com.ads.lio.uriappclient" />
+        <package android:name="cielo.lio.cashless" />
     </queries>
 
     <application android:requestLegacyExternalStorage="true">
@@ -17,13 +19,18 @@
         <activity
             android:name="br.com.gate8.pos.cielo.deeplink.CieloResponseActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <!-- Scheme próprio: `order://response` colide com o Checkout Móvel. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="response"
-                    android:scheme="order" />
+                    android:scheme="gate8cielo" />
             </intent-filter>
         </activity>
     </application>

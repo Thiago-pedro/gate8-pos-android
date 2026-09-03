@@ -10,13 +10,17 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Sessão única de deep link Cielo: aguarda o callback `order://response`.
+ * Sessão única de deep link Cielo.
+ *
+ * Callback **não** usa `order://response`: esse scheme é o default da Cielo e
+ * o Checkout Móvel também registra — o Android mostra "Abrir com Gate8 / Checkout
+ * Móvel", o Gate8 não recebe o retorno e a venda/ficha não concluem.
  */
 object CieloDeeplinkSession {
     private val mutex = Mutex()
     private val pending = AtomicReference<CompletableDeferred<CieloDeeplinkResponse>?>(null)
 
-    const val CALLBACK = "order://response"
+    const val CALLBACK = "gate8cielo://response"
     private const val TIMEOUT_MS = 10 * 60 * 1000L
 
     suspend fun awaitResponse(block: suspend () -> Unit): CieloDeeplinkResponse {

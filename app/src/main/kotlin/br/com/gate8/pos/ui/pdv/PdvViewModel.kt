@@ -7,6 +7,7 @@ import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.sale.SaleDraftFactory
+import br.com.gate8.pos.core.sale.SaleRequestFactory
 import br.com.gate8.pos.ui.common.CatalogUserMessages
 import br.com.gate8.pos.ui.common.PaymentUserMessages
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
@@ -17,8 +18,6 @@ import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
-import br.com.gate8.pos.data.remote.dto.SaleItemDto
-import br.com.gate8.pos.data.remote.dto.AcquirerPaymentDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
@@ -334,30 +333,13 @@ class PdvViewModel(
             }
             val pay = payment.getOrThrow()
 
-            val request = CreateSaleRequestDto(
+            val request = SaleRequestFactory.create(
                 clientReference = clientRef,
                 operatorName = operatorName,
-                paymentMethod = method.apiValue,
-                totalAmount = total,
-                acquirer = if (method == PaymentMethodApi.CASH) null else AcquirerPaymentDto(
-                    nsu = pay.nsu,
-                    authorization = pay.authorization,
-                    brand = pay.brand,
-                    transactionId = pay.transactionId,
-                ),
-                items = cart.map { line ->
-                    SaleItemDto(
-                        itemType = line.itemType.apiValue,
-                        productId = line.productId,
-                        batchId = line.batchId,
-                        eventId = line.eventId,
-                        holderName = line.holderName,
-                        holderEmail = line.holderEmail,
-                        description = line.description,
-                        quantity = line.quantity,
-                        unitPrice = line.unitPrice,
-                    )
-                },
+                method = method,
+                total = total,
+                payment = pay,
+                cart = cart,
             )
 
             val pending = PendingSaleEntity(

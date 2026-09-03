@@ -2,7 +2,6 @@ package br.com.gate8.pos.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,13 +174,13 @@ fun Gate8CartSheet(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 10.dp),
             )
-            PaymentMethodButton("Débito", onPayDebit)
+            PaymentMethodChoice("Débito", onPayDebit)
             Spacer(Modifier.height(8.dp))
-            PaymentMethodButton("Crédito", onPayCredit)
+            PaymentMethodChoice("Crédito", onPayCredit)
             Spacer(Modifier.height(8.dp))
-            PaymentMethodButton("Pix", onPayPix)
+            PaymentMethodChoice("Pix", onPayPix)
             Spacer(Modifier.height(8.dp))
-            PaymentMethodButton(
+            PaymentMethodChoice(
                 label = if (cashEnabled) "Dinheiro" else "Dinheiro (caixa fechado)",
                 onClick = onPayCash,
                 enabled = cashEnabled,
@@ -199,20 +197,5 @@ fun Gate8CartSheet(
             )
         }
     }
-    }
-}
-
-@Composable
-private fun PaymentMethodButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) Gate8Colors.AccentBlue else Gate8Colors.AccentBlue.copy(alpha = 0.35f))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = Gate8Colors.TextOnButton, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }

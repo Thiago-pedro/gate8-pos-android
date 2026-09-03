@@ -11,5 +11,6 @@ object Routes {
     const val Refund = "refund"
     const val Reports = "reports"
     const val Cashier = "cashier"
+    const val Cashless = "cashless"
     const val Pending = "pending"
 }
