@@ -24,9 +24,11 @@ fun Gate8MenuButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
     centerText: Boolean = false,
+    /** Se false, o botão desabilitado continua na cor cheia (útil sob modal). */
+    dimWhenDisabled: Boolean = true,
 ) {
     val textAlign = if (centerText) TextAlign.Center else TextAlign.Start
-    val alpha = if (enabled) 1f else 0.45f
+    val alpha = if (enabled || !dimWhenDisabled) 1f else 0.45f
     Column(
         Modifier
             .fillMaxWidth()

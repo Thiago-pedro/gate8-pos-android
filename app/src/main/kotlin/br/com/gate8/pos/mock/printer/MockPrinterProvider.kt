@@ -3,6 +3,7 @@ package br.com.gate8.pos.mock.printer
 import android.util.Log
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
+import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -17,6 +18,9 @@ class MockPrinterProvider : ReceiptPrinter {
         acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
         val sb = StringBuilder("=== GATE8 CUPOM (MOCK) ===\n")
         lines.forEach { l ->
@@ -26,6 +30,9 @@ class MockPrinterProvider : ReceiptPrinter {
         sb.append("Pagamento: $paymentLabel\n")
         if (isReprint) sb.append("*** REIMPRESSAO ***\n")
         if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
+        cashlessUid?.let { sb.append("CARTAO UID: $it\n") }
+        cashlessCpfMasked?.let { sb.append("CPF: $it\n") }
+        cashlessBalanceAfter?.let { sb.append("SALDO CARTAO: R$ ${"%.2f".format(it)}\n") }
         Log.i(TAG, sb.toString())
     }
 
@@ -155,6 +162,9 @@ class MockPrinterProvider : ReceiptPrinter {
         nsu: String?,
         authorization: String?,
         isReprint: Boolean,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
         val sb = StringBuilder("=== GATE8 COMPROVANTE (MOCK) ===\n")
         lines.forEach { l ->
@@ -164,6 +174,20 @@ class MockPrinterProvider : ReceiptPrinter {
         sb.append("Pagamento: $paymentLabel\n")
         if (isReprint) sb.append("*** REIMPRESSAO ***\n")
         if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
+        cashlessUid?.let { sb.append("CARTAO UID: $it\n") }
+        cashlessCpfMasked?.let { sb.append("CPF: $it\n") }
+        cashlessBalanceAfter?.let { sb.append("SALDO CARTAO: R$ ${"%.2f".format(it)}\n") }
+        Log.i(TAG, sb.toString())
+    }
+
+    override fun printCashlessStatement(payload: CashlessStatementPayload) {
+        val sb = StringBuilder("=== GATE8 EXTRATO CASHLESS (MOCK) ===\n")
+        sb.append("UID: ${payload.uidHex}\n")
+        payload.cpf?.let { sb.append("CPF: $it\n") }
+        sb.append("Saldo: R$ ${"%.2f".format(payload.balanceReais)}\n")
+        payload.lines.forEach { line ->
+            sb.append("${line.dateLabel} ${line.label} ${line.amountLabel} -> ${line.balanceAfterLabel}\n")
+        }
         Log.i(TAG, sb.toString())
     }
 

@@ -37,12 +37,12 @@ class CieloPaymentGateway : PaymentGateway {
         clientReference: String?,
         saleDraft: MpSaleDraftDto?,
     ): PaymentResult {
-        if (method == PaymentMethodApi.CASH) {
+        if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
             return PaymentResult(
                 method = method,
                 nsu = "",
                 authorization = "",
-                brand = "",
+                brand = if (method == PaymentMethodApi.CASHLESS) "Cashless" else "",
                 transactionId = clientReference.orEmpty(),
             )
         }
@@ -99,6 +99,12 @@ class CieloPaymentGateway : PaymentGateway {
     ): VoidResult {
         if (method == PaymentMethodApi.CASH) {
             return VoidResult(success = true, message = "Estorno em dinheiro — ajuste no caixa.")
+        }
+        if (method == PaymentMethodApi.CASHLESS) {
+            return VoidResult(
+                success = false,
+                message = "Estorno cashless: use a tela Cashless para ajustar o saldo no cartão.",
+            )
         }
         ensureCredentials()
         val orderId = transactionId.trim()

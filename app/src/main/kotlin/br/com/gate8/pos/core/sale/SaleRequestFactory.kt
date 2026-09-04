@@ -18,7 +18,7 @@ object SaleRequestFactory {
         payment: PaymentResult,
         cart: List<CartLine>,
     ): CreateSaleRequestDto {
-        val acquirer = if (method == PaymentMethodApi.CASH) {
+        val acquirer = if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
             null
         } else {
             AcquirerPaymentDto(
@@ -31,7 +31,11 @@ object SaleRequestFactory {
         return CreateSaleRequestDto(
             clientReference = clientReference,
             operatorName = operatorName,
-            paymentMethod = method.apiValue,
+            // Lovable hoje aceita credit|debit|pix|cash|other — cashless vai como other.
+            paymentMethod = when (method) {
+                PaymentMethodApi.CASHLESS -> "other"
+                else -> method.apiValue
+            },
             totalAmount = total,
             acquirer = acquirer,
             // Lovable ainda agrega bandeira/NSU em colunas `stone_*`.

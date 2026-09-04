@@ -46,3 +46,34 @@ data class CashlessAccountEntity(
     val balanceCents: Int = 0,
     val updatedAt: Long = System.currentTimeMillis(),
 )
+
+/** Extrato local: cada recarga / zerar / bloqueio / transferência nesta maquininha. */
+@Entity(
+    tableName = "cashless_movements",
+    indices = [
+        Index(value = ["uidHex"]),
+        Index(value = ["cpf"]),
+    ],
+)
+data class CashlessMovementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val uidHex: String,
+    val cpf: String? = null,
+    /** RECARGA | ZERAGEM | BLOQUEIO | TRANSF_SAIDA | TRANSF_ENTRADA */
+    val type: String,
+    /** Positivo = crédito; negativo = débito/saída. */
+    val amountCents: Int,
+    val balanceAfterCents: Int,
+    val note: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+object CashlessMovementType {
+    const val RECARGA = "RECARGA"
+    const val ZERAGEM = "ZERAGEM"
+    const val BLOQUEIO = "BLOQUEIO"
+    const val DESBLOQUEIO = "DESBLOQUEIO"
+    const val TRANSF_SAIDA = "TRANSF_SAIDA"
+    const val TRANSF_ENTRADA = "TRANSF_ENTRADA"
+    const val CONSUMO = "CONSUMO"
+}

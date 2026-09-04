@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import br.com.gate8.pos.data.local.entity.CashlessAccountEntity
+import br.com.gate8.pos.data.local.entity.CashlessMovementEntity
 import br.com.gate8.pos.data.local.entity.CatalogCacheEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 
@@ -47,4 +49,20 @@ interface CashlessAccountDao {
 
     @Query("DELETE FROM cashless_accounts WHERE uidHex = :uid")
     suspend fun deleteByUid(uid: String)
+}
+
+@Dao
+interface CashlessMovementDao {
+    @Insert
+    suspend fun insert(entity: CashlessMovementEntity): Long
+
+    @Query(
+        "SELECT * FROM cashless_movements WHERE uidHex = :uid ORDER BY createdAt ASC, id ASC",
+    )
+    suspend fun listByUid(uid: String): List<CashlessMovementEntity>
+
+    @Query(
+        "SELECT * FROM cashless_movements WHERE cpf = :cpf ORDER BY createdAt ASC, id ASC",
+    )
+    suspend fun listByCpf(cpf: String): List<CashlessMovementEntity>
 }

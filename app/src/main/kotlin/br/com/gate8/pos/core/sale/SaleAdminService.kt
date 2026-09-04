@@ -38,6 +38,9 @@ class SaleAdminService(
         method: PaymentMethodApi,
         payment: PaymentResult,
         ticketCodes: List<String> = emptyList(),
+        cashlessUid: String? = null,
+        cashlessCpfMasked: String? = null,
+        cashlessBalanceAfter: Double? = null,
     ) {
         lastSaleStore.save(
             LastSaleRecord(
@@ -58,6 +61,9 @@ class SaleAdminService(
                     )
                 },
                 ticketCodes = ticketCodes,
+                cashlessUid = cashlessUid,
+                cashlessCpfMasked = cashlessCpfMasked,
+                cashlessBalanceAfter = cashlessBalanceAfter,
             ),
         )
     }
@@ -82,6 +88,9 @@ class SaleAdminService(
             acquirerTransactionId = sale.transactionId,
             isReprint = true,
             saleDateMillis = sale.createdAt,
+            cashlessUid = sale.cashlessUid,
+            cashlessCpfMasked = sale.cashlessCpfMasked,
+            cashlessBalanceAfter = sale.cashlessBalanceAfter,
         )
         val ticketLine = sale.lines.firstOrNull()
         sale.ticketCodes.forEach { code ->

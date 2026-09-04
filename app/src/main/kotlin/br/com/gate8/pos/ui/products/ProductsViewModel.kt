@@ -3,6 +3,7 @@ package br.com.gate8.pos.ui.products
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.BuildConfig
+import br.com.gate8.pos.cashless.CashlessCardGateway
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
@@ -13,6 +14,7 @@ import br.com.gate8.pos.ui.common.PaymentUserMessages
 import br.com.gate8.pos.core.network.isStockOrProductError
 import br.com.gate8.pos.core.network.saleErrorMessage
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
+import br.com.gate8.pos.data.local.entity.CashlessMovementType
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
@@ -20,6 +22,7 @@ import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.data.repository.CashierRepository
+import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
@@ -36,6 +39,7 @@ import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.printer.ReceiptPrinter
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,6 +63,14 @@ data class PendingClientCopy(
     val method: PaymentMethodApi,
     val pay: PaymentResult,
     val success: SaleSuccessUi,
+    val cashless: CashlessReceiptMeta = CashlessReceiptMeta(),
+)
+
+/** Metadados cashless no comprovante (UID, CPF mascarado, saldo após a venda). */
+data class CashlessReceiptMeta(
+    val uid: String? = null,
+    val cpfMasked: String? = null,
+    val balanceAfter: Double? = null,
 )
 
 data class ProductsUiState(
@@ -99,6 +111,8 @@ class ProductsViewModel(
     private val mpOrderReconciliation: MpOrderReconciliation,
     private val configStore: DeviceConfigStore,
     private val cashierRepository: CashierRepository,
+    private val cashlessCard: CashlessCardGateway,
+    private val cashlessAccounts: CashlessAccountRepository,
     private val json: Json,
     private val isDebug: Boolean,
 ) : ViewModel() {
@@ -287,7 +301,7 @@ class ProductsViewModel(
             isDebug,
         )
         val operatorName = configStore.getOperatorName()
-        val saleDraft = if (method != PaymentMethodApi.CASH) {
+        val saleDraft = if (method != PaymentMethodApi.CASH && method != PaymentMethodApi.CASHLESS) {
             SaleDraftFactory.mpSaleDraft(cart, total, method, operatorName)
         } else {
             null
@@ -295,12 +309,50 @@ class ProductsViewModel(
 
         viewModelScope.launch {
             _state.update { it.copy(loading = true, payingMethod = method, error = null, message = null) }
-            val payment = runCatching {
-                paymentGateway.chargeResilient(total, method, clientRef, saleDraft)
+            var cashlessDetail: String? = null
+            var cashlessUid: String? = null
+            var cashlessCpf: String? = null
+            var cashlessBalanceAfter: Double? = null
+            val payment = if (method == PaymentMethodApi.CASHLESS) {
+                runCatching {
+                    val snap = cashlessCard.debit(total)
+                    val centsAfter = ((snap.balanceReais ?: 0.0) * 100.0).roundToInt().coerceAtLeast(0)
+                    val debitCents = (total * 100.0).roundToInt()
+                    cashlessUid = snap.uidHex
+                    cashlessBalanceAfter = snap.balanceReais
+                    runCatching {
+                        cashlessAccounts.updateBalance(snap.uidHex, centsAfter)
+                        cashlessAccounts.recordMovement(
+                            uidHex = snap.uidHex,
+                            type = CashlessMovementType.CONSUMO,
+                            amountCents = -debitCents,
+                            balanceAfterCents = centsAfter,
+                            note = "Conveniência · $clientRef",
+                        )
+                        cashlessCpf = cashlessAccounts.getByUid(snap.uidHex)?.cpf?.let { maskCpfDigits(it) }
+                    }
+                    cashlessDetail = snap.message
+                        ?: "Saldo restante R$ ${"%.2f".format(snap.balanceReais ?: 0.0)}"
+                    PaymentResult(
+                        method = PaymentMethodApi.CASHLESS,
+                        nsu = "",
+                        authorization = snap.uidHex,
+                        brand = "Cashless",
+                        transactionId = clientRef,
+                    )
+                }
+            } else {
+                runCatching {
+                    paymentGateway.chargeResilient(total, method, clientRef, saleDraft)
+                }
             }
             if (payment.isFailure) {
                 val err = payment.exceptionOrNull()
-                val recovered = tryReconcileAfterPaymentFailure(mpOrderReconciliation, err, method)
+                val recovered = if (method != PaymentMethodApi.CASHLESS) {
+                    tryReconcileAfterPaymentFailure(mpOrderReconciliation, err, method)
+                } else {
+                    null
+                }
                 if (recovered != null) {
                     completeRecoveredCheckout(cart, total, method, clientRef, recovered)
                     return@launch
@@ -341,15 +393,38 @@ class ProductsViewModel(
             )
             saleRepository.enqueuePending(pending)
 
+            if (cashlessUid != null && cashlessCpf == null) {
+                cashlessCpf = runCatching {
+                    cashlessAccounts.getByUid(cashlessUid!!)?.cpf?.let { maskCpfDigits(it) }
+                }.getOrNull()
+            }
+
+            val cashlessMeta = CashlessReceiptMeta(
+                uid = cashlessUid,
+                cpfMasked = cashlessCpf,
+                balanceAfter = cashlessBalanceAfter,
+            )
+
             runCatching { saleRepository.submitSale(request) }
                 .onSuccess { success ->
-                    saleAdmin.recordCheckout(success.saleId, clientRef, cart, total, method, pay)
+                    saleAdmin.recordCheckout(
+                        success.saleId,
+                        clientRef,
+                        cart,
+                        total,
+                        method,
+                        pay,
+                        cashlessUid = cashlessMeta.uid,
+                        cashlessCpfMasked = cashlessMeta.cpfMasked,
+                        cashlessBalanceAfter = cashlessMeta.balanceAfter,
+                    )
                     val successUi = SaleSuccessUi(
                         title = if (success.duplicated) {
                             "Venda já registrada!"
                         } else {
                             "Venda concluída com sucesso!"
                         },
+                        detail = cashlessDetail,
                     )
                     _state.update {
                         it.copy(
@@ -357,14 +432,25 @@ class ProductsViewModel(
                             payingMethod = null,
                             cart = emptyList(),
                             showCart = false,
+                            error = null,
+                            message = null,
                         )
                     }
-                    beginReceiptPrint(cart, total, method, pay, successUi)
+                    beginReceiptPrint(cart, total, method, pay, successUi, cashlessMeta)
                     refreshCatalog()
                     schedulePendingSync()
                 }
                 .onFailure { e ->
-                    handleCheckoutFailure(e, cart, total, method, pay, clientRef)
+                    handleCheckoutFailure(
+                        e = e,
+                        cart = cart,
+                        total = total,
+                        method = method,
+                        pay = pay,
+                        clientRef = clientRef,
+                        cashless = cashlessMeta,
+                        successDetail = cashlessDetail,
+                    )
                     schedulePendingSync()
                 }
         }
@@ -410,18 +496,24 @@ class ProductsViewModel(
         method: PaymentMethodApi,
         pay: PaymentResult,
         success: SaleSuccessUi,
+        cashless: CashlessReceiptMeta = CashlessReceiptMeta(),
     ) {
         val isCardLike = method != PaymentMethodApi.CASH &&
+            method != PaymentMethodApi.CASHLESS &&
             (!pay.transactionId.isNullOrBlank() || !pay.nsu.isNullOrBlank())
         val askClientCopy = isCardLike && !BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)
         if (askClientCopy) {
             printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = true)
             _state.update {
-                it.copy(pendingClientCopy = PendingClientCopy(cart, total, method, pay, success))
+                it.copy(
+                    pendingClientCopy = PendingClientCopy(
+                        cart, total, method, pay, success, cashless,
+                    ),
+                )
             }
         } else {
             _state.update { it.copy(saleSuccess = success) }
-            printSummaryAndTickets(cart, total, method, pay)
+            printSummaryAndTickets(cart, total, method, pay, cashless)
         }
     }
 
@@ -431,7 +523,13 @@ class ProductsViewModel(
         if (printClientCopy) {
             printer.printCardCopy(pending.pay.transactionId, pending.pay.nsu, merchantCopy = false)
         }
-        printSummaryAndTickets(pending.cart, pending.total, pending.method, pending.pay)
+        printSummaryAndTickets(
+            pending.cart,
+            pending.total,
+            pending.method,
+            pending.pay,
+            pending.cashless,
+        )
         _state.update { it.copy(pendingClientCopy = null, saleSuccess = pending.success) }
     }
 
@@ -441,8 +539,18 @@ class ProductsViewModel(
         total: Double,
         method: PaymentMethodApi,
         pay: PaymentResult,
+        cashless: CashlessReceiptMeta = CashlessReceiptMeta(),
     ) {
-        printer.printSaleSummary(cart, total, method.apiValue, pay.nsu, pay.authorization)
+        printer.printSaleSummary(
+            cart,
+            total,
+            method.displayLabel(),
+            pay.nsu,
+            pay.authorization,
+            cashlessUid = cashless.uid,
+            cashlessCpfMasked = cashless.cpfMasked,
+            cashlessBalanceAfter = cashless.balanceAfter,
+        )
         if (configStore.isConvenienceTicketMode()) {
             printer.printConvenienceTickets(cart, terminalName(), pay.authorization)
         }
@@ -457,14 +565,20 @@ class ProductsViewModel(
         total: Double,
         method: PaymentMethodApi,
         pay: PaymentResult,
+        cashless: CashlessReceiptMeta = CashlessReceiptMeta(),
     ) {
         printer.printReceipt(
             cart,
             total,
-            method.apiValue,
+            method.displayLabel(),
             pay.nsu,
             pay.authorization,
-            acquirerTransactionId = pay.transactionId.takeIf { method != PaymentMethodApi.CASH },
+            acquirerTransactionId = pay.transactionId.takeIf {
+                method != PaymentMethodApi.CASH && method != PaymentMethodApi.CASHLESS
+            },
+            cashlessUid = cashless.uid,
+            cashlessCpfMasked = cashless.cpfMasked,
+            cashlessBalanceAfter = cashless.balanceAfter,
         )
         if (configStore.isConvenienceTicketMode()) {
             printer.printConvenienceTickets(cart, terminalName(), pay.authorization)
@@ -507,43 +621,54 @@ class ProductsViewModel(
         method: PaymentMethodApi,
         pay: PaymentResult,
         clientRef: String,
+        cashless: CashlessReceiptMeta = CashlessReceiptMeta(),
+        successDetail: String? = null,
     ) {
-        when (e) {
-            is ApiException -> {
-                if (e.isStockOrProductError()) {
-                    printSaleReceipt(cart, total, method, pay)
-                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            error = e.saleErrorMessage(),
-                            message = "Pagamento registrado localmente; estoque rejeitou na API",
-                        )
-                    }
-                    refreshCatalog()
-                } else {
-                    printSaleReceipt(cart, total, method, pay)
-                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            error = e.saleErrorMessage(),
-                            message = "Pagamento OK (mock). Venda salva para sync: $clientRef",
-                        )
-                    }
-                }
-            }
-            else -> {
-                printSaleReceipt(cart, total, method, pay)
-                saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        error = e.message ?: "Falha na API — venda na fila offline",
-                        message = "Pagamento OK (mock). Venda salva para sync: $clientRef",
-                    )
-                }
-            }
+        // Pagamento já foi cobrado (chip/adquirente) — fecha o carrinho e volta aos produtos.
+        printSaleReceipt(cart, total, method, pay, cashless)
+        saleAdmin.recordCheckout(
+            null,
+            clientRef,
+            cart,
+            total,
+            method,
+            pay,
+            cashlessUid = cashless.uid,
+            cashlessCpfMasked = cashless.cpfMasked,
+            cashlessBalanceAfter = cashless.balanceAfter,
+        )
+        val apiHint = when {
+            e is ApiException && e.isStockOrProductError() -> e.saleErrorMessage()
+            e is ApiException -> null
+            else -> null
         }
+        _state.update {
+            it.copy(
+                loading = false,
+                payingMethod = null,
+                cart = emptyList(),
+                showCart = false,
+                error = apiHint,
+                message = null,
+                saleSuccess = SaleSuccessUi(
+                    title = "Venda concluída!",
+                    detail = successDetail
+                        ?: if (e is ApiException && !e.isStockOrProductError()) {
+                            "Pagamento OK. Venda na fila de sync."
+                        } else {
+                            null
+                        },
+                ),
+            )
+        }
+        if (e is ApiException && e.isStockOrProductError()) {
+            refreshCatalog()
+        }
+    }
+
+    private fun maskCpfDigits(cpf: String): String? {
+        val d = cpf.filter { it.isDigit() }
+        if (d.length != 11) return null
+        return "${d.take(3)}.***.***-${d.takeLast(2)}"
     }
 }

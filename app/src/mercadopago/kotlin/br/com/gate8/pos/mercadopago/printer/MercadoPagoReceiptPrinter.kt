@@ -3,6 +3,7 @@ package br.com.gate8.pos.mercadopago.printer
 import android.util.Log
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
+import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -18,6 +19,9 @@ class MercadoPagoReceiptPrinter : ReceiptPrinter {
         acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
         val sb = StringBuilder("=== GATE8 CUPOM (MP) ===\n")
         lines.forEach { l ->
@@ -28,6 +32,9 @@ class MercadoPagoReceiptPrinter : ReceiptPrinter {
         if (isReprint) sb.append("*** REIMPRESSAO ***\n")
         if (nsu != null) sb.append("NSU: $nsu  Auth: $authorization\n")
         acquirerTransactionId?.let { sb.append("Order/TX: $it\n") }
+        cashlessUid?.let { sb.append("CARTAO UID: $it\n") }
+        cashlessCpfMasked?.let { sb.append("CPF: $it\n") }
+        cashlessBalanceAfter?.let { sb.append("SALDO CARTAO: R$ ${"%.2f".format(it)}\n") }
         Log.i(TAG, sb.toString())
     }
 
@@ -70,8 +77,21 @@ class MercadoPagoReceiptPrinter : ReceiptPrinter {
         nsu: String?,
         authorization: String?,
         isReprint: Boolean,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
         printReceipt(lines, total, paymentLabel, nsu, authorization, null, isReprint, null)
+        if (!cashlessUid.isNullOrBlank() || !cashlessCpfMasked.isNullOrBlank()) {
+            Log.i(
+                TAG,
+                "cashless uid=$cashlessUid cpf=$cashlessCpfMasked saldo=$cashlessBalanceAfter",
+            )
+        }
+    }
+
+    override fun printCashlessStatement(payload: CashlessStatementPayload) {
+        Log.i(TAG, "=== GATE8 EXTRATO CASHLESS (MP) === uid=${payload.uidHex} linhas=${payload.lines.size}")
     }
 
     override fun printConvenienceTickets(

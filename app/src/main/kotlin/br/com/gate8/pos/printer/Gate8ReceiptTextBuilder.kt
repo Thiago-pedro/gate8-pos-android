@@ -147,6 +147,9 @@ object Gate8ReceiptTextBuilder {
         saleDate: Date? = null,
         // Nome do estabelecimento (merchant_name) — impresso no topo do comprovante.
         establishmentName: String? = null,
+        cashlessUid: String? = null,
+        cashlessCpfMasked: String? = null,
+        cashlessBalanceAfter: Double? = null,
     ): List<String> = buildList {
         addAll(
             header(
@@ -170,6 +173,12 @@ object Gate8ReceiptTextBuilder {
         add(row("TOTAL", money(total)))
         add(divider())
         paymentBlock(this, paymentLabel, nsu, authorization)
+        if (!cashlessUid.isNullOrBlank() || !cashlessCpfMasked.isNullOrBlank()) {
+            add(divider())
+            cashlessUid?.takeIf { it.isNotBlank() }?.let { add("CARTAO UID: $it") }
+            cashlessCpfMasked?.takeIf { it.isNotBlank() }?.let { add("CPF: $it") }
+            cashlessBalanceAfter?.let { add(row("SALDO CARTAO:", money(it))) }
+        }
         addAll(footer())
     }
 
@@ -412,6 +421,28 @@ object Gate8ReceiptTextBuilder {
         add(divider())
         add(dotLeaderRow("VENDAS:", payload.saleCount.toString()))
         add(dotLeaderRow("TOTAL:", money(payload.grandTotal)))
+        addAll(footer())
+    }
+
+    fun cashlessStatement(payload: CashlessStatementPayload): List<String> = buildList {
+        addAll(header(title = "EXTRATO CASHLESS"))
+        payload.establishmentName?.let { add(dotLeaderRow("PRODUTOR:", it)) }
+        payload.terminalName?.let { add(dotLeaderRow("MAQUININHA:", it)) }
+        add(dotLeaderRow("UID:", payload.uidHex))
+        payload.cpf?.let { add(dotLeaderRow("CPF:", it)) }
+        payload.phone?.let { add(dotLeaderRow("FONE:", it)) }
+        add(dotLeaderRow("SALDO:", money(payload.balanceReais)))
+        add(divider())
+        if (payload.lines.isEmpty()) {
+            add(center("Sem movimentacoes"))
+        } else {
+            payload.lines.forEach { line ->
+                add(line.dateLabel)
+                add(dotLeaderRow(line.label, line.amountLabel))
+                add(dotLeaderRow("SALDO APOS:", line.balanceAfterLabel))
+                add(dottedDivider())
+            }
+        }
         addAll(footer())
     }
 }

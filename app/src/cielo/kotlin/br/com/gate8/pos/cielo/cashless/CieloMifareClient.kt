@@ -144,6 +144,56 @@ class CieloMifareClient(
             }
         }
 
+    override suspend fun debit(amountReais: Double): CashlessCardSnapshot = mutex.withLock {
+        require(amountReais > 0.0) { "Informe um valor maior que zero" }
+        val debitCents = (amountReais * 100.0).roundToInt()
+        require(debitCents > 0) { "Informe um valor maior que zero" }
+        withContext(Dispatchers.Main.immediate) {
+            try {
+                val uid = detect()
+                authenticateBestEffort(BALANCE_SECTOR)
+                    ?: throw CashlessOperationException(
+                        "AUTH",
+                        "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                    )
+                val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                if (!Gate8CashlessBalanceCodec.isGate8(current)) {
+                    throw CashlessOperationException(
+                        "EMPTY",
+                        "Cartão sem saldo Gate8. Faça uma recarga antes de pagar.",
+                    )
+                }
+                if (Gate8CashlessBalanceCodec.isBlocked(current)) {
+                    throw CashlessOperationException(
+                        "BLOCKED",
+                        "Este cartão está bloqueado e não pode pagar.",
+                    )
+                }
+                val currentCents = Gate8CashlessBalanceCodec.readCents(current) ?: 0
+                if (currentCents < debitCents) {
+                    val have = currentCents / 100.0
+                    throw CashlessOperationException(
+                        "INSUFFICIENT",
+                        "Saldo insuficiente. Disponível R$ ${"%.2f".format(have)}; " +
+                            "necessário R$ ${"%.2f".format(amountReais)}.",
+                    )
+                }
+                val nextCents = currentCents - debitCents
+                val encoded = Gate8CashlessBalanceCodec.encode(nextCents, blocked = false)
+                writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
+                val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                snapshot(
+                    uid,
+                    written,
+                    message = "Pago R$ ${"%.2f".format(amountReais)} · " +
+                        "saldo R$ ${"%.2f".format(nextCents / 100.0)}",
+                )
+            } finally {
+                runCatching { deactivate() }
+            }
+        }
+    }
+
     /** Tenta setor 1 depois setor 0; key A depois key B. */
     private suspend fun readBalanceBlockOrNull(): ByteArray? {
         val attempts = listOf(

@@ -26,4 +26,8 @@ data class LastSaleRecord(
     val ticketCodes: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val voided: Boolean = false,
+    /** Recarga/consumo cashless — reimpressão do comprovante. */
+    val cashlessUid: String? = null,
+    val cashlessCpfMasked: String? = null,
+    val cashlessBalanceAfter: Double? = null,
 )

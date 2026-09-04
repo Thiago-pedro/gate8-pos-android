@@ -26,6 +26,12 @@ interface CashlessCardGateway {
         rejectUid: String? = null,
         requireUid: String? = null,
     ): CashlessCardSnapshot
+
+    /**
+     * Debita [amountReais] do saldo Gate8 (pagamento na conveniência).
+     * Recusa cartão bloqueado, sem formato Gate8 ou saldo insuficiente.
+     */
+    suspend fun debit(amountReais: Double): CashlessCardSnapshot
 }
 
 data class CashlessCardSnapshot(

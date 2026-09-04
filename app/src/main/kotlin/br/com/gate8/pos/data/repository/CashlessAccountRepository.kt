@@ -3,7 +3,10 @@ package br.com.gate8.pos.data.repository
 import android.util.Log
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.data.local.dao.CashlessAccountDao
+import br.com.gate8.pos.data.local.dao.CashlessMovementDao
 import br.com.gate8.pos.data.local.entity.CashlessAccountEntity
+import br.com.gate8.pos.data.local.entity.CashlessMovementEntity
+import br.com.gate8.pos.data.local.entity.CashlessMovementType
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.CashlessBlockByCpfRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessCardDto
@@ -21,6 +24,7 @@ import kotlinx.serialization.json.jsonPrimitive
 class CashlessAccountRepository(
     private val api: PosApiService,
     private val dao: CashlessAccountDao,
+    private val movementDao: CashlessMovementDao,
     private val json: Json,
 ) {
     suspend fun getByUid(uidHex: String): CashlessAccountEntity? {
@@ -211,6 +215,44 @@ class CashlessAccountRepository(
                 updatedAt = System.currentTimeMillis(),
             ),
         )
+    }
+
+    suspend fun recordMovement(
+        uidHex: String,
+        type: String,
+        amountCents: Int,
+        balanceAfterCents: Int,
+        cpf: String? = null,
+        note: String? = null,
+    ) {
+        val uid = uidHex.uppercase()
+        val accountCpf = cpf?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }
+            ?: dao.getByUid(uid)?.cpf
+        movementDao.insert(
+            CashlessMovementEntity(
+                uidHex = uid,
+                cpf = accountCpf,
+                type = type,
+                amountCents = amountCents,
+                balanceAfterCents = balanceAfterCents.coerceAtLeast(0),
+                note = note,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    /**
+     * Extrato: movimentos do UID + do CPF (se houver), ordenados no tempo,
+     * sem duplicar o mesmo id.
+     */
+    suspend fun listStatement(uidHex: String, cpf: String? = null): List<CashlessMovementEntity> {
+        val uid = uidHex.uppercase()
+        val byUid = movementDao.listByUid(uid)
+        val cpfDigits = cpf?.filter { it.isDigit() }.orEmpty()
+        val byCpf = if (cpfDigits.length == 11) movementDao.listByCpf(cpfDigits) else emptyList()
+        return (byUid + byCpf)
+            .distinctBy { it.id }
+            .sortedWith(compareBy({ it.createdAt }, { it.id }))
     }
 
     private suspend fun patchRemote(uid: String, body: CashlessPatchRequestDto) {

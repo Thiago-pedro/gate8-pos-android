@@ -5,6 +5,7 @@ enum class PaymentMethodApi(val apiValue: String) {
     DEBIT("debit"),
     PIX("pix"),
     CASH("cash"),
+    CASHLESS("cashless"),
     OTHER("other"),
     ;
 
@@ -13,6 +14,7 @@ enum class PaymentMethodApi(val apiValue: String) {
         DEBIT -> "Débito"
         PIX -> "Pix"
         CASH -> "Dinheiro"
+        CASHLESS -> "Cashless"
         OTHER -> "Outro"
     }
 

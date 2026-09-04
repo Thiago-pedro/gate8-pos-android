@@ -46,12 +46,12 @@ class MercadoPagoPaymentGateway(
         if (reference.isBlank()) {
             throw IllegalStateException("Referência da venda ausente.")
         }
-        if (method == PaymentMethodApi.CASH) {
+        if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
             return PaymentResult(
                 method = method,
                 nsu = "",
                 authorization = "",
-                brand = "",
+                brand = if (method == PaymentMethodApi.CASHLESS) "Cashless" else "",
                 transactionId = reference,
             )
         }

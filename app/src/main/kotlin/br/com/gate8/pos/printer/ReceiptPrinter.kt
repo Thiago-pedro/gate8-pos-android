@@ -13,6 +13,9 @@ interface ReceiptPrinter {
         isReprint: Boolean = false,
         // Quando informado (reimpressão), usa a data/hora original da venda.
         saleDateMillis: Long? = null,
+        cashlessUid: String? = null,
+        cashlessCpfMasked: String? = null,
+        cashlessBalanceAfter: Double? = null,
     )
 
     fun printVoidReceipt(
@@ -43,6 +46,8 @@ interface ReceiptPrinter {
 
     /**
      * Imprime apenas o comprovante textual da Gate8 (sem as vias de cartão da adquirente).
+     * Em recarga cashless, [cashlessUid] / [cashlessCpfMasked] / [cashlessBalanceAfter]
+     * vinculam o recibo ao cartão (CPF mascarado por LGPD).
      */
     fun printSaleSummary(
         lines: List<CartLine>,
@@ -51,7 +56,15 @@ interface ReceiptPrinter {
         nsu: String?,
         authorization: String?,
         isReprint: Boolean = false,
+        cashlessUid: String? = null,
+        cashlessCpfMasked: String? = null,
+        cashlessBalanceAfter: Double? = null,
     )
+
+    /**
+     * Extrato cashless: movimentações do cartão desde o início até agora.
+     */
+    fun printCashlessStatement(payload: CashlessStatementPayload)
 
     /**
      * Modo ficha: imprime uma ficha separada para cada unidade de cada item
@@ -75,6 +88,9 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) = Unit
 
     override fun printVoidReceipt(
@@ -105,7 +121,12 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         nsu: String?,
         authorization: String?,
         isReprint: Boolean,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) = Unit
+
+    override fun printCashlessStatement(payload: CashlessStatementPayload) = Unit
 
     override fun printConvenienceTickets(
         lines: List<CartLine>,

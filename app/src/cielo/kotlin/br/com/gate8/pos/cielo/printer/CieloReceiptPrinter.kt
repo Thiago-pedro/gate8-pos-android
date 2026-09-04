@@ -5,6 +5,7 @@ import android.util.Log
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
+import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
@@ -30,22 +31,22 @@ class CieloReceiptPrinter(
         acquirerTransactionId: String?,
         isReprint: Boolean,
         saleDateMillis: Long?,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
-        runCatching {
-            CieloPrintClient.printLines(
-                Gate8ReceiptTextBuilder.saleReceipt(
-                    lines = lines,
-                    total = total,
-                    paymentLabel = paymentLabel,
-                    nsu = nsu,
-                    authorization = authorization,
-                    isReprint = isReprint,
-                    terminalName = terminalName(),
-                    saleDate = saleDateMillis?.let { Date(it) },
-                    establishmentName = configStore.getEstablishmentName(),
-                ),
-            )
-        }.onFailure { Log.e(TAG, "printReceipt falhou", it) }
+        printGate8Sale(
+            lines = lines,
+            total = total,
+            paymentLabel = paymentLabel,
+            nsu = nsu,
+            authorization = authorization,
+            isReprint = isReprint,
+            saleDateMillis = saleDateMillis,
+            cashlessUid = cashlessUid,
+            cashlessCpfMasked = cashlessCpfMasked,
+            cashlessBalanceAfter = cashlessBalanceAfter,
+        )
     }
 
     override fun printVoidReceipt(
@@ -107,8 +108,60 @@ class CieloReceiptPrinter(
         nsu: String?,
         authorization: String?,
         isReprint: Boolean,
+        cashlessUid: String?,
+        cashlessCpfMasked: String?,
+        cashlessBalanceAfter: Double?,
     ) {
-        printReceipt(lines, total, paymentLabel, nsu, authorization, null, isReprint, null)
+        printGate8Sale(
+            lines = lines,
+            total = total,
+            paymentLabel = paymentLabel,
+            nsu = nsu,
+            authorization = authorization,
+            isReprint = isReprint,
+            saleDateMillis = null,
+            cashlessUid = cashlessUid,
+            cashlessCpfMasked = cashlessCpfMasked,
+            cashlessBalanceAfter = cashlessBalanceAfter,
+        )
+    }
+
+    private fun printGate8Sale(
+        lines: List<CartLine>,
+        total: Double,
+        paymentLabel: String,
+        nsu: String?,
+        authorization: String?,
+        isReprint: Boolean,
+        saleDateMillis: Long?,
+        cashlessUid: String? = null,
+        cashlessCpfMasked: String? = null,
+        cashlessBalanceAfter: Double? = null,
+    ) {
+        runCatching {
+            CieloPrintClient.printLines(
+                Gate8ReceiptTextBuilder.saleReceipt(
+                    lines = lines,
+                    total = total,
+                    paymentLabel = paymentLabel,
+                    nsu = nsu,
+                    authorization = authorization,
+                    isReprint = isReprint,
+                    terminalName = terminalName(),
+                    saleDate = saleDateMillis?.let { Date(it) },
+                    establishmentName = configStore.getEstablishmentName(),
+                    cashlessUid = cashlessUid,
+                    cashlessCpfMasked = cashlessCpfMasked,
+                    cashlessBalanceAfter = cashlessBalanceAfter,
+                ),
+            )
+        }.onFailure { Log.e(TAG, "printSale falhou", it) }
+    }
+
+    override fun printCashlessStatement(payload: CashlessStatementPayload) {
+        runCatching {
+            CieloPrintClient.printLines(Gate8ReceiptTextBuilder.cashlessStatement(payload))
+        }.onFailure { Log.e(TAG, "printCashlessStatement falhou", it) }
     }
 
     override fun printConvenienceTickets(

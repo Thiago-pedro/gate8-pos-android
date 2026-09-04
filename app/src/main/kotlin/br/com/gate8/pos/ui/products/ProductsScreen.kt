@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.canAddMore
@@ -416,8 +417,10 @@ fun ProductsScreen(
                     onPayCredit = { vm.checkout(PaymentMethodApi.CREDIT) },
                     onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
                     onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
+                    onPayCashless = { vm.checkout(PaymentMethodApi.CASHLESS) },
                     onClear = { vm.clearCart() },
                     cashEnabled = state.cashierOpen,
+                    showCashless = BuildConfig.FLAVOR.equals("cielo", ignoreCase = true),
                 )
             }
         },

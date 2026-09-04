@@ -100,6 +100,7 @@ val appModule = module {
     single { get<Gate8Database>().catalogDao() }
     single { get<Gate8Database>().pendingSaleDao() }
     single { get<Gate8Database>().cashlessAccountDao() }
+    single { get<Gate8Database>().cashlessMovementDao() }
 
     single { CatalogRepository(get(), get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
@@ -107,7 +108,7 @@ val appModule = module {
     single { LoginRepository(get(), get()) }
     single { ReportsRepository(get()) }
     single { CashierRepository(get(), get()) }
-    single { CashlessAccountRepository(get(), get(), get()) }
+    single { CashlessAccountRepository(get(), get(), get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
     viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
@@ -120,7 +121,11 @@ val appModule = module {
         )
     }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
-    viewModel { ProductsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
+    viewModel {
+        ProductsViewModel(
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
+        )
+    }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
 }

@@ -31,6 +31,9 @@ import br.com.gate8.pos.ui.theme.Gate8Colors
  * Retorna null quando não há mensagem específica (ex.: dinheiro, flavor Cielo — UI nativa).
  */
 fun paymentLoadingMessage(method: PaymentMethodApi?): String? {
+    if (method == PaymentMethodApi.CASHLESS) {
+        return "Aproxime o cartão cashless na maquininha"
+    }
     if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) return null
     return when (method) {
         PaymentMethodApi.DEBIT, PaymentMethodApi.CREDIT ->
@@ -62,8 +65,10 @@ fun Gate8CartSheet(
     onPayCredit: () -> Unit,
     onPayPix: () -> Unit,
     onPayCash: () -> Unit,
+    onPayCashless: (() -> Unit)? = null,
     onClear: () -> Unit,
     cashEnabled: Boolean = true,
+    showCashless: Boolean = false,
 ) {
     Gate8ScreenBackgroundFillWidth {
     Column(
@@ -185,6 +190,10 @@ fun Gate8CartSheet(
                 onClick = onPayCash,
                 enabled = cashEnabled,
             )
+            if (showCashless && onPayCashless != null) {
+                Spacer(Modifier.height(8.dp))
+                PaymentMethodChoice("Cashless", onPayCashless)
+            }
             Spacer(Modifier.height(12.dp))
             Text(
                 "Limpar carrinho",

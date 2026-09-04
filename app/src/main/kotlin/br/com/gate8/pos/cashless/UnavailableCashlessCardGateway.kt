@@ -15,4 +15,7 @@ class UnavailableCashlessCardGateway : CashlessCardGateway {
         requireUid: String?,
     ): CashlessCardSnapshot =
         throw CashlessUnavailableException()
+
+    override suspend fun debit(amountReais: Double): CashlessCardSnapshot =
+        throw CashlessUnavailableException()
 }

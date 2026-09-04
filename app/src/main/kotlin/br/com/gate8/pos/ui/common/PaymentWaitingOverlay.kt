@@ -54,7 +54,12 @@ fun PaymentWaitingOverlay(
     onCancel: (() -> Unit)? = null,
 ) {
     if (!visible) return
-    if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) return
+    // Cielo: UI nativa no deep link — exceto cashless (Mifare no próprio Gate8).
+    if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true) &&
+        method != PaymentMethodApi.CASHLESS
+    ) {
+        return
+    }
     val message = paymentLoadingMessage(method) ?: return
 
     val title: String
@@ -71,6 +76,10 @@ fun PaymentWaitingOverlay(
         PaymentMethodApi.PIX -> {
             title = "Pagamento via Pix"
             icon = Icons.Filled.QrCode2
+        }
+        PaymentMethodApi.CASHLESS -> {
+            title = "Pagamento cashless"
+            icon = Icons.Filled.Contactless
         }
         else -> {
             title = "Processando pagamento"
