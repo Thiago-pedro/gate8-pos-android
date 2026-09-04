@@ -5,6 +5,14 @@ class UnavailableCashlessCardGateway : CashlessCardGateway {
     override suspend fun readCard(): CashlessCardSnapshot =
         throw CashlessUnavailableException()
 
-    override suspend fun topUp(amountReais: Double): CashlessCardSnapshot =
+    override suspend fun topUp(amountReais: Double, requireUid: String?): CashlessCardSnapshot =
+        throw CashlessUnavailableException()
+
+    override suspend fun writeBalance(
+        amountReais: Double,
+        blocked: Boolean,
+        rejectUid: String?,
+        requireUid: String?,
+    ): CashlessCardSnapshot =
         throw CashlessUnavailableException()
 }

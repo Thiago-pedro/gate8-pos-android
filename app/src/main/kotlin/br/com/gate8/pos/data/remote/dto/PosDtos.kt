@@ -277,3 +277,53 @@ data class LoginResponseDto(
     @SerialName("merchant_name") val merchantName: String? = null,
     val error: String? = null,
 )
+
+// --- Cashless (UID ↔ CPF/telefone) ---
+
+@Serializable
+data class CashlessCardDto(
+    @SerialName("uid_hex") val uidHex: String,
+    val cpf: String,
+    val phone: String,
+    val blocked: Boolean = false,
+    @SerialName("balance_cents") val balanceCents: Int = 0,
+    @SerialName("balance_reais") val balanceReais: Double? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+)
+
+@Serializable
+data class CashlessCardLookupDto(
+    val found: Boolean = false,
+    val card: CashlessCardDto? = null,
+)
+
+@Serializable
+data class CashlessCardResponseDto(
+    val card: CashlessCardDto,
+)
+
+@Serializable
+data class CashlessRegisterRequestDto(
+    @SerialName("uid_hex") val uidHex: String,
+    val cpf: String,
+    val phone: String,
+    @SerialName("balance_cents") val balanceCents: Int = 0,
+)
+
+@Serializable
+data class CashlessPatchRequestDto(
+    @SerialName("balance_cents") val balanceCents: Int? = null,
+    val blocked: Boolean? = null,
+)
+
+@Serializable
+data class CashlessBlockByCpfRequestDto(
+    val cpf: String,
+)
+
+@Serializable
+data class CashlessReassignRequestDto(
+    @SerialName("old_uid_hex") val oldUidHex: String,
+    @SerialName("new_uid_hex") val newUidHex: String,
+    @SerialName("balance_cents") val balanceCents: Int,
+)

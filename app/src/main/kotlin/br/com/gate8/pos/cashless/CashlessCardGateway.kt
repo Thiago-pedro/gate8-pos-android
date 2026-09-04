@@ -10,8 +10,22 @@ interface CashlessCardGateway {
     /**
      * Soma [amountReais] ao saldo Gate8 no cartão.
      * Se o cartão não tiver formato Gate8, inicializa o bloco de saldo.
+     * Recusa cartão bloqueado.
+     * [requireUid]: se informado, só grava se o UID bater.
      */
-    suspend fun topUp(amountReais: Double): CashlessCardSnapshot
+    suspend fun topUp(amountReais: Double, requireUid: String? = null): CashlessCardSnapshot
+
+    /**
+     * Grava o saldo absoluto (em reais) e o flag de bloqueio.
+     * [rejectUid]: aborta sem gravar se o cartão aproximado for este UID.
+     * [requireUid]: aborta se o cartão aproximado NÃO for este UID.
+     */
+    suspend fun writeBalance(
+        amountReais: Double,
+        blocked: Boolean,
+        rejectUid: String? = null,
+        requireUid: String? = null,
+    ): CashlessCardSnapshot
 }
 
 data class CashlessCardSnapshot(
@@ -21,6 +35,8 @@ data class CashlessCardSnapshot(
     val balanceReais: Double?,
     /** true se o bloco tem magic `G8CL`. */
     val isGate8Format: Boolean,
+    /** true se o cartão Gate8 está marcado como bloqueado. */
+    val isBlocked: Boolean = false,
     /** Hex dos 16 bytes do bloco de saldo (diagnóstico). */
     val blockHex: String,
     /** ASCII legível do bloco (bytes imprimíveis). */

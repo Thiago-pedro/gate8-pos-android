@@ -33,3 +33,18 @@ interface PendingSaleDao {
     @Query("DELETE FROM pending_sales WHERE status = :status")
     suspend fun deleteByStatus(status: String)
 }
+
+@Dao
+interface CashlessAccountDao {
+    @Query("SELECT * FROM cashless_accounts WHERE uidHex = :uid LIMIT 1")
+    suspend fun getByUid(uid: String): CashlessAccountEntity?
+
+    @Query("SELECT * FROM cashless_accounts WHERE cpf = :cpf ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun getByCpf(cpf: String): CashlessAccountEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: CashlessAccountEntity)
+
+    @Query("DELETE FROM cashless_accounts WHERE uidHex = :uid")
+    suspend fun deleteByUid(uid: String)
+}

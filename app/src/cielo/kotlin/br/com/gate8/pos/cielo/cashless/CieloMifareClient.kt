@@ -47,6 +47,7 @@ class CieloMifareClient(
                         uidHex = Gate8CashlessBalanceCodec.uidToHex(uid),
                         balanceReais = null,
                         isGate8Format = false,
+                        isBlocked = false,
                         blockHex = "—",
                         blockAscii = "—",
                         message = "Cartão detectado (UID ${Gate8CashlessBalanceCodec.uidToHex(uid)}), " +
@@ -61,23 +62,35 @@ class CieloMifareClient(
         }
     }
 
-    override suspend fun topUp(amountReais: Double): CashlessCardSnapshot = mutex.withLock {
+    override suspend fun topUp(amountReais: Double, requireUid: String?): CashlessCardSnapshot = mutex.withLock {
         require(amountReais > 0.0) { "Informe um valor maior que zero" }
         val addCents = (amountReais * 100.0).roundToInt()
         require(addCents > 0) { "Informe um valor maior que zero" }
         withContext(Dispatchers.Main.immediate) {
             try {
                 val uid = detect()
-                // Precisa autenticar no setor de saldo para gravar.
+                val uidHex = Gate8CashlessBalanceCodec.uidToHex(uid)
+                if (requireUid != null && !uidHex.equals(requireUid, ignoreCase = true)) {
+                    throw CashlessOperationException(
+                        "WRONG_CARD",
+                        "Cartão diferente do cadastrado ($requireUid). Aproxime o cartão certo.",
+                    )
+                }
                 authenticateBestEffort(BALANCE_SECTOR)
                     ?: throw CashlessOperationException(
                         "AUTH",
                         "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
                     )
                 val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                if (Gate8CashlessBalanceCodec.isBlocked(current)) {
+                    throw CashlessOperationException(
+                        "BLOCKED",
+                        "Este cartão está bloqueado. Use Bloquear cartão ou Cartão perdido para transferir.",
+                    )
+                }
                 val currentCents = Gate8CashlessBalanceCodec.readCents(current) ?: 0
                 val nextCents = currentCents + addCents
-                val encoded = Gate8CashlessBalanceCodec.encode(nextCents)
+                val encoded = Gate8CashlessBalanceCodec.encode(nextCents, blocked = false)
                 writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
                 val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
                 snapshot(
@@ -90,6 +103,46 @@ class CieloMifareClient(
             }
         }
     }
+
+    override suspend fun writeBalance(
+        amountReais: Double,
+        blocked: Boolean,
+        rejectUid: String?,
+        requireUid: String?,
+    ): CashlessCardSnapshot =
+        mutex.withLock {
+            require(amountReais >= 0.0) { "Saldo inválido" }
+            val cents = (amountReais * 100.0).roundToInt().coerceAtLeast(0)
+            withContext(Dispatchers.Main.immediate) {
+                try {
+                    val uid = detect()
+                    val uidHex = Gate8CashlessBalanceCodec.uidToHex(uid)
+                    if (rejectUid != null && uidHex.equals(rejectUid, ignoreCase = true)) {
+                        throw CashlessOperationException(
+                            "SAME_CARD",
+                            "Você aproximou o mesmo cartão. Use um cartão NOVO.",
+                        )
+                    }
+                    if (requireUid != null && !uidHex.equals(requireUid, ignoreCase = true)) {
+                        throw CashlessOperationException(
+                            "WRONG_CARD",
+                            "Cartão diferente do esperado ($requireUid). Aproxime o cartão certo.",
+                        )
+                    }
+                    authenticateBestEffort(BALANCE_SECTOR)
+                        ?: throw CashlessOperationException(
+                            "AUTH",
+                            "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                        )
+                    val encoded = Gate8CashlessBalanceCodec.encode(cents, blocked = blocked)
+                    writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
+                    val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                    snapshot(uid, written)
+                } finally {
+                    runCatching { deactivate() }
+                }
+            }
+        }
 
     /** Tenta setor 1 depois setor 0; key A depois key B. */
     private suspend fun readBalanceBlockOrNull(): ByteArray? {
@@ -125,16 +178,18 @@ class CieloMifareClient(
     ): CashlessCardSnapshot {
         val cents = Gate8CashlessBalanceCodec.readCents(block)
         val isGate8 = Gate8CashlessBalanceCodec.isGate8(block)
+        val blocked = Gate8CashlessBalanceCodec.isBlocked(block)
         return CashlessCardSnapshot(
             uidHex = Gate8CashlessBalanceCodec.uidToHex(uid),
             balanceReais = cents?.let { it / 100.0 },
             isGate8Format = isGate8,
+            isBlocked = blocked,
             blockHex = Gate8CashlessBalanceCodec.toHex(block),
             blockAscii = Gate8CashlessBalanceCodec.toAscii(block),
             message = message ?: when {
+                blocked -> "Cartão bloqueado · saldo R$ ${"%.2f".format((cents ?: 0) / 100.0)}"
                 isGate8 -> null
-                else -> "Cartão lido (Mifare Classic), mas ainda sem formato Gate8. " +
-                    "Ao adicionar saldo, o bloco será inicializado."
+                else -> "Cartão em branco · saldo zerado."
             },
         )
     }

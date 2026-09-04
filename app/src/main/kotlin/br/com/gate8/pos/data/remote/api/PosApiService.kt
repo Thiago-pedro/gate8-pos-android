@@ -21,6 +21,12 @@ import br.com.gate8.pos.data.remote.dto.ReconcileMpOrderResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderActionResponseDto
 import br.com.gate8.pos.data.remote.dto.MpOrderStatusResponseDto
 import br.com.gate8.pos.data.remote.dto.ReportsSummaryDto
+import br.com.gate8.pos.data.remote.dto.CashlessBlockByCpfRequestDto
+import br.com.gate8.pos.data.remote.dto.CashlessCardLookupDto
+import br.com.gate8.pos.data.remote.dto.CashlessCardResponseDto
+import br.com.gate8.pos.data.remote.dto.CashlessPatchRequestDto
+import br.com.gate8.pos.data.remote.dto.CashlessReassignRequestDto
+import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -99,4 +105,27 @@ interface PosApiService {
         @Path("id") mpOrderId: String,
         @Body body: ReconcileMpOrderRequestDto = ReconcileMpOrderRequestDto(),
     ): Response<ReconcileMpOrderResponseDto>
+
+    // --- Cashless ---
+
+    @GET("api/public/pos/cashless/cards/{uid}")
+    suspend fun getCashlessByUid(@Path("uid") uidHex: String): Response<CashlessCardLookupDto>
+
+    @GET("api/public/pos/cashless/cards")
+    suspend fun getCashlessByCpf(@Query("cpf") cpf: String): Response<CashlessCardLookupDto>
+
+    @POST("api/public/pos/cashless/cards")
+    suspend fun registerCashlessCard(@Body body: CashlessRegisterRequestDto): Response<CashlessCardResponseDto>
+
+    @PATCH("api/public/pos/cashless/cards/{uid}")
+    suspend fun patchCashlessCard(
+        @Path("uid") uidHex: String,
+        @Body body: CashlessPatchRequestDto,
+    ): Response<CashlessCardResponseDto>
+
+    @POST("api/public/pos/cashless/cards/block-by-cpf")
+    suspend fun blockCashlessByCpf(@Body body: CashlessBlockByCpfRequestDto): Response<CashlessCardResponseDto>
+
+    @POST("api/public/pos/cashless/cards/reassign")
+    suspend fun reassignCashlessCard(@Body body: CashlessReassignRequestDto): Response<CashlessCardResponseDto>
 }

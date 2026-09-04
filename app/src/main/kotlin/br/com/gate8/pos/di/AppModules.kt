@@ -17,6 +17,7 @@ import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.data.repository.CashierRepository
+import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -98,6 +99,7 @@ val appModule = module {
 
     single { get<Gate8Database>().catalogDao() }
     single { get<Gate8Database>().pendingSaleDao() }
+    single { get<Gate8Database>().cashlessAccountDao() }
 
     single { CatalogRepository(get(), get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
@@ -105,6 +107,7 @@ val appModule = module {
     single { LoginRepository(get(), get()) }
     single { ReportsRepository(get()) }
     single { CashierRepository(get(), get()) }
+    single { CashlessAccountRepository(get(), get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
     viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
@@ -113,7 +116,7 @@ val appModule = module {
     viewModel { CashierViewModel(get(), get(), get()) }
     viewModel {
         CashlessViewModel(
-            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
         )
     }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
