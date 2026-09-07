@@ -508,10 +508,29 @@ class CashlessViewModel(
                 val revoked = snap.isBlocked ||
                     account?.blocked == true ||
                     runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
+
+                // Sem formato Gate8 = falha de leitura/auth — NÃO é “já zerado”.
+                if (!snap.isGate8Format) {
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            waitingCard = false,
+                            card = snap,
+                            accountBlocked = revoked,
+                            accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
+                            accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
+                            error = "Não deu para ler o saldo do chip. " +
+                                "Aproxime o cartão de novo (fique parado até terminar) e tente zerar.",
+                            message = null,
+                        )
+                    }
+                    return@runCatching
+                }
+
                 val chipBalance = snap.balanceReais ?: 0.0
-                if (!snap.isGate8Format || chipBalance <= 0.0) {
+                if (chipBalance <= 0.0) {
                     if (revoked) {
-                        // Chip já zerado, mas ainda constava bloqueado: libera para reuso.
+                        // Chip realmente zerado, mas ainda constava bloqueado: libera para reuso.
                         accounts.recordMovement(
                             uidHex = snap.uidHex,
                             type = CashlessMovementType.ZERAGEM,
@@ -550,6 +569,8 @@ class CashlessViewModel(
                     }
                     return@runCatching
                 }
+
+                // Tem saldo no chip (mesmo residual de cartão bloqueado) → confirma e apaga.
                 _state.update {
                     it.copy(
                         loading = false,
