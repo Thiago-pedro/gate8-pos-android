@@ -7,6 +7,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import br.com.gate8.pos.ui.theme.Gate8Colors
 
@@ -20,6 +21,7 @@ fun Gate8OutlinedTextField(
     prefix: String? = null,
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     OutlinedTextField(
         value = value,
@@ -30,6 +32,7 @@ fun Gate8OutlinedTextField(
         singleLine = singleLine,
         modifier = modifier,
         keyboardOptions = keyboardOptions,
+        visualTransformation = visualTransformation,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = Gate8Colors.TextOnLight,
             unfocusedTextColor = Gate8Colors.TextOnLight,

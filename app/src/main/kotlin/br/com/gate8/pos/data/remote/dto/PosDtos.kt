@@ -283,6 +283,7 @@ data class LoginResponseDto(
 @Serializable
 data class CashlessCardDto(
     @SerialName("uid_hex") val uidHex: String,
+    val name: String = "",
     val cpf: String,
     val phone: String,
     val blocked: Boolean = false,
@@ -305,6 +306,7 @@ data class CashlessCardResponseDto(
 @Serializable
 data class CashlessRegisterRequestDto(
     @SerialName("uid_hex") val uidHex: String,
+    val name: String = "",
     val cpf: String,
     val phone: String,
     @SerialName("balance_cents") val balanceCents: Int = 0,

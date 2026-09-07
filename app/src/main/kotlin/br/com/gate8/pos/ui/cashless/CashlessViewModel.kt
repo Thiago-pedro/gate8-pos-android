@@ -54,12 +54,16 @@ data class CashlessUiState(
     val card: CashlessCardSnapshot? = null,
     val accountCpf: String? = null,
     val accountPhone: String? = null,
+    val accountName: String? = null,
+    /** Cadastro/sistema considera o UID inválido para uso (bloqueado ou transferido). */
+    val accountBlocked: Boolean = false,
     val message: String? = null,
     val error: String? = null,
     val showPaymentSheet: Boolean = false,
     val showRegisterSheet: Boolean = false,
     val showLostCpfSheet: Boolean = false,
     val showConfirmZero: Boolean = false,
+    val registerNameInput: String = "",
     val registerCpfInput: String = "",
     val registerPhoneInput: String = "",
     val lostCpfInput: String = "",
@@ -139,12 +143,16 @@ class CashlessViewModel(
         _state.update { it.copy(amountInput = filtered, error = null, message = null) }
     }
 
+    fun onRegisterNameChange(value: String) {
+        _state.update { it.copy(registerNameInput = value.take(80)) }
+    }
+
     fun onRegisterCpfChange(value: String) {
         _state.update { it.copy(registerCpfInput = value.filter { c -> c.isDigit() }.take(11)) }
     }
 
     fun onRegisterPhoneChange(value: String) {
-        _state.update { it.copy(registerPhoneInput = value.filter { c -> c.isDigit() }.take(9)) }
+        _state.update { it.copy(registerPhoneInput = value.filter { c -> c.isDigit() }.take(11)) }
     }
 
     fun onLostCpfChange(value: String) {
@@ -161,18 +169,19 @@ class CashlessViewModel(
                     message = "Aproxime o cartão Mifare na maquininha…",
                 )
             }
-            runCatching { cashless.readCard() }
-                .onSuccess { snap -> applyCardRead(snap, defaultMessage = snap.message ?: "Leitura concluída") }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            waitingCard = false,
-                            error = friendlyCardError(e),
-                            message = null,
-                        )
-                    }
+            runCatching {
+                val snap = cashless.readCard()
+                applyCardRead(snap, defaultMessage = snap.message ?: "Leitura concluída")
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        waitingCard = false,
+                        error = friendlyCardError(e),
+                        message = null,
+                    )
                 }
+            }
         }
     }
 
@@ -202,22 +211,8 @@ class CashlessViewModel(
             runCatching { cashless.readCard() }
                 .onSuccess { snap ->
                     val account = accounts.getByUid(snap.uidHex)
-                    val chipBlocked = snap.isBlocked
-                    val dbBlocked = account?.blocked == true
-                    if (chipBlocked || dbBlocked) {
-                        _state.update {
-                            it.copy(
-                                loading = false,
-                                waitingCard = false,
-                                card = snap,
-                                accountCpf = account?.cpf,
-                                accountPhone = account?.phone,
-                                error = "Cartão bloqueado. Use Cartão perdido / Bloquear para recuperar o saldo.",
-                                message = null,
-                            )
-                        }
-                        return@onSuccess
-                    }
+                    // Sem cadastro ativo (novo, encerrado ou liberado) → só cadastrar CPF/telefone.
+                    // Não exige desbloqueio prévio: o POST cria o vínculo novo no mesmo UID.
                     if (account == null) {
                         _state.update {
                             it.copy(
@@ -228,29 +223,53 @@ class CashlessViewModel(
                                 pendingAmount = amount,
                                 accountCpf = null,
                                 accountPhone = null,
+                                accountName = null,
+                                accountBlocked = false,
                                 showRegisterSheet = true,
+                                registerNameInput = "",
                                 registerCpfInput = "",
                                 registerPhoneInput = "",
-                                message = "Cartão novo. Cadastre CPF e telefone para continuar.",
+                                message = "Cartão livre. Cadastre nome, CPF e telefone para continuar.",
                                 error = null,
                             )
                         }
-                    } else {
-                        syncBalanceFromSnap(snap)
+                        return@onSuccess
+                    }
+                    if (snap.isBlocked || account.blocked) {
                         _state.update {
                             it.copy(
                                 loading = false,
                                 waitingCard = false,
                                 card = snap,
-                                pendingUid = snap.uidHex,
-                                pendingAmount = amount,
-                                accountCpf = account.cpf,
-                                accountPhone = account.phone,
-                                showPaymentSheet = true,
-                                message = "Cartão de ${formatCpf(account.cpf)}. Escolha a forma de pagamento.",
-                                error = null,
+                                accountCpf = account.cpf.takeIf { c -> c.isNotBlank() },
+                                accountPhone = account.phone.takeIf { p -> p.isNotBlank() },
+                                accountName = account.name.takeIf { n -> n.isNotBlank() },
+                                accountBlocked = true,
+                                error = "Cartão bloqueado. Use Opções do cartão para recuperar o saldo.",
+                                message = null,
                             )
                         }
+                        return@onSuccess
+                    }
+                    syncBalanceFromSnap(snap)
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            waitingCard = false,
+                            card = snap,
+                            pendingUid = snap.uidHex,
+                            pendingAmount = amount,
+                            accountCpf = account.cpf,
+                            accountPhone = account.phone,
+                            accountName = account.name.takeIf { it.isNotBlank() },
+                            accountBlocked = false,
+                            showPaymentSheet = true,
+                            message = buildString {
+                                val label = account.name.trim().ifBlank { formatCpf(account.cpf) }
+                                append("Cartão de $label. Escolha a forma de pagamento.")
+                            },
+                            error = null,
+                        )
                     }
                 }
                 .onFailure { e ->
@@ -274,8 +293,15 @@ class CashlessViewModel(
 
     fun submitRegister() {
         val uid = _state.value.pendingUid ?: return
+        val name = _state.value.registerNameInput.trim()
         val cpf = _state.value.registerCpfInput.filter { it.isDigit() }
         val phone = _state.value.registerPhoneInput.filter { it.isDigit() }
+
+        // CPF obrigatório; nome e celular opcionais (se preenchidos, validam).
+        if (cpf.isEmpty()) {
+            _state.update { it.copy(error = "Informe o CPF para cadastrar o cartão.") }
+            return
+        }
         if (cpf.length != 11) {
             _state.update { it.copy(error = "CPF deve ter 11 dígitos.") }
             return
@@ -284,21 +310,33 @@ class CashlessViewModel(
             _state.update { it.copy(error = "CPF inválido. Confira os números digitados.") }
             return
         }
-        if (phone.length != 9) {
-            _state.update { it.copy(error = "Telefone deve ter 9 dígitos.") }
-            return
+        if (phone.isNotEmpty()) {
+            if (phone.length != 11) {
+                _state.update {
+                    it.copy(error = "Telefone deve ter 11 dígitos (DDD + número com 9 dígitos).")
+                }
+                return
+            }
+            if (!BrazilianDocumentValidator.isValidMobilePhone(phone)) {
+                _state.update {
+                    it.copy(error = "Telefone inválido. Use DDD + celular com 9 dígitos (ex.: 11987654321).")
+                }
+                return
+            }
         }
+
         val balanceCents = ((_state.value.card?.balanceReais ?: 0.0) * 100).roundToInt()
         viewModelScope.launch {
-            runCatching { accounts.register(uid, cpf, phone, balanceCents) }
+            runCatching { accounts.register(uid, name, cpf, phone, balanceCents) }
                 .onSuccess {
                     refreshCashierStatus()
                     _state.update {
                         it.copy(
                             showRegisterSheet = false,
                             showPaymentSheet = true,
+                            accountName = name.takeIf { it.isNotEmpty() },
                             accountCpf = cpf,
-                            accountPhone = phone,
+                            accountPhone = phone.takeIf { it.isNotEmpty() },
                             error = null,
                             message = "Cadastro OK. Escolha a forma de pagamento.",
                         )
@@ -338,6 +376,7 @@ class CashlessViewModel(
                 showConsultResult = false,
                 consultResultTitle = null,
                 consultResultDetail = null,
+                message = null,
             )
         }
     }
@@ -358,72 +397,97 @@ class CashlessViewModel(
                     message = "Aproxime o cartão para imprimir o extrato…",
                 )
             }
-            runCatching { cashless.readCard() }
-                .onSuccess { snap ->
-                    val account = accounts.getByUid(snap.uidHex)
-                    syncBalanceFromSnap(snap)
-                    val movements = accounts.listStatement(snap.uidHex, account?.cpf)
-                    if (movements.isEmpty()) {
-                        _state.update {
-                            it.copy(
-                                loading = false,
-                                waitingCard = false,
-                                card = snap,
-                                accountCpf = account?.cpf,
-                                accountPhone = account?.phone,
-                                error = "Nenhuma movimentação registrada ainda para este cartão " +
-                                    "nesta maquininha. Recargas e transferências passam a entrar no extrato.",
-                                message = null,
-                            )
-                        }
-                        return@onSuccess
-                    }
-                    val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
-                    val payload = CashlessStatementPayload(
-                        uidHex = snap.uidHex,
-                        cpf = account?.cpf?.let { formatCpf(it) },
-                        phone = account?.phone,
-                        balanceReais = snap.balanceReais ?: (account?.balanceCents?.div(100.0) ?: 0.0),
-                        lines = movements.map { m ->
-                            CashlessStatementLine(
-                                dateLabel = df.format(Date(m.createdAt)),
-                                label = movementLabel(m.type),
-                                amountLabel = signedMoney(m.amountCents),
-                                balanceAfterLabel = "R$ ${"%.2f".format(m.balanceAfterCents / 100.0)}",
-                            )
-                        },
-                        terminalName = configStore.getDeviceName()?.takeIf { it.isNotBlank() }
-                            ?: configStore.getDeviceShortId(),
-                        establishmentName = configStore.getEstablishmentName(),
+            runCatching {
+                val snap = cashless.readCard()
+                val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
+                val revoked = snap.isBlocked ||
+                    account?.blocked == true ||
+                    runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
+                if (!revoked) {
+                    runCatching { syncBalanceFromSnap(snap) }
+                }
+                var movements = accounts.listStatement(snap.uidHex, account?.cpf)
+                if (revoked || movements.any { it.type == CashlessMovementType.TRANSF_SAIDA }) {
+                    movements = accounts.ensureSubstituidoMovement(
+                        snap.uidHex,
+                        account?.cpf?.takeIf { it.isNotBlank() },
                     )
-                    printer.printCashlessStatement(payload)
+                }
+                if (movements.isEmpty()) {
                     _state.update {
                         it.copy(
                             loading = false,
                             waitingCard = false,
                             card = snap,
-                            accountCpf = account?.cpf,
-                            accountPhone = account?.phone,
-                            message = "Extrato impresso (${movements.size} movimentações).",
-                            error = null,
-                            showConsultResult = true,
-                            consultResultTitle = "Extrato impresso",
-                            consultResultDetail = "UID ${snap.uidHex}\n" +
-                                "${movements.size} movimentações\n" +
-                                "Saldo atual R$ ${"%.2f".format(payload.balanceReais)}",
-                        )
-                    }
-                }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            waitingCard = false,
-                            error = friendlyCardError(e),
+                            accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
+                            accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
+                            accountBlocked = revoked,
+                            error = "Nenhuma movimentação registrada ainda para este cartão " +
+                                "nesta maquininha. Recargas e transferências passam a entrar no extrato.",
                             message = null,
                         )
                     }
+                    return@runCatching
                 }
+                val balanceReais = if (revoked) {
+                    (account?.balanceCents ?: 0) / 100.0
+                } else {
+                    snap.balanceReais ?: (account?.balanceCents?.div(100.0) ?: 0.0)
+                }
+                val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+                val payload = CashlessStatementPayload(
+                    uidHex = snap.uidHex,
+                    cpf = account?.cpf?.takeIf { it.isNotBlank() }?.let { formatCpf(it) },
+                    phone = account?.phone?.takeIf { it.isNotBlank() },
+                    balanceReais = balanceReais,
+                    lines = movements.map { m ->
+                        val label = movementLabel(m.type)
+                        val noteSuffix = m.note?.takeIf { it.isNotBlank() }
+                            ?.let { " · $it" }
+                            .orEmpty()
+                        CashlessStatementLine(
+                            dateLabel = df.format(Date(m.createdAt)),
+                            label = label + noteSuffix,
+                            amountLabel = signedMoney(m.amountCents),
+                            balanceAfterLabel = "R$ ${"%.2f".format(m.balanceAfterCents / 100.0)}",
+                        )
+                    },
+                    terminalName = configStore.getDeviceName()?.takeIf { it.isNotBlank() }
+                        ?: configStore.getDeviceShortId(),
+                    establishmentName = configStore.getEstablishmentName(),
+                )
+                printer.printCashlessStatement(payload)
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        waitingCard = false,
+                        card = snap,
+                        accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
+                        accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
+                        accountBlocked = revoked,
+                        message = null,
+                        error = null,
+                        showConsultResult = true,
+                        consultResultTitle = if (revoked) "Extrato · cartão bloqueado" else "Extrato impresso",
+                        consultResultDetail = buildString {
+                            append("UID ${snap.uidHex}\n")
+                            append("${movements.size} movimentações\n")
+                            append("Saldo atual R$ ${"%.2f".format(balanceReais)}")
+                            if (revoked) append("\nStatus: bloqueado / substituído")
+                        },
+                    )
+                }
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        waitingCard = false,
+                        error = friendlyCardError(e),
+                        message = null,
+                        showConsultResult = false,
+                    )
+                }
+            }
         }
     }
 
@@ -438,54 +502,97 @@ class CashlessViewModel(
                     message = "Aproxime o cartão para zerar o saldo…",
                 )
             }
-            runCatching { cashless.readCard() }
-                .onSuccess { snap ->
-                    val balance = snap.balanceReais ?: 0.0
-                    if (!snap.isGate8Format || balance <= 0.0) {
+            runCatching {
+                val snap = cashless.readCard()
+                val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
+                val revoked = snap.isBlocked ||
+                    account?.blocked == true ||
+                    runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
+                val chipBalance = snap.balanceReais ?: 0.0
+                if (!snap.isGate8Format || chipBalance <= 0.0) {
+                    if (revoked) {
+                        // Chip já zerado, mas ainda constava bloqueado: libera para reuso.
+                        accounts.recordMovement(
+                            uidHex = snap.uidHex,
+                            type = CashlessMovementType.ZERAGEM,
+                            amountCents = 0,
+                            balanceAfterCents = 0,
+                            cpf = account?.cpf?.takeIf { it.isNotBlank() },
+                            note = "REUSO · chip já estava zerado",
+                        )
+                        accounts.releaseUidForReuse(snap.uidHex)
                         _state.update {
                             it.copy(
                                 loading = false,
                                 waitingCard = false,
                                 card = snap,
-                                error = "Cartão já está zerado.",
-                                message = null,
+                                accountBlocked = false,
+                                accountCpf = null,
+                                accountPhone = null,
+                                showConfirmZero = false,
+                                message = "Chip já estava zerado. Cartão liberado para reuso.",
+                                error = null,
                             )
                         }
-                        return@onSuccess
+                        return@runCatching
                     }
                     _state.update {
                         it.copy(
                             loading = false,
                             waitingCard = false,
                             card = snap,
-                            pendingUid = snap.uidHex,
-                            recoverBalance = balance,
-                            showConfirmZero = true,
-                            message = null,
-                            error = null,
-                        )
-                    }
-                }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            waitingCard = false,
-                            error = friendlyCardError(e),
+                            accountBlocked = false,
+                            accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
+                            accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
+                            error = "Cartão já está zerado.",
                             message = null,
                         )
                     }
+                    return@runCatching
                 }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        waitingCard = false,
+                        card = snap,
+                        pendingUid = snap.uidHex,
+                        recoverBalance = chipBalance,
+                        accountBlocked = revoked,
+                        accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
+                        accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
+                        showConfirmZero = true,
+                        message = null,
+                        error = null,
+                    )
+                }
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        waitingCard = false,
+                        error = friendlyCardError(e),
+                        message = null,
+                    )
+                }
+            }
         }
     }
 
     fun dismissConfirmZero() {
-        _state.update { it.copy(showConfirmZero = false, pendingUid = null, recoverBalance = 0.0) }
+        _state.update {
+            it.copy(
+                showConfirmZero = false,
+                pendingUid = null,
+                recoverBalance = 0.0,
+                accountBlocked = false,
+            )
+        }
     }
 
     fun confirmZeroBalance() {
         val uid = _state.value.pendingUid ?: return
         val previousBalance = _state.value.recoverBalance
+        val wasRevoked = _state.value.accountBlocked
         viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -498,15 +605,24 @@ class CashlessViewModel(
             }
             runCatching { cashless.writeBalance(0.0, blocked = false, requireUid = uid) }
                 .onSuccess { snap ->
-                    accounts.updateBalance(uid, 0)
+                    val forReuse = wasRevoked
                     accounts.recordMovement(
                         uidHex = uid,
                         type = CashlessMovementType.ZERAGEM,
                         amountCents = -((previousBalance * 100).roundToInt()),
                         balanceAfterCents = 0,
                         cpf = _state.value.accountCpf,
-                        note = "Zerar saldo",
+                        note = if (forReuse) {
+                            "REUSO · limpeza de residual no chip"
+                        } else {
+                            "Zerar saldo"
+                        },
                     )
+                    if (forReuse) {
+                        accounts.releaseUidForReuse(uid)
+                    } else {
+                        accounts.updateBalance(uid, 0)
+                    }
                     _state.update {
                         it.copy(
                             loading = false,
@@ -514,7 +630,14 @@ class CashlessViewModel(
                             card = snap,
                             pendingUid = null,
                             recoverBalance = 0.0,
-                            message = "Saldo zerado.",
+                            accountBlocked = false,
+                            accountCpf = null,
+                            accountPhone = null,
+                            message = if (forReuse) {
+                                "Chip limpo e liberado para reuso na próxima festa."
+                            } else {
+                                "Saldo zerado."
+                            },
                             error = null,
                         )
                     }
@@ -574,6 +697,11 @@ class CashlessViewModel(
     fun chooseRecoverBalance() {
         _state.update { it.copy(showCardOptions = false) }
         startRecoverBalance()
+    }
+
+    fun chooseZeroBalance() {
+        _state.update { it.copy(showCardOptions = false) }
+        startZeroBalance()
     }
 
     fun searchLostByCpf() {
@@ -1039,6 +1167,14 @@ class CashlessViewModel(
                     note = "Para ${newSnap.uidHex}",
                 )
                 accounts.recordMovement(
+                    uidHex = oldUid,
+                    type = CashlessMovementType.SUBSTITUIDO,
+                    amountCents = 0,
+                    balanceAfterCents = 0,
+                    cpf = cpf,
+                    note = "Cartão substituído pelo UID ${newSnap.uidHex}",
+                )
+                accounts.recordMovement(
                     uidHex = newSnap.uidHex,
                     type = CashlessMovementType.TRANSF_ENTRADA,
                     amountCents = cents,
@@ -1476,36 +1612,76 @@ class CashlessViewModel(
     }
 
     private suspend fun applyCardRead(snap: CashlessCardSnapshot, defaultMessage: String) {
-        val account = accounts.getByUid(snap.uidHex)
-        syncBalanceFromSnap(snap)
-        val balance = snap.balanceReais ?: 0.0
-        val status = when {
-            snap.isBlocked -> "Bloqueado"
-            snap.isGate8Format -> "Pronto para usar"
-            else -> "Em branco · zerado"
+        val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
+        val revoked = snap.isBlocked ||
+            account?.blocked == true ||
+            runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
+        // Nunca espelha saldo do chip de volta se o cartão está inválido no sistema.
+        if (!revoked) {
+            runCatching { syncBalanceFromSnap(snap) }
         }
+        val chipBalance = snap.balanceReais ?: 0.0
+        val systemBalance = if (revoked) {
+            (account?.balanceCents ?: 0) / 100.0
+        } else {
+            chipBalance
+        }
+        val releasedForReuse = !revoked &&
+            runCatching {
+                // Tem histórico de saída, mas já foi limpo (ZERAGEM/REUSO).
+                !accounts.isUidRevokedForUse(snap.uidHex) &&
+                    (snap.balanceReais ?: 0.0) <= 0.009
+            }.getOrDefault(false)
+        val status = when {
+            revoked -> "Bloqueado · não liberado para uso"
+            !snap.isGate8Format || chipBalance <= 0.009 ->
+                if (releasedForReuse || account == null) {
+                    "Em branco · zerado (pode cadastrar de novo)"
+                } else {
+                    "Em branco · zerado"
+                }
+            else -> "Pronto para usar"
+        }
+        val cpfDigits = account?.cpf?.filter { it.isDigit() }.orEmpty()
+        val phoneDigits = account?.phone?.filter { it.isDigit() }.orEmpty()
+        val holderName = account?.name?.trim().orEmpty()
         val detail = buildString {
             append("UID ${snap.uidHex}\n")
-            append("Saldo R$ ${"%.2f".format(balance)}\n")
-            append("Status: $status")
-            if (account != null) {
-                append("\nCPF ${formatCpf(account.cpf)}")
-                append("\nTel. ${account.phone}")
+            if (revoked) {
+                append("Saldo no sistema R$ ${"%.2f".format(systemBalance)}\n")
+                if (chipBalance > 0.009) {
+                    append("Residual no chip R$ ${"%.2f".format(chipBalance)} (não vale)\n")
+                }
+                append("Status: $status")
+            } else {
+                append("Saldo R$ ${"%.2f".format(chipBalance)}\n")
+                append("Status: $status")
+            }
+            if (!revoked && holderName.isNotBlank()) {
+                append("\nNome $holderName")
+            }
+            if (!revoked && cpfDigits.length == 11) {
+                append("\nCPF ${formatCpf(cpfDigits)}")
+                if (phoneDigits.isNotBlank()) append("\nTel. $phoneDigits")
+            } else if (revoked) {
+                append("\nSaldo já transferido ou cartão bloqueado.")
             } else {
                 append("\n$defaultMessage")
             }
         }
-        _state.update {
-            it.copy(
+        _state.update { state ->
+            state.copy(
                 loading = false,
                 waitingCard = false,
                 card = snap,
-                accountCpf = account?.cpf,
-                accountPhone = account?.phone,
+                accountName = holderName.takeIf { !revoked && it.isNotBlank() },
+                accountCpf = cpfDigits.takeIf { digits -> !revoked && digits.length == 11 },
+                accountPhone = phoneDigits.takeIf { digits -> !revoked && digits.isNotBlank() },
+                accountBlocked = revoked,
                 message = null,
                 error = null,
                 showConsultResult = true,
-                consultResultTitle = "Consulta de saldo",
+                consultResultTitle = if (revoked) "Cartão bloqueado" else "Consulta de saldo",
                 consultResultDetail = detail,
             )
         }
@@ -1553,6 +1729,7 @@ class CashlessViewModel(
         CashlessMovementType.TRANSF_SAIDA -> "TRANSF. SAIDA"
         CashlessMovementType.TRANSF_ENTRADA -> "TRANSF. ENTRADA"
         CashlessMovementType.CONSUMO -> "CONSUMO"
+        CashlessMovementType.SUBSTITUIDO -> "SUBSTITUIDO"
         else -> type
     }
 
@@ -1563,7 +1740,11 @@ class CashlessViewModel(
     }
 
     private fun friendlyAccountError(e: Throwable): String = when (e) {
-        is ApiException -> e.message ?: "Erro no cadastro cashless"
+        is ApiException -> when (e.errorCode) {
+            "invalid_cpf" -> "CPF inválido. Digite um CPF com 11 dígitos válidos."
+            else -> e.message?.takeIf { it.isNotBlank() && it != e.errorCode }
+                ?: "Erro no cadastro cashless"
+        }
         else -> e.message ?: "Falha no cadastro cashless"
     }
 

@@ -245,6 +245,8 @@ class CieloMifareClient(
     }
 
     private suspend fun detect(): ByteArray {
+        // Limpa sessão anterior — R10/Parameter error costuma aparecer com leitor “preso”.
+        runCatching { deactivate() }
         Log.i(TAG, "DETECT — aproxime o cartão Mifare")
         val result = call(
             action = "cielo.lio.cashless.mifare.DETECT",
@@ -386,13 +388,39 @@ class CieloMifareClient(
     private fun humanize(code: String, detail: String, op: String): String {
         val d = detail.trim()
         val lower = d.lowercase()
+        val opLabel = when (op.uppercase()) {
+            "DETECT" -> "detecção do cartão"
+            "AUTHENTICATE", "AUTH" -> "autenticação"
+            "READ" -> "leitura"
+            "WRITE" -> "gravação"
+            else -> op
+        }
+        if (code.equals("R10", ignoreCase = true) || lower.contains("parameter error")) {
+            return "Erro ao iniciar a $opLabel no leitor. " +
+                "Deixe o Gate8 aberto na tela, afaste o cartão e aproxime de novo. " +
+                "(código R10)"
+        }
+        if (code.equals("R01", ignoreCase = true) || lower.contains("timeout") || lower.contains("time out")) {
+            return "Tempo esgotado na $opLabel. Aproxime o cartão Mifare Classic 1K e tente de novo."
+        }
+        if (code.equals("R02", ignoreCase = true) || lower.contains("cancel")) {
+            return "Operação cancelada na $opLabel."
+        }
         if (lower.contains("internal") || lower == "internal error" || code.equals("internal", true)) {
-            return "Erro interno da Cielo no $op. " +
+            return "Erro interno da Cielo na $opLabel. " +
                 "Quase sempre o cartão não é Mifare Classic 1K (ex.: Ultralight, DESFire, NTAG) " +
                 "ou a chave do setor é diferente da padrão. Código: ${code.ifBlank { "—" }}"
         }
-        if (d.isNotBlank()) return "$d ($op/$code)"
-        return "Operação Mifare falhou ($op/$code)"
+        if (d.isNotBlank()) {
+            val translated = when {
+                lower.contains("parameter") -> "Erro de parâmetro no leitor"
+                lower.contains("no card") || lower.contains("card not") -> "Nenhum cartão detectado"
+                lower.contains("auth") -> "Falha de autenticação no cartão"
+                else -> d
+            }
+            return "$translated ($opLabel/${code.ifBlank { "—" }})"
+        }
+        return "Operação Mifare falhou na $opLabel (código ${code.ifBlank { "—" }})"
     }
 
     private fun foregroundContext(): Context =

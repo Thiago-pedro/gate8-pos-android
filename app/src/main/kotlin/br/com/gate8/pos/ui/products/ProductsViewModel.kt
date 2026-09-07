@@ -315,6 +315,10 @@ class ProductsViewModel(
             var cashlessBalanceAfter: Double? = null
             val payment = if (method == PaymentMethodApi.CASHLESS) {
                 runCatching {
+                    val pre = cashlessCard.readCard()
+                    if (pre.isBlocked || cashlessAccounts.isUidRevokedForUse(pre.uidHex)) {
+                        error("Cartão bloqueado ou saldo já transferido. Não é possível pagar com este cartão.")
+                    }
                     val snap = cashlessCard.debit(total)
                     val centsAfter = ((snap.balanceReais ?: 0.0) * 100.0).roundToInt().coerceAtLeast(0)
                     val debitCents = (total * 100.0).roundToInt()

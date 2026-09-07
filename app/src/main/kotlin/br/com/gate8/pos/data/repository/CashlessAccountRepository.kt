@@ -29,24 +29,52 @@ class CashlessAccountRepository(
 ) {
     suspend fun getByUid(uidHex: String): CashlessAccountEntity? {
         val uid = uidHex.uppercase()
+        // Já limpo para reuso local: não ressuscita cadastro antigo.
+        if (wasReleasedForReuse(uid)) {
+            dao.deleteByUid(uid)
+            return null
+        }
+        // Lookup nunca deve derrubar a UI: qualquer falha da API cai no espelho local.
         val remote = runCatching { api.getCashlessByUid(uid) }.getOrNull()
         if (remote != null) {
             if (remote.isSuccessful) {
-                val body = remote.body()
+                val body = runCatching { remote.body() }.getOrNull()
                 return if (body?.found == true && body.card != null) {
-                    cache(body.card)
+                    runCatching { cache(body.card) }.getOrElse {
+                        Log.w(TAG, "getByUid: falha ao cachear — local", it)
+                        dao.getByUid(uid)
+                    }
                 } else {
+                    // Backend: cartão encerrado / livre → found:false. Limpa espelho local.
                     dao.deleteByUid(uid)
-                    null
+                    return null
                 }
             }
-            val errBody = remote.errorBody()?.string()
-            if (!shouldFallback(remote.code(), errBody)) {
-                throw parseApiError(remote.code(), errBody)
-            }
-            Log.w(TAG, "getByUid: API indisponível (${remote.code()}) — local")
+            Log.w(TAG, "getByUid: API ${remote.code()} — usando cadastro local")
         }
-        return dao.getByUid(uid)
+        return dao.getByUid(uid) ?: resolveMissingRemoteUid(uid)
+    }
+
+    /**
+     * Não pode gastar se bloqueado ou se o saldo saiu deste UID e ainda não houve
+     * novo cadastro ativo / liberação para reuso.
+     */
+    suspend fun isUidRevokedForUse(uidHex: String): Boolean {
+        val uid = uidHex.uppercase()
+        if (wasReleasedForReuse(uid)) return false
+        val account = dao.getByUid(uid)
+        // Cadastro ativo (mesmo após reuso do UID com outro CPF) → pode usar.
+        if (account != null && !account.blocked) return false
+        if (account?.blocked == true) return true
+        return hasTransferOut(uid)
+    }
+
+    /** Após zerar residual de cartão substituído, libera o UID para nova festa. */
+    suspend fun releaseUidForReuse(uidHex: String) {
+        val uid = uidHex.uppercase()
+        dao.deleteByUid(uid)
+        // Não faz PATCH: cartão encerrado na nuvem responde 409 card_replaced.
+        // O próximo uso é um POST de cadastro novo.
     }
 
     suspend fun getByCpf(cpfDigits: String): CashlessAccountEntity? {
@@ -70,7 +98,14 @@ class CashlessAccountRepository(
         return dao.getByCpf(cpf)
     }
 
-    suspend fun register(uidHex: String, cpfDigits: String, phoneDigits: String, balanceCents: Int = 0) {
+    suspend fun register(
+        uidHex: String,
+        name: String,
+        cpfDigits: String,
+        phoneDigits: String,
+        balanceCents: Int = 0,
+    ) {
+        val holderName = name.trim()
         val cpf = cpfDigits.filter { it.isDigit() }
         val phone = phoneDigits.filter { it.isDigit() }
         val uid = uidHex.uppercase()
@@ -80,6 +115,7 @@ class CashlessAccountRepository(
             api.registerCashlessCard(
                 CashlessRegisterRequestDto(
                     uidHex = uid,
+                    name = holderName,
                     cpf = cpf,
                     phone = phone,
                     balanceCents = cents,
@@ -106,26 +142,43 @@ class CashlessAccountRepository(
             Log.w(TAG, "register: sem rede/API — salvando local")
         }
 
-        registerLocal(uid, cpf, phone, cents)
+        registerLocal(uid, holderName, cpf, phone, cents)
     }
 
     suspend fun updateBalance(uidHex: String, balanceCents: Int) {
         val uid = uidHex.uppercase()
         val cents = balanceCents.coerceAtLeast(0)
-        patchRemote(uid, CashlessPatchRequestDto(balanceCents = cents))
         val current = dao.getByUid(uid) ?: return
+        // Não ressuscita saldo de cartão bloqueado a partir do chip.
+        if (current.blocked) return
+        when (val patch = patchRemoteResult(uid, CashlessPatchRequestDto(balanceCents = cents))) {
+            PatchRemoteResult.CardReplaced -> {
+                // Cadastro encerrado na nuvem — próximo passo é POST de cadastro novo.
+                dao.deleteByUid(uid)
+                return
+            }
+            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+        }
         dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
     }
 
     suspend fun setBlocked(uidHex: String, blocked: Boolean, balanceCents: Int? = null) {
         val uid = uidHex.uppercase()
-        patchRemote(
-            uid,
-            CashlessPatchRequestDto(
-                balanceCents = balanceCents,
-                blocked = blocked,
-            ),
-        )
+        when (
+            val patch = patchRemoteResult(
+                uid,
+                CashlessPatchRequestDto(
+                    balanceCents = balanceCents,
+                    blocked = blocked,
+                ),
+            )
+        ) {
+            PatchRemoteResult.CardReplaced -> {
+                dao.deleteByUid(uid)
+                return
+            }
+            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+        }
         val current = dao.getByUid(uid) ?: return
         dao.upsert(
             current.copy(
@@ -191,6 +244,7 @@ class CashlessAccountRepository(
                 val card = remote.body()?.card
                     ?: throw ApiException(remote.code(), "Resposta vazia no reassign")
                 dao.deleteByUid(old)
+                dao.upsert(revokedStub(old))
                 cache(card)
                 return
             }
@@ -204,10 +258,14 @@ class CashlessAccountRepository(
             Log.w(TAG, "reassign: API indisponível (${remote.code()}) — local")
         }
 
+        val holderName = dao.getByUid(old)?.name.orEmpty()
         dao.deleteByUid(old)
+        // Stub do UID antigo: bloqueado e zerado — consulta não trata como "pronto para usar".
+        dao.upsert(revokedStub(old))
         dao.upsert(
             CashlessAccountEntity(
                 uidHex = newId,
+                name = holderName,
                 cpf = cpfDigits,
                 phone = phoneDigits,
                 blocked = false,
@@ -242,39 +300,145 @@ class CashlessAccountRepository(
     }
 
     /**
-     * Extrato: movimentos do UID + do CPF (se houver), ordenados no tempo,
-     * sem duplicar o mesmo id.
+     * Extrato do cartão (somente este UID).
+     * Não mistura movimentações de outro cartão do mesmo CPF.
      */
     suspend fun listStatement(uidHex: String, cpf: String? = null): List<CashlessMovementEntity> {
         val uid = uidHex.uppercase()
-        val byUid = movementDao.listByUid(uid)
-        val cpfDigits = cpf?.filter { it.isDigit() }.orEmpty()
-        val byCpf = if (cpfDigits.length == 11) movementDao.listByCpf(cpfDigits) else emptyList()
-        return (byUid + byCpf)
-            .distinctBy { it.id }
+        return movementDao.listByUid(uid)
             .sortedWith(compareBy({ it.createdAt }, { it.id }))
     }
 
+    /**
+     * Garante a linha final SUBSTITUIDO quando o saldo já saiu deste UID.
+     * Útil para cartões transferidos antes dessa movimentação existir.
+     */
+    suspend fun ensureSubstituidoMovement(uidHex: String, cpf: String? = null): List<CashlessMovementEntity> {
+        val uid = uidHex.uppercase()
+        val current = listStatement(uid)
+        val saida = current.lastOrNull { it.type == CashlessMovementType.TRANSF_SAIDA }
+            ?: return current
+        if (current.any { it.type == CashlessMovementType.SUBSTITUIDO }) return current
+        val newUidHint = saida.note
+            ?.substringAfter("Para ", missingDelimiterValue = "")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        recordMovement(
+            uidHex = uid,
+            type = CashlessMovementType.SUBSTITUIDO,
+            amountCents = 0,
+            balanceAfterCents = 0,
+            cpf = cpf ?: saida.cpf,
+            note = if (newUidHint != null) {
+                "Cartão substituído pelo UID $newUidHint"
+            } else {
+                "Cartão substituído · saldo transferido"
+            },
+        )
+        return listStatement(uid)
+    }
+
     private suspend fun patchRemote(uid: String, body: CashlessPatchRequestDto) {
-        val remote = runCatching { api.patchCashlessCard(uid, body) }.getOrNull() ?: return
+        when (val result = patchRemoteResult(uid, body)) {
+            PatchRemoteResult.CardReplaced ->
+                throw ApiException(
+                    409,
+                    "Este cartão foi encerrado/substituído. Faça um novo cadastro (CPF/telefone).",
+                    "card_replaced",
+                )
+            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+        }
+    }
+
+    private suspend fun patchRemoteResult(uid: String, body: CashlessPatchRequestDto): PatchRemoteResult {
+        val remote = runCatching { api.patchCashlessCard(uid, body) }.getOrNull()
+            ?: return PatchRemoteResult.Skipped
         if (remote.isSuccessful) {
             remote.body()?.card?.let { cache(it) }
-            return
+            return PatchRemoteResult.Ok
         }
         val errBody = remote.errorBody()?.string()
+        if (remote.code() == 409 && errorCodeOf(errBody) == "card_replaced") {
+            Log.w(TAG, "patch: card_replaced em $uid — cadastro encerrado")
+            return PatchRemoteResult.CardReplaced
+        }
         // 404 JSON = UID não na nuvem; segue local. 404 HTML = rota inexistente.
-        if (shouldFallback(remote.code(), errBody)) return
+        if (shouldFallback(remote.code(), errBody)) return PatchRemoteResult.Skipped
         throw parseApiError(remote.code(), errBody)
     }
 
-    private suspend fun registerLocal(uid: String, cpf: String, phone: String, cents: Int) {
-        val existingCpf = dao.getByCpf(cpf)
-        if (existingCpf != null && !existingCpf.uidHex.equals(uid, ignoreCase = true)) {
-            error("CPF já vinculado ao cartão ${existingCpf.uidHex}. Use Cartão perdido para transferir.")
+    private enum class PatchRemoteResult { Ok, Skipped, CardReplaced }
+
+    private suspend fun hasTransferOut(uid: String): Boolean =
+        movementDao.listByUid(uid).any { it.type == CashlessMovementType.TRANSF_SAIDA }
+
+    private suspend fun wasReleasedForReuse(uid: String): Boolean {
+        val movements = movementDao.listByUid(uid)
+        val lastSaidaAt = movements
+            .lastOrNull { it.type == CashlessMovementType.TRANSF_SAIDA }
+            ?.createdAt
+            ?: return false
+        // Qualquer zerem depois da transferência libera o UID (reuso na próxima festa).
+        val lastZeroAt = movements
+            .lastOrNull { it.type == CashlessMovementType.ZERAGEM }
+            ?.createdAt
+            ?: return false
+        return lastZeroAt >= lastSaidaAt
+    }
+
+    private fun revokedStub(uid: String): CashlessAccountEntity =
+        CashlessAccountEntity(
+            uidHex = uid.uppercase(),
+            name = "",
+            cpf = "",
+            phone = "",
+            blocked = true,
+            balanceCents = 0,
+            updatedAt = System.currentTimeMillis(),
+        )
+
+    /**
+     * Fallback offline: se a API não respondeu, mantém stub bloqueado após transferência
+     * ainda não liberada. Com API online found:false o getByUid já limpa e retorna null.
+     */
+    private suspend fun resolveMissingRemoteUid(uid: String): CashlessAccountEntity? {
+        val local = dao.getByUid(uid)
+        if (local?.blocked == true) return local
+        if (hasTransferOut(uid) && !wasReleasedForReuse(uid)) {
+            val stub = revokedStub(uid)
+            dao.upsert(stub)
+            return stub
+        }
+        return local
+    }
+
+    private suspend fun registerLocal(
+        uid: String,
+        name: String,
+        cpf: String,
+        phone: String,
+        cents: Int,
+    ) {
+        if (cpf.isNotBlank()) {
+            val existingCpf = dao.getByCpf(cpf)
+            if (existingCpf != null && !existingCpf.uidHex.equals(uid, ignoreCase = true)) {
+                error("CPF já vinculado ao cartão ${existingCpf.uidHex}. Use Cartão perdido para transferir.")
+            }
+        }
+        val previous = dao.getByUid(uid)
+        // Mesmo UID com outro CPF: encerra espelho local e abre cadastro novo (igual backend).
+        if (previous != null &&
+            cpf.isNotBlank() &&
+            previous.cpf.isNotBlank() &&
+            previous.cpf != cpf
+        ) {
+            dao.deleteByUid(uid)
+            Log.i(TAG, "registerLocal: UID $uid reutilizado — CPF ${previous.cpf} → $cpf")
         }
         dao.upsert(
             CashlessAccountEntity(
                 uidHex = uid,
+                name = name.trim(),
                 cpf = cpf,
                 phone = phone,
                 blocked = false,
@@ -295,6 +459,7 @@ class CashlessAccountRepository(
     private suspend fun cache(card: CashlessCardDto): CashlessAccountEntity {
         val entity = CashlessAccountEntity(
             uidHex = card.uidHex.uppercase(),
+            name = card.name.trim(),
             cpf = card.cpf.filter { it.isDigit() },
             phone = card.phone.filter { it.isDigit() },
             blocked = card.blocked,
@@ -317,6 +482,15 @@ class CashlessAccountRepository(
         return t.startsWith("{") || t.startsWith("[")
     }
 
+    private fun errorCodeOf(body: String?): String? {
+        if (body.isNullOrBlank() || !looksLikeJson(body)) return null
+        return runCatching {
+            val root = json.parseToJsonElement(body).jsonObject
+            root["error"]?.jsonPrimitive?.content
+                ?: root["code"]?.jsonPrimitive?.content
+        }.getOrNull()
+    }
+
     private fun parseApiError(code: Int, body: String?): ApiException {
         if (!body.isNullOrBlank() && looksLikeJson(body)) {
             runCatching {
@@ -324,6 +498,8 @@ class CashlessAccountRepository(
                 val errorCode = root["error"]?.jsonPrimitive?.content
                     ?: root["code"]?.jsonPrimitive?.content
                 val message = when (errorCode) {
+                    "invalid_cpf" ->
+                        "CPF inválido. Digite um CPF com 11 dígitos válidos."
                     "cpf_already_linked" -> {
                         val linkedUid = root["uid_hex"]?.jsonPrimitive?.content
                         if (linkedUid != null) {
@@ -332,11 +508,18 @@ class CashlessAccountRepository(
                             "CPF já vinculado a outro cartão. Use Cartão perdido para transferir."
                         }
                     }
-                    "uid_cpf_mismatch" -> "Este cartão já está cadastrado com outro CPF."
+                    "card_replaced" ->
+                        "Este cartão foi encerrado/substituído. Faça um novo cadastro (CPF/telefone)."
+                    "uid_cpf_mismatch" ->
+                        // Backend novo não deve mais retornar isso; mantém mensagem clara se aparecer.
+                        "Este cartão já teve outro CPF. Cadastre de novo com o CPF atual (POST)."
                     "cpf_not_found" -> "CPF não encontrado no cadastro."
                     else -> root["message"]?.jsonPrimitive?.content
-                        ?: root["error"]?.jsonPrimitive?.content
-                        ?: body
+                        ?.takeIf { it.isNotBlank() && !it.equals(errorCode, ignoreCase = true) }
+                        ?: when (errorCode) {
+                            null, "" -> body
+                            else -> "Não foi possível concluir o cadastro ($errorCode)."
+                        }
                 }
                 return ApiException(code, message, errorCode)
             }

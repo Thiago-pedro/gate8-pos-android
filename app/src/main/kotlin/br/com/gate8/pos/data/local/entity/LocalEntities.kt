@@ -37,6 +37,8 @@ object PendingSaleStatus {
 )
 data class CashlessAccountEntity(
     @PrimaryKey val uidHex: String,
+    /** Nome do titular (livre). */
+    val name: String = "",
     /** Somente dígitos. */
     val cpf: String,
     /** Somente dígitos. */
@@ -76,4 +78,6 @@ object CashlessMovementType {
     const val TRANSF_SAIDA = "TRANSF_SAIDA"
     const val TRANSF_ENTRADA = "TRANSF_ENTRADA"
     const val CONSUMO = "CONSUMO"
+    /** Cartão antigo substituído por outro UID (última linha do extrato). */
+    const val SUBSTITUIDO = "SUBSTITUIDO"
 }

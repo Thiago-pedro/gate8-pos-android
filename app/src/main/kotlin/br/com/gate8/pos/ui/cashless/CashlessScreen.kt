@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,8 +50,10 @@ import br.com.gate8.pos.ui.common.Gate8AlertDialog
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8ConfirmModal
 import br.com.gate8.pos.ui.common.Gate8MenuButton
+import br.com.gate8.pos.ui.common.CpfVisualTransformation
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8PaymentMethodsSheet
+import br.com.gate8.pos.ui.common.PhoneVisualTransformation
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.common.Gate8ScreenBackgroundFillWidth
 import br.com.gate8.pos.ui.common.Gate8SuccessDialog
@@ -193,12 +197,21 @@ fun CashlessScreen(
     }
 
     if (state.showConfirmZero) {
+        val revoked = state.accountBlocked
         Gate8ConfirmModal(
-            title = "Zerar saldo?",
-            message = "UID ${state.pendingUid}\n\n" +
-                "Saldo atual R$ ${"%.2f".format(state.recoverBalance)}\n\n" +
-                "Isso apaga o crédito do cartão. Não dá para desfazer.",
-            confirmLabel = "Sim, zerar",
+            title = if (revoked) "Limpar chip?" else "Zerar saldo?",
+            message = if (revoked) {
+                "UID ${state.pendingUid}\n\n" +
+                    "Saldo no sistema: R$ 0,00 (bloqueado/substituído)\n" +
+                    "Residual no chip: R$ ${"%.2f".format(state.recoverBalance)} (não vale)\n\n" +
+                    "Isso só apaga o residual do chip para guardar o cartão zerado " +
+                    "e reusar na próxima festa."
+            } else {
+                "UID ${state.pendingUid}\n\n" +
+                    "Saldo atual R$ ${"%.2f".format(state.recoverBalance)}\n\n" +
+                    "Isso apaga o crédito do cartão. Não dá para desfazer."
+            },
+            confirmLabel = if (revoked) "Sim, limpar chip" else "Sim, zerar",
             dismissLabel = "Cancelar",
             onConfirm = { vm.confirmZeroBalance() },
             onDismiss = { vm.dismissConfirmZero() },
@@ -240,27 +253,6 @@ fun CashlessScreen(
                         .verticalScroll(rememberScrollState())
                         .fillMaxWidth(),
                 ) {
-                    Gate8MenuButton(
-                        title = "Consultar saldo",
-                        subtitle = "Mostra o saldo em um aviso na tela",
-                        onClick = vm::consultBalance,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
-                        title = "Imprimir extrato",
-                        subtitle = "Toda a movimentação deste cartão nesta maquininha",
-                        onClick = vm::printStatement,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
                     Gate8OutlinedTextField(
                         value = state.amountInput,
                         onValueChange = vm::onAmountChange,
@@ -295,9 +287,19 @@ fun CashlessScreen(
 
                     Spacer(Modifier.height(12.dp))
                     Gate8MenuButton(
-                        title = "Zerar saldo",
-                        subtitle = "Apaga o crédito do cartão aproximado",
-                        onClick = vm::startZeroBalance,
+                        title = "Consultar saldo",
+                        subtitle = "Mostra o saldo em um aviso na tela",
+                        onClick = vm::consultBalance,
+                        enabled = !busy,
+                        dimWhenDisabled = false,
+                        centerText = true,
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+                    Gate8MenuButton(
+                        title = "Imprimir extrato",
+                        subtitle = "Toda a movimentação deste cartão nesta maquininha",
+                        onClick = vm::printStatement,
                         enabled = !busy,
                         dimWhenDisabled = false,
                         centerText = true,
@@ -306,7 +308,7 @@ fun CashlessScreen(
                     Spacer(Modifier.height(12.dp))
                     Gate8MenuButton(
                         title = "Opções do cartão",
-                        subtitle = "Perda/roubo · bloquear · desbloquear · recuperar saldo",
+                        subtitle = "Perda/roubo · bloquear · desbloquear · zerar · recuperar",
                         onClick = vm::openCardOptions,
                         enabled = !busy,
                         dimWhenDisabled = false,
@@ -317,8 +319,10 @@ fun CashlessScreen(
                         Spacer(Modifier.height(18.dp))
                         CardInfoCard(
                             card = card,
+                            name = state.accountName,
                             cpf = state.accountCpf,
                             phone = state.accountPhone,
+                            accountBlocked = state.accountBlocked,
                         )
                     }
 
@@ -334,6 +338,7 @@ fun CashlessScreen(
             onBlock = vm::chooseBlockCard,
             onUnblock = vm::chooseUnblockCard,
             onRecover = vm::chooseRecoverBalance,
+            onZeroBalance = vm::chooseZeroBalance,
             onDismiss = vm::dismissCardOptions,
         )
     }
@@ -357,56 +362,17 @@ fun CashlessScreen(
     }
 
     if (state.showRegisterSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { vm.dismissRegisterSheet() },
-            containerColor = Color.Transparent,
-        ) {
-            Gate8ScreenBackgroundFillWidth {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
-                        .padding(bottom = 32.dp),
-                ) {
-                    Text(
-                        "Cadastro do cartão",
-                        color = Gate8Colors.TextPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "UID ${state.pendingUid ?: "—"}",
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
-                    )
-                    Gate8OutlinedTextField(
-                        value = state.registerCpfInput,
-                        onValueChange = vm::onRegisterCpfChange,
-                        label = "CPF",
-                        placeholder = "00000000000",
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Gate8OutlinedTextField(
-                        value = state.registerPhoneInput,
-                        onValueChange = vm::onRegisterPhoneChange,
-                        label = "Telefone / WhatsApp",
-                        placeholder = "999999999",
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Gate8MenuButton(
-                        title = "Salvar e continuar",
-                        subtitle = "Depois você escolhe como pagar a recarga",
-                        onClick = vm::submitRegister,
-                        centerText = true,
-                    )
-                }
-            }
-        }
+        CashlessRegisterCardModal(
+            uidHex = state.pendingUid,
+            name = state.registerNameInput,
+            cpf = state.registerCpfInput,
+            phone = state.registerPhoneInput,
+            onNameChange = vm::onRegisterNameChange,
+            onCpfChange = vm::onRegisterCpfChange,
+            onPhoneChange = vm::onRegisterPhoneChange,
+            onSubmit = vm::submitRegister,
+            onDismiss = vm::dismissRegisterSheet,
+        )
     }
 
     if (state.showLostCpfSheet) {
@@ -454,13 +420,18 @@ fun CashlessScreen(
 }
 
 @Composable
-private fun CashlessCardOptionsModal(
-    onLostOrStolen: () -> Unit,
-    onBlock: () -> Unit,
-    onUnblock: () -> Unit,
-    onRecover: () -> Unit,
+private fun CashlessRegisterCardModal(
+    uidHex: String?,
+    name: String,
+    cpf: String,
+    phone: String,
+    onNameChange: (String) -> Unit,
+    onCpfChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
+    onSubmit: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.92f).dp
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -475,10 +446,116 @@ private fun CashlessCardOptionsModal(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = 20.dp)
+                    .heightIn(max = maxHeight)
                     .clip(RoundedCornerShape(22.dp))
                     .background(Color.White)
                     .clickable(enabled = false, onClick = {})
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Cadastro do cartão",
+                    color = Gate8Colors.TextPrimary,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "UID ${uidHex ?: "—"}",
+                    color = Gate8Colors.AccentBlue,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Gate8Colors.AccentBlue.copy(alpha = 0.10f))
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+                Spacer(Modifier.height(20.dp))
+                Gate8OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = "Nome (opcional)",
+                    placeholder = "Nome do cliente",
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                )
+                Spacer(Modifier.height(12.dp))
+                Gate8OutlinedTextField(
+                    value = cpf,
+                    onValueChange = onCpfChange,
+                    label = "CPF",
+                    placeholder = "000.000.000-00",
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = CpfVisualTransformation,
+                )
+                Spacer(Modifier.height(12.dp))
+                Gate8OutlinedTextField(
+                    value = phone,
+                    onValueChange = onPhoneChange,
+                    label = "Celular (opcional)",
+                    placeholder = "(00) 00000-0000",
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    visualTransformation = PhoneVisualTransformation,
+                )
+                Spacer(Modifier.height(20.dp))
+                Gate8MenuButton(
+                    title = "Salvar e continuar",
+                    subtitle = "Depois você escolhe como pagar a recarga",
+                    onClick = onSubmit,
+                    centerText = true,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Cancelar",
+                    color = Gate8Colors.AccentBlue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable(onClick = onDismiss)
+                        .padding(vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CashlessCardOptionsModal(
+    onLostOrStolen: () -> Unit,
+    onBlock: () -> Unit,
+    onUnblock: () -> Unit,
+    onRecover: () -> Unit,
+    onZeroBalance: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .heightIn(max = maxHeight)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color.White)
+                    .clickable(enabled = false, onClick = {})
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -515,6 +592,13 @@ private fun CashlessCardOptionsModal(
                     title = "Desbloquear",
                     subtitle = "Libera de novo o cartão aproximado",
                     onClick = onUnblock,
+                    centerText = true,
+                )
+                Spacer(Modifier.height(10.dp))
+                Gate8MenuButton(
+                    title = "Zerar saldo",
+                    subtitle = "Apaga o crédito / limpa residual do chip",
+                    onClick = onZeroBalance,
                     centerText = true,
                 )
                 Spacer(Modifier.height(10.dp))
@@ -708,8 +792,10 @@ private fun CashlessWaitingCardModal(
 @Composable
 private fun CardInfoCard(
     card: CashlessCardSnapshot,
+    name: String?,
     cpf: String?,
     phone: String?,
+    accountBlocked: Boolean = false,
 ) {
     Column(
         Modifier
@@ -726,16 +812,17 @@ private fun CardInfoCard(
         )
         Spacer(Modifier.height(10.dp))
         InfoRow("UID", card.uidHex)
+        name?.takeIf { it.isNotBlank() }?.let { InfoRow("Nome", it) }
         cpf?.let { InfoRow("CPF", maskCpfDisplay(it)) }
         phone?.let { InfoRow("Telefone", it) }
         when {
-            card.isBlocked -> {
+            card.isBlocked || accountBlocked -> {
                 InfoRow(
                     "Saldo",
                     "R$ ${"%.2f".format(card.balanceReais ?: 0.0)}",
                     highlight = true,
                 )
-                InfoRow("Status", "Bloqueado")
+                InfoRow("Status", "Bloqueado · não liberado para uso")
             }
             card.isGate8Format && card.balanceReais != null -> {
                 InfoRow("Saldo", "R$ ${"%.2f".format(card.balanceReais)}", highlight = true)

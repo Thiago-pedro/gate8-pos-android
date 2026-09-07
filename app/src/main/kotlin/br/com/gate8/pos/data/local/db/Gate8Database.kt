@@ -18,7 +18,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleEntity
         CashlessAccountEntity::class,
         CashlessMovementEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class Gate8Database : RoomDatabase() {
