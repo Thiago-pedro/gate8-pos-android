@@ -28,6 +28,12 @@ interface CashlessCardGateway {
     ): CashlessCardSnapshot
 
     /**
+     * Apaga o bloco de saldo Gate8 (16 bytes zerados) — cartão em branco para reuso.
+     * [requireUid]: aborta se o cartão aproximado NÃO for este UID.
+     */
+    suspend fun wipeCard(requireUid: String? = null): CashlessCardSnapshot
+
+    /**
      * Debita [amountReais] do saldo Gate8 (pagamento na conveniência).
      * Recusa cartão bloqueado, sem formato Gate8 ou saldo insuficiente.
      */

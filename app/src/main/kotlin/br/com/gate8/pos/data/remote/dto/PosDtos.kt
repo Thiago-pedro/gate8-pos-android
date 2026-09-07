@@ -329,3 +329,10 @@ data class CashlessReassignRequestDto(
     @SerialName("new_uid_hex") val newUidHex: String,
     @SerialName("balance_cents") val balanceCents: Int,
 )
+
+@Serializable
+data class CashlessCloseResponseDto(
+    val ok: Boolean = true,
+    @SerialName("uid_hex") val uidHex: String? = null,
+    val message: String? = null,
+)

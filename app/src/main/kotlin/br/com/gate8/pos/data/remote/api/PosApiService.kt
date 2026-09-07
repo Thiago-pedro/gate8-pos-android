@@ -26,6 +26,7 @@ import br.com.gate8.pos.data.remote.dto.CashlessCardLookupDto
 import br.com.gate8.pos.data.remote.dto.CashlessCardResponseDto
 import br.com.gate8.pos.data.remote.dto.CashlessPatchRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessReassignRequestDto
+import br.com.gate8.pos.data.remote.dto.CashlessCloseResponseDto
 import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -128,4 +129,8 @@ interface PosApiService {
 
     @POST("api/public/pos/cashless/cards/reassign")
     suspend fun reassignCashlessCard(@Body body: CashlessReassignRequestDto): Response<CashlessCardResponseDto>
+
+    /** Encerra o cadastro ativo do UID (histórico permanece; GET passa a found:false). */
+    @POST("api/public/pos/cashless/cards/{uid}/close")
+    suspend fun closeCashlessCard(@Path("uid") uidHex: String): Response<CashlessCloseResponseDto>
 }

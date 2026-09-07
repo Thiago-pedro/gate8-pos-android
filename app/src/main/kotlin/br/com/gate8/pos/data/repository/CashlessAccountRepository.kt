@@ -69,12 +69,34 @@ class CashlessAccountRepository(
         return hasTransferOut(uid)
     }
 
+    /** Após zerar/limpar o chip: encerra cadastro ativo no Lovable e apaga espelho local. */
+    suspend fun closeCard(uidHex: String) {
+        val uid = uidHex.uppercase()
+        val remote = runCatching { api.closeCashlessCard(uid) }.getOrNull()
+        if (remote != null) {
+            if (remote.isSuccessful || remote.code() == 404) {
+                // 404 = já não há cadastro ativo — equivalente a encerrado.
+                dao.deleteByUid(uid)
+                return
+            }
+            val errBody = remote.errorBody()?.string()
+            if (remote.code() == 409 && errorCodeOf(errBody) == "card_replaced") {
+                dao.deleteByUid(uid)
+                return
+            }
+            if (!shouldFallback(remote.code(), errBody)) {
+                throw parseApiError(remote.code(), errBody)
+            }
+            Log.w(TAG, "closeCard: API ${remote.code()} — encerrando só local")
+        } else {
+            Log.w(TAG, "closeCard: sem rede/API — encerrando só local")
+        }
+        dao.deleteByUid(uid)
+    }
+
     /** Após zerar residual de cartão substituído, libera o UID para nova festa. */
     suspend fun releaseUidForReuse(uidHex: String) {
-        val uid = uidHex.uppercase()
-        dao.deleteByUid(uid)
-        // Não faz PATCH: cartão encerrado na nuvem responde 409 card_replaced.
-        // O próximo uso é um POST de cadastro novo.
+        closeCard(uidHex)
     }
 
     suspend fun getByCpf(cpfDigits: String): CashlessAccountEntity? {

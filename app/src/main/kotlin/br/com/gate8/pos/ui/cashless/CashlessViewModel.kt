@@ -499,7 +499,7 @@ class CashlessViewModel(
                     waitingCard = true,
                     showConfirmZero = false,
                     error = null,
-                    message = "Aproxime o cartão para zerar o saldo…",
+                    message = "Aproxime o cartão para zerar e encerrar…",
                 )
             }
             runCatching {
@@ -508,69 +508,36 @@ class CashlessViewModel(
                 val revoked = snap.isBlocked ||
                     account?.blocked == true ||
                     runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
+                val chipBalance = if (snap.isGate8Format) (snap.balanceReais ?: 0.0) else 0.0
+                val hasActiveCadastro = account != null || revoked
 
-                // Sem formato Gate8 = falha de leitura/auth — NÃO é “já zerado”.
-                if (!snap.isGate8Format) {
+                if (!snap.isGate8Format && !hasActiveCadastro) {
                     _state.update {
                         it.copy(
                             loading = false,
                             waitingCard = false,
                             card = snap,
-                            accountBlocked = revoked,
-                            accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
-                            accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
-                            error = "Não deu para ler o saldo do chip. " +
-                                "Aproxime o cartão de novo (fique parado até terminar) e tente zerar.",
+                            error = "Cartão já está em branco e sem cadastro ativo.",
                             message = null,
                         )
                     }
                     return@runCatching
                 }
 
-                val chipBalance = snap.balanceReais ?: 0.0
-                if (chipBalance <= 0.0) {
-                    if (revoked) {
-                        // Chip realmente zerado, mas ainda constava bloqueado: libera para reuso.
-                        accounts.recordMovement(
-                            uidHex = snap.uidHex,
-                            type = CashlessMovementType.ZERAGEM,
-                            amountCents = 0,
-                            balanceAfterCents = 0,
-                            cpf = account?.cpf?.takeIf { it.isNotBlank() },
-                            note = "REUSO · chip já estava zerado",
-                        )
-                        accounts.releaseUidForReuse(snap.uidHex)
-                        _state.update {
-                            it.copy(
-                                loading = false,
-                                waitingCard = false,
-                                card = snap,
-                                accountBlocked = false,
-                                accountCpf = null,
-                                accountPhone = null,
-                                showConfirmZero = false,
-                                message = "Chip já estava zerado. Cartão liberado para reuso.",
-                                error = null,
-                            )
-                        }
-                        return@runCatching
-                    }
+                if (snap.isGate8Format && chipBalance <= 0.0 && !hasActiveCadastro) {
                     _state.update {
                         it.copy(
                             loading = false,
                             waitingCard = false,
                             card = snap,
-                            accountBlocked = false,
-                            accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
-                            accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
-                            error = "Cartão já está zerado.",
+                            error = "Cartão já está zerado e sem cadastro ativo.",
                             message = null,
                         )
                     }
                     return@runCatching
                 }
 
-                // Tem saldo no chip (mesmo residual de cartão bloqueado) → confirma e apaga.
+                // Tem saldo no chip e/ou cadastro ativo → confirma limpeza + encerramento.
                 _state.update {
                     it.copy(
                         loading = false,
@@ -578,7 +545,8 @@ class CashlessViewModel(
                         card = snap,
                         pendingUid = snap.uidHex,
                         recoverBalance = chipBalance,
-                        accountBlocked = revoked,
+                        accountBlocked = hasActiveCadastro,
+                        accountName = account?.name?.takeIf { n -> n.isNotBlank() },
                         accountCpf = account?.cpf?.takeIf { c -> c.isNotBlank() },
                         accountPhone = account?.phone?.takeIf { p -> p.isNotBlank() },
                         showConfirmZero = true,
@@ -613,37 +581,31 @@ class CashlessViewModel(
     fun confirmZeroBalance() {
         val uid = _state.value.pendingUid ?: return
         val previousBalance = _state.value.recoverBalance
-        val wasRevoked = _state.value.accountBlocked
+        val cpf = _state.value.accountCpf
         viewModelScope.launch {
             _state.update {
                 it.copy(
                     showConfirmZero = false,
                     loading = true,
                     waitingCard = true,
-                    message = "Aproxime o mesmo cartão para zerar…",
+                    message = "Aproxime o mesmo cartão para limpar e encerrar…",
                     error = null,
                 )
             }
-            runCatching { cashless.writeBalance(0.0, blocked = false, requireUid = uid) }
+            runCatching {
+                val snap = cashless.wipeCard(requireUid = uid)
+                accounts.recordMovement(
+                    uidHex = uid,
+                    type = CashlessMovementType.ZERAGEM,
+                    amountCents = -((previousBalance * 100).roundToInt()),
+                    balanceAfterCents = 0,
+                    cpf = cpf,
+                    note = "ENCERRAMENTO · chip limpo e cadastro encerrado",
+                )
+                accounts.closeCard(uid)
+                snap
+            }
                 .onSuccess { snap ->
-                    val forReuse = wasRevoked
-                    accounts.recordMovement(
-                        uidHex = uid,
-                        type = CashlessMovementType.ZERAGEM,
-                        amountCents = -((previousBalance * 100).roundToInt()),
-                        balanceAfterCents = 0,
-                        cpf = _state.value.accountCpf,
-                        note = if (forReuse) {
-                            "REUSO · limpeza de residual no chip"
-                        } else {
-                            "Zerar saldo"
-                        },
-                    )
-                    if (forReuse) {
-                        accounts.releaseUidForReuse(uid)
-                    } else {
-                        accounts.updateBalance(uid, 0)
-                    }
                     _state.update {
                         it.copy(
                             loading = false,
@@ -652,13 +614,11 @@ class CashlessViewModel(
                             pendingUid = null,
                             recoverBalance = 0.0,
                             accountBlocked = false,
+                            accountName = null,
                             accountCpf = null,
                             accountPhone = null,
-                            message = if (forReuse) {
-                                "Chip limpo e liberado para reuso na próxima festa."
-                            } else {
-                                "Saldo zerado."
-                            },
+                            message = "Cartão limpo e encerrado no sistema. " +
+                                "Pode cadastrar de novo na próxima festa.",
                             error = null,
                         )
                     }
@@ -668,7 +628,10 @@ class CashlessViewModel(
                         it.copy(
                             loading = false,
                             waitingCard = false,
-                            error = friendlyCardError(e),
+                            error = when (e) {
+                                is ApiException -> friendlyAccountError(e)
+                                else -> friendlyCardError(e)
+                            },
                             message = null,
                         )
                     }

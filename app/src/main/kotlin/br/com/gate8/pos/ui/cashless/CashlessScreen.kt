@@ -197,21 +197,18 @@ fun CashlessScreen(
     }
 
     if (state.showConfirmZero) {
-        val revoked = state.accountBlocked
         Gate8ConfirmModal(
-            title = if (revoked) "Limpar chip?" else "Zerar saldo?",
-            message = if (revoked) {
-                "UID ${state.pendingUid}\n\n" +
-                    "Saldo no sistema: R$ 0,00 (bloqueado/substituído)\n" +
-                    "Residual no chip: R$ ${"%.2f".format(state.recoverBalance)} (não vale)\n\n" +
-                    "Isso só apaga o residual do chip para guardar o cartão zerado " +
-                    "e reusar na próxima festa."
-            } else {
-                "UID ${state.pendingUid}\n\n" +
-                    "Saldo atual R$ ${"%.2f".format(state.recoverBalance)}\n\n" +
-                    "Isso apaga o crédito do cartão. Não dá para desfazer."
+            title = "Zerar e encerrar cartão?",
+            message = buildString {
+                append("UID ${state.pendingUid}\n\n")
+                state.accountName?.takeIf { it.isNotBlank() }?.let { append("Nome: $it\n") }
+                state.accountCpf?.takeIf { it.isNotBlank() }?.let { append("CPF: $it\n") }
+                append("Saldo no chip: R$ ${"%.2f".format(state.recoverBalance)}\n\n")
+                append("Isso apaga o saldo do chip, remove os dados do cliente ")
+                append("e encerra o cartão no sistema (não fica mais ativo).\n")
+                append("Não dá para desfazer.")
             },
-            confirmLabel = if (revoked) "Sim, limpar chip" else "Sim, zerar",
+            confirmLabel = "Sim, zerar e encerrar",
             dismissLabel = "Cancelar",
             onConfirm = { vm.confirmZeroBalance() },
             onDismiss = { vm.dismissConfirmZero() },
@@ -596,8 +593,8 @@ private fun CashlessCardOptionsModal(
                 )
                 Spacer(Modifier.height(10.dp))
                 Gate8MenuButton(
-                    title = "Zerar saldo",
-                    subtitle = "Apaga o crédito / limpa residual do chip",
+                    title = "Zerar / encerrar cartão",
+                    subtitle = "Limpa o chip e encerra o cadastro no sistema",
                     onClick = onZeroBalance,
                     centerText = true,
                 )

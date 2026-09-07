@@ -144,6 +144,37 @@ class CieloMifareClient(
             }
         }
 
+    override suspend fun wipeCard(requireUid: String?): CashlessCardSnapshot =
+        mutex.withLock {
+            withContext(Dispatchers.Main.immediate) {
+                try {
+                    val uid = detect()
+                    val uidHex = Gate8CashlessBalanceCodec.uidToHex(uid)
+                    if (requireUid != null && !uidHex.equals(requireUid, ignoreCase = true)) {
+                        throw CashlessOperationException(
+                            "WRONG_CARD",
+                            "Cartão diferente do esperado ($requireUid). Aproxime o cartão certo.",
+                        )
+                    }
+                    authenticateBestEffort(BALANCE_SECTOR)
+                        ?: throw CashlessOperationException(
+                            "AUTH",
+                            "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                        )
+                    val blank = ByteArray(16) { 0 }
+                    writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, blank)
+                    val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                    snapshot(
+                        uid,
+                        written,
+                        message = "Cartão limpo · em branco para novo cadastro",
+                    )
+                } finally {
+                    runCatching { deactivate() }
+                }
+            }
+        }
+
     override suspend fun debit(amountReais: Double): CashlessCardSnapshot = mutex.withLock {
         require(amountReais > 0.0) { "Informe um valor maior que zero" }
         val debitCents = (amountReais * 100.0).roundToInt()
