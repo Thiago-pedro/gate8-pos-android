@@ -10,6 +10,7 @@ import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.TicketPrintPayload
+import br.com.gate8.pos.printer.ThermalQrBitmap
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,9 +74,24 @@ class CieloReceiptPrinter(
 
     override fun printTicket(payload: TicketPrintPayload) {
         runCatching {
-            val lines = Gate8ReceiptTextBuilder.ticketTopLines(payload) +
-                Gate8ReceiptTextBuilder.ticketBottomLines(payload)
-            CieloPrintClient.printLines(lines)
+            val logoPath = CieloLogoBitmap.prepareTicketLogoPath(appContext)
+            val qrPath = ThermalQrBitmap.prepareQrPath(appContext, payload.qrPayload)
+            val topText = Gate8ReceiptTextBuilder.ticketTopLines(payload).joinToString("\n")
+            val bottomText = buildString {
+                Gate8ReceiptTextBuilder.ticketMidLines(payload).forEach { appendLine(it) }
+                appendLine(Gate8ReceiptTextBuilder.ticketStatusLine(payload))
+                Gate8ReceiptTextBuilder.ticketIssuedLines(payload).forEach { appendLine(it) }
+                Gate8ReceiptTextBuilder.ticketDisclaimerLines().forEach { appendLine(it) }
+                // Avanço de papel no mesmo bloco — evita corte na guilhotina
+                repeat(10) { appendLine() }
+            }
+            CieloPrintClient.printGate8Ticket(
+                logoPath = logoPath,
+                qrPath = qrPath,
+                topText = topText,
+                manualText = Gate8ReceiptTextBuilder.ticketManualLine(payload),
+                bottomText = bottomText,
+            )
         }.onFailure { Log.e(TAG, "printTicket falhou", it) }
     }
 

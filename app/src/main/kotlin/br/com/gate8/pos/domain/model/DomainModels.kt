@@ -59,11 +59,31 @@ data class CheckinResult(
     val holderName: String? = null,
 )
 
-/** Ingressos emitidos para um item da venda (item_index → códigos dos tickets). */
+/** Um ingresso emitido pelo backend, pronto para impressão térmica. */
+data class IssuedTicket(
+    val id: String,
+    val code: String,
+    val qrPayload: String,
+    val manualCode: String,
+    val holderName: String? = null,
+    val eventName: String? = null,
+    val batchName: String? = null,
+    val eventDate: String? = null,
+    val venue: String? = null,
+    val price: Double? = null,
+    val statusLabel: String? = null,
+    val issuedAt: String? = null,
+    val purchaseCode: String? = null,
+)
+
+/** Ingressos emitidos para um item da venda (item_index → tickets). */
 data class SaleTicketGroup(
     val itemIndex: Int,
-    val codes: List<String>,
-)
+    val tickets: List<IssuedTicket>,
+) {
+    /** Códigos hex (compatibilidade). */
+    val codes: List<String> get() = tickets.map { it.code }
+}
 
 data class SaleSuccess(
     val saleId: String,

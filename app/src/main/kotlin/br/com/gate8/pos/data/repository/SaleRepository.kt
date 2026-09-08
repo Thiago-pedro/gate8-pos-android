@@ -8,8 +8,8 @@ import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.ApiErrorDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.VoidSaleRequestDto
+import br.com.gate8.pos.data.remote.dto.toDomain
 import br.com.gate8.pos.domain.model.SaleSuccess
-import br.com.gate8.pos.domain.model.SaleTicketGroup
 import kotlinx.serialization.json.Json
 
 class SaleRepository(
@@ -50,9 +50,7 @@ class SaleRepository(
                     ?: throw ApiException(response.code(), "Resposta vazia do servidor")
                 val saleId = body.saleId
                     ?: throw ApiException(response.code(), "sale_id ausente na resposta")
-                val groups = body.tickets.map { g ->
-                    SaleTicketGroup(itemIndex = g.itemIndex, codes = g.tickets.map { it.code })
-                }
+                val groups = body.tickets.map { it.toDomain() }
                 pendingSaleDao.upsert(
                     PendingSaleEntity(
                         clientReference = request.clientReference,

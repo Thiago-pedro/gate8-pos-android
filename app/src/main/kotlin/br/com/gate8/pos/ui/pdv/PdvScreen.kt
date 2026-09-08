@@ -69,6 +69,12 @@ import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
 import org.koin.androidx.compose.koinViewModel
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -551,11 +557,13 @@ private fun TicketBatchCard(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    if (soldOut) "Esgotado" else "disp: ${batch.available}",
-                    color = if (soldOut) Gate8Colors.Error else Gate8Colors.TextSecondary,
-                    fontSize = 11.sp,
-                )
+                if (soldOut) {
+                    Text(
+                        "Esgotado",
+                        color = Gate8Colors.Error,
+                        fontSize = 11.sp,
+                    )
+                }
             }
             if (soldOut) {
                 Text(
@@ -576,11 +584,18 @@ private fun TicketBatchCard(
     }
 }
 
+/** Converte ISO da API (UTC com Z) para horário de Brasília — não usar o HH:mm cru do UTC. */
 private fun formatEventDate(iso: String): String {
-    val datePart = iso.substringBefore('T')
-    val parts = datePart.split('-')
-    if (parts.size != 3) return iso.take(16).replace('T', ' ')
-    val timePart = iso.substringAfter('T', "").take(5)
-    val formattedDate = "${parts[2]}/${parts[1]}/${parts[0]}"
-    return if (timePart.length >= 5) "$formattedDate às $timePart" else formattedDate
+    return runCatching {
+        OffsetDateTime.parse(iso).atZoneSameInstant(eventZone).format(eventDateFmt)
+    }.recoverCatching {
+        LocalDateTime.parse(iso.substringBefore('.').removeSuffix("Z")).format(eventDateFmt)
+    }.recoverCatching {
+        LocalDate.parse(iso.substringBefore('T')).format(eventDateOnlyFmt)
+    }.getOrDefault(iso)
 }
+
+private val brLocale = Locale("pt", "BR")
+private val eventZone = ZoneId.of("America/Sao_Paulo")
+private val eventDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
+private val eventDateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)

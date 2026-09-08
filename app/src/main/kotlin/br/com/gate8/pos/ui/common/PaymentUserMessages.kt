@@ -20,6 +20,15 @@ object PaymentUserMessages {
         "Terminal Cielo ainda não liberado para pagamento (opt-in). " +
             "Avise o suporte Cielo Smart (integracaosmart@cielo.com.br) com o código do erro."
 
+    /**
+     * Cielo respondeu que a cobrança já tinha sido feita (ex.: retry logo após
+     * uma tentativa aprovada / mesma janela de anti-duplicidade).
+     */
+    const val CIELO_ALREADY_DONE =
+        "Esta cobrança já foi processada na maquininha. " +
+            "Confira se o pagamento anterior foi aprovado e se a venda/ingresso saiu. " +
+            "Não cobre de novo sem confirmar."
+
     fun failureReason(error: Throwable?): String {
         if (error == null) return DEFAULT_FAILURE
         if (error is PaymentTimedOutException) {
@@ -31,7 +40,7 @@ object PaymentUserMessages {
     }
 
     private fun formatApiException(error: ApiException): String {
-        val message = error.message?.trim().orEmpty()
+        val message = stripLeadingErrorCodes(error.message?.trim().orEmpty())
         when (error.errorCode?.lowercase()) {
             "failed", "rejected" ->
                 return message.takeIf { it.isNotBlank() } ?: "Pagamento recusado na maquininha."
@@ -50,6 +59,9 @@ object PaymentUserMessages {
         val combined = "$message $rootMessage"
 
         cieloOptinMessage(combined)?.let { return it }
+        cieloAlreadyDoneMessage(combined)?.let { return it }
+
+        val cleaned = stripLeadingErrorCodes(message.ifBlank { rootMessage })
 
         return when {
             root is SocketTimeoutException ||
@@ -76,7 +88,7 @@ object PaymentUserMessages {
             message.contains("autentica", ignoreCase = true) ->
                 "Credenciais Cielo rejeitadas. Confira CIELO_CLIENT_ID e CIELO_ACCESS_TOKEN."
 
-            message.isNotBlank() -> ensureSentence(message)
+            cleaned.isNotBlank() -> ensureSentence(cleaned)
             else -> DEFAULT_FAILURE
         }
     }
@@ -91,6 +103,34 @@ object PaymentUserMessages {
             return CIELO_OPTIN
         }
         return null
+    }
+
+    /** "Transação já efetuada" / código -4281 — não mostrar números crus na UI. */
+    fun cieloAlreadyDoneMessage(raw: String): String? {
+        val text = raw.lowercase()
+            .replace('á', 'a')
+            .replace('ã', 'a')
+        if (
+            text.contains("ja efetuada") ||
+            text.contains("already") && text.contains("transaction") ||
+            text.contains("-4281")
+        ) {
+            return CIELO_ALREADY_DONE
+        }
+        return null
+    }
+
+    /**
+     * Remove prefixos tipo `2, -4281, ` que a Cielo devolve junto com o motivo.
+     * Ex.: `2, -4281, Transação já efetuada.` → `Transação já efetuada.`
+     */
+    fun stripLeadingErrorCodes(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return trimmed
+        val stripped = trimmed
+            .replace(Regex("""^(?:\s*-?\d+\s*,)+\s*"""), "")
+            .trim()
+        return stripped.ifBlank { trimmed }
     }
 
     private fun ensureSentence(text: String): String {

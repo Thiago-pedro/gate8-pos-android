@@ -3,9 +3,9 @@ package br.com.gate8.pos.payment
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.dto.ReconcileMpOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.ReconcileMpOrderResponseDto
+import br.com.gate8.pos.data.remote.dto.toDomain
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.SaleSuccess
-import br.com.gate8.pos.domain.model.SaleTicketGroup
 
 /**
  * Tenta registrar venda no Gate8 quando o pagamento foi aprovado na Point
@@ -54,9 +54,7 @@ class MpOrderReconciliation(
     }
 
     private fun ReconcileMpOrderResponseDto.toSaleSuccess(saleId: String): SaleSuccess {
-        val groups = tickets.map { g ->
-            SaleTicketGroup(itemIndex = g.itemIndex, codes = g.tickets.map { it.code })
-        }
+        val groups = tickets.map { it.toDomain() }
         return SaleSuccess(
             saleId = saleId,
             duplicated = duplicated,

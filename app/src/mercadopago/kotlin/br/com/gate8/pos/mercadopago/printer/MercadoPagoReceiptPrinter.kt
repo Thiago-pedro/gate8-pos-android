@@ -49,7 +49,7 @@ class MercadoPagoReceiptPrinter : ReceiptPrinter {
     }
 
     override fun printTicket(payload: TicketPrintPayload) {
-        Log.i(TAG, "=== GATE8 INGRESSO (MP) === ${payload.eventName} code=${payload.validationCode}")
+        Log.i(TAG, "=== GATE8 INGRESSO (MP) === ${payload.eventName} qr=${payload.qrPayload}")
     }
 
     override fun printReportSummary(payload: ReportPrintPayload) {

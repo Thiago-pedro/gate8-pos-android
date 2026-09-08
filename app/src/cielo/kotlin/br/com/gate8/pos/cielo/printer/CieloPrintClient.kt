@@ -75,6 +75,27 @@ internal object CieloPrintClient {
         }
     }
 
+    /**
+     * Ingresso bilheteria — layout compacto do site Gate8.
+     * Poucas chamadas PRINT_* (cada uma abre margem na bobina) + avanço no fim.
+     */
+    fun printGate8Ticket(
+        logoPath: String?,
+        qrPath: String?,
+        topText: String,
+        manualText: String,
+        bottomText: String,
+    ) {
+        enqueuePrint {
+            logoPath?.let { path -> printImageAsync(path) }
+            printTextAsync(topText, ALIGN_CENTER, 20)
+            qrPath?.let { path -> printImageAsync(path) }
+            printTextAsync(manualText, ALIGN_CENTER, 26)
+            // Rodapé (validação / compra / válido / emitido / aviso) — fonte maior
+            printTextAsync(bottomText, ALIGN_CENTER, 22, formFeed = true)
+        }
+    }
+
     private fun enqueuePrint(block: suspend () -> Unit) {
         worker.execute {
             runBlocking {
@@ -84,7 +105,12 @@ internal object CieloPrintClient {
         }
     }
 
-    private suspend fun printTextAsync(text: String, align: Int, textSize: Int) {
+    private suspend fun printTextAsync(
+        text: String,
+        align: Int,
+        textSize: Int,
+        formFeed: Boolean = false,
+    ) {
         if (text.isBlank()) return
         val body = baseBody().apply {
             put("operation", "PRINT_TEXT")
@@ -95,6 +121,7 @@ internal object CieloPrintClient {
                         put("key_attributes_align", align)
                         put("key_attributes_textsize", textSize)
                         put("key_attributes_typeface", 1)
+                        if (formFeed) put("form_feed", 1)
                     },
                 ),
             )

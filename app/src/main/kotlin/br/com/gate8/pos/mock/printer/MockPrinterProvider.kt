@@ -4,6 +4,7 @@ import android.util.Log
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.CashlessStatementPayload
+import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -55,16 +56,10 @@ class MockPrinterProvider : ReceiptPrinter {
 
     override fun printTicket(payload: TicketPrintPayload) {
         val sb = StringBuilder("=== GATE8 INGRESSO (MOCK) ===\n")
-        sb.append("${payload.eventName}\n")
-        if (payload.batchName.isNotBlank()) sb.append("${payload.batchName}\n")
-        payload.eventDateLabel?.let { sb.append("Data: $it\n") }
-        payload.venue?.let { sb.append("Local: $it\n") }
-        payload.holderName?.let { sb.append("Portador: $it\n") }
-        sb.append("Preco: R$ ${"%.2f".format(payload.price)}\n")
-        sb.append("[QR] ${payload.validationCode}\n")
-        sb.append("Codigo manual: ${payload.validationCode}\n")
-        payload.purchaseCode?.let { sb.append("Compra: $it\n") }
-        sb.append("** VALIDO **\n================================\n")
+        Gate8ReceiptTextBuilder.ticketTopLines(payload).forEach { sb.appendLine(it) }
+        sb.append("[QR] ${payload.qrPayload}\n")
+        Gate8ReceiptTextBuilder.ticketBottomLines(payload).forEach { sb.appendLine(it) }
+        sb.append("================================\n")
         Log.i(TAG, sb.toString())
     }
 

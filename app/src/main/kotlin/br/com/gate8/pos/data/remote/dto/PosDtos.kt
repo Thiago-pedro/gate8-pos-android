@@ -151,6 +151,20 @@ data class SaleTicketGroupDto(
 data class TicketCodeDto(
     val id: String,
     val code: String,
+    /** Conteúdo exato do QR (= code no contrato atual Gate8). */
+    @SerialName("qr_payload") val qrPayload: String? = null,
+    /** Código curto de portaria (8 chars); impressão espaçada no app. */
+    @SerialName("manual_code") val manualCode: String? = null,
+    @SerialName("holder_name") val holderName: String? = null,
+    @SerialName("event_name") val eventName: String? = null,
+    @SerialName("batch_name") val batchName: String? = null,
+    @SerialName("event_date") val eventDate: String? = null,
+    val venue: String? = null,
+    val price: Double? = null,
+    val status: String? = null,
+    @SerialName("status_label") val statusLabel: String? = null,
+    @SerialName("issued_at") val issuedAt: String? = null,
+    @SerialName("purchase_code") val purchaseCode: String? = null,
 )
 
 @Serializable

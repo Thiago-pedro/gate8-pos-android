@@ -496,7 +496,7 @@ class PdvViewModel(
         printer.printCardCopy(pay.transactionId, pay.nsu, merchantCopy = false)
     }
 
-    /** Imprime um ingresso por código emitido, com os dados do evento/lote do catálogo. */
+    /** Imprime um ingresso por ticket emitido (campos do Lovable + fallback do catálogo). */
     private fun printTickets(
         groups: List<SaleTicketGroup>,
         cart: List<CartLine>,
@@ -507,18 +507,29 @@ class PdvViewModel(
             val line = cart.getOrNull(group.itemIndex)
             val event = events.firstOrNull { it.id == line?.eventId }
             val batch = event?.ticketBatches?.firstOrNull { it.id == line?.batchId }
-            group.codes.forEach { code ->
+            group.tickets.forEach { ticket ->
                 printer.printTicket(
                     TicketPrintPayload(
-                        eventName = event?.name ?: line?.description ?: "Ingresso",
-                        batchName = batch?.name ?: "",
-                        eventDateLabel = formatEventDate(event?.eventDate),
-                        venue = event?.location,
+                        eventName = ticket.eventName?.takeIf { it.isNotBlank() }
+                            ?: event?.name
+                            ?: line?.description
+                            ?: "Ingresso",
+                        batchName = ticket.batchName?.takeIf { it.isNotBlank() }
+                            ?: batch?.name.orEmpty(),
+                        eventDateLabel = formatEventDate(ticket.eventDate ?: event?.eventDate),
+                        venue = ticket.venue?.takeIf { it.isNotBlank() } ?: event?.location,
                         terminalName = configStore.getDeviceName(),
-                        holderName = line?.holderName ?: configStore.getOperatorName(),
-                        price = batch?.price ?: line?.unitPrice ?: 0.0,
-                        validationCode = code,
-                        purchaseCode = purchaseCode,
+                        holderName = ticket.holderName?.takeIf { it.isNotBlank() }
+                            ?: line?.holderName
+                            ?: configStore.getOperatorName(),
+                        price = ticket.price ?: batch?.price ?: line?.unitPrice ?: 0.0,
+                        qrPayload = ticket.qrPayload,
+                        manualCode = ticket.manualCode,
+                        purchaseCode = ticket.purchaseCode?.takeIf { it.isNotBlank() }
+                            ?: purchaseCode,
+                        statusLabel = ticket.statusLabel?.takeIf { it.isNotBlank() } ?: "Válido",
+                        saleDateLabel = formatSaleDate(ticket.issuedAt),
+                        issuedAtLabel = formatIssuedAt(ticket.issuedAt),
                     ),
                 )
             }
@@ -534,10 +545,25 @@ class PdvViewModel(
             .getOrDefault(raw)
     }
 
+    private fun formatIssuedAt(raw: String?): String? {
+        val formatted = formatSaleDate(raw) ?: return null
+        return "Emitido: $formatted"
+    }
+
+    private fun formatSaleDate(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        return runCatching {
+            OffsetDateTime.parse(raw).atZoneSameInstant(eventZone).format(issuedAtFmt)
+        }.recoverCatching {
+            LocalDateTime.parse(raw).format(issuedAtFmt)
+        }.getOrNull()
+    }
+
     private companion object {
         private val brLocale = Locale("pt", "BR")
         private val eventZone = ZoneId.of("America/Sao_Paulo")
         private val eventDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
         private val eventDateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
+        private val issuedAtFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", brLocale)
     }
 }

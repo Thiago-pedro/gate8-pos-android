@@ -276,48 +276,91 @@ object Gate8ReceiptTextBuilder {
     }
 
     /**
-     * Parte de cima do ingresso (acima do QR): evento, lote, data, local, portador e preço.
-     * A logo Gate8 pode ser impressa como bitmap no topo do ingresso.
+     * Bloco superior do ingresso (acima do QR) — compacto como o PDF/site Gate8.
+     * Sem linhas em branco extras; a Cielo centraliza via `ALIGN_CENTER`.
      */
-    fun ticketTopLines(p: TicketPrintPayload): List<String> = buildList {
-        add(divider())
-        add(center(p.eventName.uppercase(brLocale)))
-        add(divider())
-        if (p.batchName.isNotBlank()) add(center(p.batchName.uppercase(brLocale)))
-        p.eventDateLabel?.takeIf { it.isNotBlank() }?.let { add(center(it)) }
-        p.venue?.takeIf { it.isNotBlank() }?.let {
-            add("")
-            addAll(centerWrap(it))
-        }
-        add(divider())
-        p.terminalName?.takeIf { it.isNotBlank() }?.let {
-            add(center("DISPOSITIVO: $it"))
-            add("")
-        }
-        add(center(money(p.price)))
-        add(divider())
-        add("")
+    fun ticketTopLines(p: TicketPrintPayload): List<String> =
+        ticketEventNameLines(p) + ticketBatchDateLines(p) + ticketHolderLines(p) + ticketPriceLines(p)
+
+    fun ticketEventNameLines(p: TicketPrintPayload): List<String> =
+        listOf(p.eventName)
+
+    fun ticketBatchDateLines(p: TicketPrintPayload): List<String> = buildList {
+        add(ticketDotLine())
+        if (p.batchName.isNotBlank()) add(p.batchName.uppercase(brLocale))
+        p.eventDateLabel?.takeIf { it.isNotBlank() }?.let { add(it) }
+        p.venue?.takeIf { it.isNotBlank() }?.let { addAll(wrapTicket(it)) }
     }
 
-    /** Parte de baixo do ingresso (abaixo do QR): código manual, compra, validade e emissão. */
-    fun ticketBottomLines(p: TicketPrintPayload): List<String> = buildList {
-        // Código curto de validação manual = 8 primeiros alfanuméricos da hash (igual ao site).
-        val manualCode = p.validationCode.filter { it.isLetterOrDigit() }.take(8).uppercase(brLocale)
-        add("")
-        add(center(manualCode))
-        add(center("Codigo para validacao manual"))
-        p.purchaseCode?.takeIf { it.isNotBlank() }?.let { add(center("Compra $it")) }
-        add("")
-        add(center("** VALIDO **"))
-        add(center("Emitido: ${timeFormat.format(Date())}"))
-        add("")
-        addAll(
-            centerWrap(
-                "A criterio da organizacao, podera ser solicitado documento " +
-                    "original com foto para acesso ao evento.",
-            ),
+    fun ticketHolderLines(p: TicketPrintPayload): List<String> = buildList {
+        add(ticketDotLine())
+        add("Canal de venda")
+        p.holderName?.takeIf { it.isNotBlank() }?.let { add(it) }
+    }
+
+    fun ticketPriceLines(p: TicketPrintPayload): List<String> = buildList {
+        add(ticketDotLine())
+        add(money(p.price))
+        add(ticketDotLine())
+    }
+
+    /** Código manual espaçado — ex.: `0 F 4 D 7 3 B 7` (igual ao site). */
+    fun ticketManualLine(p: TicketPrintPayload): String =
+        p.manualCode
+            .filter { it.isLetterOrDigit() }
+            .uppercase(brLocale)
+            .toCharArray()
+            .joinToString(" ")
+
+    fun ticketMidLines(p: TicketPrintPayload): List<String> = buildList {
+        add("Codigo para validacao manual")
+        p.purchaseCode?.takeIf { it.isNotBlank() }?.let { add("Compra $it") }
+    }
+
+    fun ticketStatusLine(p: TicketPrintPayload): String =
+        p.statusLabel.ifBlank { "Valido" }
+
+    fun ticketIssuedLines(p: TicketPrintPayload): List<String> = buildList {
+        add(ticketDotLine())
+        add(
+            p.issuedAtLabel?.takeIf { it.isNotBlank() }
+                ?: "Emitido: ${timeFormat.format(Date())}",
         )
-        addAll(footer())
+        add(ticketDotLine())
+    }
+
+    fun ticketDisclaimerLines(): List<String> =
+        wrapTicket(
+            "A criterio da organizacao, podera ser solicitado documento " +
+                "original com foto para acesso ao evento.",
+        )
+
+    /** Compat: pós-QR completo (mock). */
+    fun ticketBottomLines(p: TicketPrintPayload): List<String> =
+        listOf(ticketManualLine(p)) +
+            ticketMidLines(p) +
+            listOf(ticketStatusLine(p)) +
+            ticketIssuedLines(p) +
+            ticketDisclaimerLines()
+
+    /** Separador pontilhado curto (site usa linha fina; 28 cols evita “esticar” visual). */
+    private fun ticketDotLine(): String = ".".repeat(28)
+
+    private fun wrapTicket(text: String, maxChars: Int = 30): List<String> {
+        val words = text.split(' ')
+        val lines = mutableListOf<String>()
+        var current = StringBuilder()
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (candidate.length <= maxChars) {
+                current = StringBuilder(candidate)
+            } else {
+                if (current.isNotEmpty()) lines.add(current.toString())
+                current = StringBuilder(word)
+            }
+        }
+        if (current.isNotEmpty()) lines.add(current.toString())
+        return lines
     }
 
     fun reportSummary(payload: ReportPrintPayload): List<String> = buildList {

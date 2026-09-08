@@ -94,13 +94,15 @@ class SaleAdminService(
         )
         val ticketLine = sale.lines.firstOrNull()
         sale.ticketCodes.forEach { code ->
+            val manual = code.filter { it.isLetterOrDigit() }.take(8).uppercase()
             printer.printTicket(
                 TicketPrintPayload(
                     eventName = ticketLine?.description ?: "Ingresso",
                     batchName = "",
                     holderName = null,
                     price = ticketLine?.unitPrice ?: 0.0,
-                    validationCode = code,
+                    qrPayload = code,
+                    manualCode = manual,
                 ),
             )
         }

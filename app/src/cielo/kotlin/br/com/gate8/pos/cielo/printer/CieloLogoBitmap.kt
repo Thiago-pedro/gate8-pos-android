@@ -16,22 +16,29 @@ import java.io.FileOutputStream
 /** Prepara a logo Gate8 como PNG monocromático para `lio://print` (PRINT_IMAGE). */
 internal object CieloLogoBitmap {
     private const val TAG = "CieloLogoBitmap"
-    /** Largura alvo (~45% de 384px — largura útil da bobina Cielo). */
-    private const val TARGET_WIDTH_PX = 168
+    /** Largura alvo ficha conveniência (~45% de 384px). */
+    private const val FICHA_WIDTH_PX = 168
+    /** Logo do ingresso — um pouco menor que antes para não “esticar” o topo. */
+    private const val TICKET_WIDTH_PX = 200
     private const val CIELO_IMAGE_DIR = "/storage/emulated/0/saved_images"
-    private const val FILE_NAME = "gate8_ficha_logo.png"
 
-    fun prepareLogoPath(context: Context): String? {
+    fun prepareLogoPath(context: Context): String? =
+        prepareLogoPath(context, FICHA_WIDTH_PX, "gate8_ficha_logo.png")
+
+    fun prepareTicketLogoPath(context: Context): String? =
+        prepareLogoPath(context, TICKET_WIDTH_PX, "gate8_ticket_logo.png")
+
+    private fun prepareLogoPath(context: Context, targetWidthPx: Int, fileName: String): String? {
         return runCatching {
             val dir = File(CIELO_IMAGE_DIR)
             if (!dir.exists() && !dir.mkdirs()) {
                 Log.w(TAG, "Não foi possível criar $CIELO_IMAGE_DIR")
                 return null
             }
-            val outFile = File(dir, FILE_NAME)
+            val outFile = File(dir, fileName)
             val drawable = ContextCompat.getDrawable(context, R.drawable.logo_gate8_header)
                 ?: return null
-            val bitmap = renderMonochromeBitmap(drawable)
+            val bitmap = renderMonochromeBitmap(drawable, targetWidthPx)
             FileOutputStream(outFile).use { stream ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
             }
@@ -41,12 +48,12 @@ internal object CieloLogoBitmap {
             .getOrNull()
     }
 
-    private fun renderMonochromeBitmap(source: Drawable): Bitmap {
+    private fun renderMonochromeBitmap(source: Drawable, targetWidthPx: Int): Bitmap {
         val wrapped = DrawableCompat.wrap(source.mutate())
         val width = wrapped.intrinsicWidth.coerceAtLeast(1)
         val height = wrapped.intrinsicHeight.coerceAtLeast(1)
-        val scale = TARGET_WIDTH_PX.toFloat() / width
-        val outW = TARGET_WIDTH_PX
+        val scale = targetWidthPx.toFloat() / width
+        val outW = targetWidthPx
         val outH = (height * scale).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
