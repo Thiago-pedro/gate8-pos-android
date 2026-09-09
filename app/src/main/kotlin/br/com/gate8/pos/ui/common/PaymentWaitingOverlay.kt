@@ -52,9 +52,10 @@ fun PaymentWaitingOverlay(
     method: PaymentMethodApi?,
     amount: Double,
     onCancel: (() -> Unit)? = null,
+    titleOverride: String? = null,
 ) {
     if (!visible) return
-    // Cielo: UI nativa no deep link — exceto cashless (Mifare no próprio Gate8).
+    // Cielo: UI nativa no deep link — exceto cashless (leitura no próprio Gate8).
     if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true) &&
         method != PaymentMethodApi.CASHLESS
     ) {
@@ -66,23 +67,23 @@ fun PaymentWaitingOverlay(
     val icon: ImageVector
     when (method) {
         PaymentMethodApi.DEBIT -> {
-            title = "Pagamento no débito"
+            title = titleOverride ?: "Pagamento no débito"
             icon = Icons.Filled.Contactless
         }
         PaymentMethodApi.CREDIT -> {
-            title = "Pagamento no crédito"
+            title = titleOverride ?: "Pagamento no crédito"
             icon = Icons.Filled.Contactless
         }
         PaymentMethodApi.PIX -> {
-            title = "Pagamento via Pix"
+            title = titleOverride ?: "Pagamento via Pix"
             icon = Icons.Filled.QrCode2
         }
         PaymentMethodApi.CASHLESS -> {
-            title = "Pagamento cashless"
+            title = titleOverride ?: "Pagamento cashless"
             icon = Icons.Filled.Contactless
         }
         else -> {
-            title = "Processando pagamento"
+            title = titleOverride ?: "Processando pagamento"
             icon = Icons.Filled.CreditCard
         }
     }

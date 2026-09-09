@@ -57,7 +57,7 @@ data class CashlessCardSnapshot(
 )
 
 class CashlessUnavailableException(
-    message: String = "Cashless Mifare disponível apenas na Cielo Smart.",
+    message: String = "Cashless disponível apenas na Cielo Smart.",
 ) : Exception(message)
 
 class CashlessOperationException(

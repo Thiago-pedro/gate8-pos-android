@@ -52,8 +52,8 @@ class CieloMifareClient(
                         blockAscii = "—",
                         message = "Cartão detectado (UID ${Gate8CashlessBalanceCodec.uidToHex(uid)}), " +
                             "mas não autenticou com a chave padrão. " +
-                            "A Cielo só lê Mifare Classic 1K. Se for Ultralight, DESFire, NTAG ou " +
-                            "cartão com chave customizada, não serve neste fluxo.",
+                            "Use um cartão cashless Gate8 compatível. Outros tipos de cartão NFC " +
+                            "ou cartões com chave diferente não funcionam neste fluxo.",
                     )
                 }
             } finally {
@@ -79,7 +79,7 @@ class CieloMifareClient(
                 authenticateBestEffort(BALANCE_SECTOR)
                     ?: throw CashlessOperationException(
                         "AUTH",
-                        "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                        "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
                     )
                 val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
                 if (Gate8CashlessBalanceCodec.isBlocked(current)) {
@@ -132,7 +132,7 @@ class CieloMifareClient(
                     authenticateBestEffort(BALANCE_SECTOR)
                         ?: throw CashlessOperationException(
                             "AUTH",
-                            "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                            "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
                         )
                     val encoded = Gate8CashlessBalanceCodec.encode(cents, blocked = blocked)
                     writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
@@ -159,7 +159,7 @@ class CieloMifareClient(
                     authenticateBestEffort(BALANCE_SECTOR)
                         ?: throw CashlessOperationException(
                             "AUTH",
-                            "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                            "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
                         )
                     val blank = ByteArray(16) { 0 }
                     writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, blank)
@@ -185,7 +185,7 @@ class CieloMifareClient(
                 authenticateBestEffort(BALANCE_SECTOR)
                     ?: throw CashlessOperationException(
                         "AUTH",
-                        "Não autenticou o setor de saldo. Precisa ser Mifare Classic 1K com chave padrão (FF..FF).",
+                        "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
                     )
                 val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
                 if (!Gate8CashlessBalanceCodec.isGate8(current)) {
@@ -319,7 +319,7 @@ class CieloMifareClient(
     }
 
     private suspend fun writeBlock(sector: Byte, block: Byte, data: ByteArray) {
-        require(data.size == 16) { "Bloco Mifare deve ter 16 bytes" }
+        require(data.size == 16) { "Bloco do cartão deve ter 16 bytes" }
         Log.i(TAG, "WRITE sector=$sector block=$block")
         call(
             action = "cielo.lio.cashless.mifare.WRITE",
@@ -398,7 +398,7 @@ class CieloMifareClient(
             } catch (e: TimeoutCancellationException) {
                 throw CashlessOperationException(
                     "TIMEOUT",
-                    "Tempo esgotado. Aproxime o cartão Mifare Classic 1K e tente de novo.",
+                    "Tempo esgotado. Aproxime o cartão cashless e tente de novo.",
                 )
             }
         } catch (e: IllegalStateException) {
@@ -432,15 +432,15 @@ class CieloMifareClient(
                 "(código R10)"
         }
         if (code.equals("R01", ignoreCase = true) || lower.contains("timeout") || lower.contains("time out")) {
-            return "Tempo esgotado na $opLabel. Aproxime o cartão Mifare Classic 1K e tente de novo."
+            return "Tempo esgotado na $opLabel. Aproxime o cartão cashless e tente de novo."
         }
         if (code.equals("R02", ignoreCase = true) || lower.contains("cancel")) {
             return "Operação cancelada na $opLabel."
         }
         if (lower.contains("internal") || lower == "internal error" || code.equals("internal", true)) {
             return "Erro interno da Cielo na $opLabel. " +
-                "Quase sempre o cartão não é Mifare Classic 1K (ex.: Ultralight, DESFire, NTAG) " +
-                "ou a chave do setor é diferente da padrão. Código: ${code.ifBlank { "—" }}"
+                "Quase sempre o cartão não é compatível com o cashless Gate8 " +
+                "ou a chave do setor é diferente da esperada. Código: ${code.ifBlank { "—" }}"
         }
         if (d.isNotBlank()) {
             val translated = when {
@@ -451,7 +451,7 @@ class CieloMifareClient(
             }
             return "$translated ($opLabel/${code.ifBlank { "—" }})"
         }
-        return "Operação Mifare falhou na $opLabel (código ${code.ifBlank { "—" }})"
+        return "Operação cashless falhou na $opLabel (código ${code.ifBlank { "—" }})"
     }
 
     private fun foregroundContext(): Context =

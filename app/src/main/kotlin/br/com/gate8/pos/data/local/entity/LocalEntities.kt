@@ -78,6 +78,8 @@ object CashlessMovementType {
     const val TRANSF_SAIDA = "TRANSF_SAIDA"
     const val TRANSF_ENTRADA = "TRANSF_ENTRADA"
     const val CONSUMO = "CONSUMO"
+    /** Estorno de consumo (devolução de saldo no cartão). */
+    const val ESTORNO = "ESTORNO"
     /** Cartão antigo substituído por outro UID (última linha do extrato). */
     const val SUBSTITUIDO = "SUBSTITUIDO"
 }

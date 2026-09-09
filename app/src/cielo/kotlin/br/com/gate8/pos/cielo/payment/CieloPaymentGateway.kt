@@ -101,10 +101,8 @@ class CieloPaymentGateway : PaymentGateway {
             return VoidResult(success = true, message = "Estorno em dinheiro — ajuste no caixa.")
         }
         if (method == PaymentMethodApi.CASHLESS) {
-            return VoidResult(
-                success = false,
-                message = "Estorno cashless: use a tela Cashless para ajustar o saldo no cartão.",
-            )
+            // Estorno cashless é feito em SaleAdminService (crédito no chip + sync).
+            return VoidResult(success = true, message = "Estorno cashless no cartão.")
         }
         ensureCredentials()
         val orderId = transactionId.trim()

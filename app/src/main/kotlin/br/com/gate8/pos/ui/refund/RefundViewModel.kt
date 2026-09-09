@@ -6,6 +6,7 @@ import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.core.util.ProducerTokenValidator
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.domain.model.LastSaleRecord
+import br.com.gate8.pos.domain.model.PaymentMethodApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,9 @@ import java.util.Calendar
 
 data class RefundUiState(
     val loading: Boolean = false,
+    /** Aguardando aproximação do cartão cashless para devolver o saldo. */
+    val waitingCashlessCard: Boolean = false,
+    val waitingCashlessAmount: Double = 0.0,
     /** Vendas de hoje neste terminal (mais recente primeiro). */
     val sales: List<LastSaleRecord> = emptyList(),
     val query: String = "",
@@ -102,9 +106,12 @@ class RefundViewModel(
         }
 
         viewModelScope.launch {
+            val isCashless = target.paymentMethod == PaymentMethodApi.CASHLESS.apiValue
             _state.update {
                 it.copy(
                     loading = true,
+                    waitingCashlessCard = isCashless,
+                    waitingCashlessAmount = if (isCashless) target.total else 0.0,
                     pendingVoid = null,
                     tokenInput = "",
                     tokenError = null,
@@ -113,11 +120,14 @@ class RefundViewModel(
                 )
             }
             saleAdmin.voidSale(target.clientReference)
-                .onSuccess {
+                .onSuccess { msg ->
                     _state.update {
                         it.copy(
                             loading = false,
+                            waitingCashlessCard = false,
+                            waitingCashlessAmount = 0.0,
                             voidSuccess = true,
+                            message = msg,
                             sales = saleAdmin.loadRecentSales().filter { s -> isToday(s.createdAt) },
                         )
                     }
@@ -126,6 +136,8 @@ class RefundViewModel(
                     _state.update {
                         it.copy(
                             loading = false,
+                            waitingCashlessCard = false,
+                            waitingCashlessAmount = 0.0,
                             error = e.message ?: "Falha no estorno",
                             sales = saleAdmin.loadRecentSales().filter { s -> isToday(s.createdAt) },
                         )

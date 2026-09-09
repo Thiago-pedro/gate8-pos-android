@@ -1,22 +1,28 @@
 package br.com.gate8.pos.core.sale
 
+import br.com.gate8.pos.cashless.CashlessCardGateway
+import br.com.gate8.pos.data.local.entity.CashlessMovementType
 import br.com.gate8.pos.data.prefs.LastSaleStore
+import br.com.gate8.pos.data.repository.CashlessAccountRepository
+import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.LastSaleLineRecord
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
+import kotlin.math.roundToInt
 
 class SaleAdminService(
     private val lastSaleStore: LastSaleStore,
     private val paymentGateway: PaymentGateway,
     private val printer: ReceiptPrinter,
     private val saleRepository: SaleRepository,
+    private val cashlessCard: CashlessCardGateway,
+    private val cashlessAccounts: CashlessAccountRepository,
 ) {
     fun loadLastSale(): LastSaleRecord? = lastSaleStore.get()
 
@@ -122,23 +128,35 @@ class SaleAdminService(
         if (sale.voided) {
             return Result.failure(IllegalStateException("Esta venda já foi estornada"))
         }
-        if (sale.paymentMethod != PaymentMethodApi.CASH.apiValue) {
-            val method = PaymentMethodApi.fromApiValue(sale.paymentMethod)
-            val txId = sale.transactionId
-                ?: return Result.failure(IllegalStateException("Sem ID de transação para estorno"))
-            val void = paymentGateway.voidTransaction(
-                txId,
-                sale.nsu,
-                sale.total,
-                method,
-                authorization = sale.authorization,
-            )
-            if (!void.success) {
-                return Result.failure(IllegalStateException(void.message))
+        val method = PaymentMethodApi.fromApiValue(sale.paymentMethod)
+        when (method) {
+            PaymentMethodApi.CASH -> Unit
+            PaymentMethodApi.CASHLESS -> {
+                runCatching { creditCashlessVoid(sale) }.getOrElse { e ->
+                    return Result.failure(
+                        IllegalStateException(
+                            e.message ?: "Falha ao devolver saldo no cartão cashless",
+                        ),
+                    )
+                }
+            }
+            else -> {
+                val txId = sale.transactionId
+                    ?: return Result.failure(IllegalStateException("Sem ID de transação para estorno"))
+                val void = paymentGateway.voidTransaction(
+                    txId,
+                    sale.nsu,
+                    sale.total,
+                    method,
+                    authorization = sale.authorization,
+                )
+                if (!void.success) {
+                    return Result.failure(IllegalStateException(void.message))
+                }
             }
         }
         lastSaleStore.markVoided(sale.clientReference)
-        val label = PaymentMethodApi.fromApiValue(sale.paymentMethod).displayLabel()
+        val label = method.displayLabel()
         runCatching {
             val cartLines = sale.lines.map { line ->
                 CartLine(
@@ -160,9 +178,39 @@ class SaleAdminService(
         // O pagamento já foi revertido e o comprovante impresso; uma falha aqui não
         // desfaz o estorno, apenas adia a atualização do painel.
         val syncNote = syncVoidToBackend(sale)
+        val cashlessNote = if (method == PaymentMethodApi.CASHLESS) {
+            " · saldo devolvido ao cartão"
+        } else {
+            ""
+        }
         return Result.success(
-            "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label$syncNote",
+            "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label$cashlessNote$syncNote",
         )
+    }
+
+    /**
+     * Devolve o valor da venda no chip (mesmo UID) e sincroniza saldo no Lovable.
+     * O operador precisa aproximar o cartão cashless usado na venda.
+     */
+    private suspend fun creditCashlessVoid(sale: LastSaleRecord) {
+        val uid = sale.cashlessUid?.trim()?.takeIf { it.isNotEmpty() }
+            ?: sale.authorization?.trim()?.takeIf { it.isNotEmpty() }
+            ?: throw IllegalStateException(
+                "Venda cashless sem UID do cartão. Não dá para devolver o saldo automaticamente.",
+            )
+        val snap = cashlessCard.topUp(sale.total, requireUid = uid)
+        val centsAfter = ((snap.balanceReais ?: 0.0) * 100.0).roundToInt().coerceAtLeast(0)
+        val creditCents = (sale.total * 100.0).roundToInt()
+        runCatching {
+            cashlessAccounts.updateBalance(uid, centsAfter)
+            cashlessAccounts.recordMovement(
+                uidHex = uid,
+                type = CashlessMovementType.ESTORNO,
+                amountCents = creditCents,
+                balanceAfterCents = centsAfter,
+                note = "Estorno venda · ${sale.clientReference}",
+            )
+        }
     }
 
     private suspend fun syncVoidToBackend(sale: LastSaleRecord): String {

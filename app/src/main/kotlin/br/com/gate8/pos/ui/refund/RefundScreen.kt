@@ -33,11 +33,13 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.domain.model.LastSaleRecord
+import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.common.Gate8SuccessDialog
+import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
@@ -106,7 +108,7 @@ fun RefundScreen(
                     Spacer(Modifier.height(8.dp))
                 }
 
-                if (state.loading) {
+                if (state.loading && !state.waitingCashlessCard) {
                     CircularProgressIndicator(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
@@ -146,10 +148,17 @@ fun RefundScreen(
             }
 
             state.pendingVoid?.let { pending ->
+                val cashless = pending.paymentMethod == PaymentMethodApi.CASHLESS.apiValue
                 Gate8ConfirmDialog(
                     title = "Confirmar estorno",
-                    message = "Estornar a venda de R$ ${"%.2f".format(pending.total)} " +
-                        "(${pending.paymentLabel})? Digite o token de login da maquininha para confirmar.",
+                    message = if (cashless) {
+                        "Estornar a venda cashless de R$ ${"%.2f".format(pending.total)}? " +
+                            "Depois aproxime o mesmo cartão para devolver o saldo. " +
+                            "Digite o token de login da maquininha para confirmar."
+                    } else {
+                        "Estornar a venda de R$ ${"%.2f".format(pending.total)} " +
+                            "(${pending.paymentLabel})? Digite o token de login da maquininha para confirmar."
+                    },
                     confirmLabel = "Estornar",
                     onConfirm = vm::confirmVoid,
                     onDismiss = vm::dismissConfirm,
@@ -170,6 +179,13 @@ fun RefundScreen(
                     },
                 )
             }
+
+            PaymentWaitingOverlay(
+                visible = state.waitingCashlessCard,
+                method = PaymentMethodApi.CASHLESS,
+                amount = state.waitingCashlessAmount,
+                titleOverride = "Estorno cashless",
+            )
 
             if (state.voidSuccess) {
                 Gate8SuccessDialog(
@@ -203,8 +219,16 @@ private fun SaleCard(
             fontSize = 16.sp,
             modifier = Modifier.padding(top = 4.dp),
         )
-        sale.nsu?.let {
+        sale.nsu?.takeIf { it.isNotBlank() }?.let {
             Text("NSU: $it", color = Gate8Colors.TextOnLight, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+        sale.cashlessUid?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                "Cartão UID: $it",
+                color = Gate8Colors.TextOnLight,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
         if (sale.saleId != null) {
             Text("ID: ${sale.saleId}", color = Gate8Colors.TextOnLight, fontSize = 11.sp)

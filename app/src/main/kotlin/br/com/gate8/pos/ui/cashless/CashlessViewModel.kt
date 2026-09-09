@@ -166,7 +166,7 @@ class CashlessViewModel(
                     loading = true,
                     waitingCard = true,
                     error = null,
-                    message = "Aproxime o cartão Mifare na maquininha…",
+                    message = "Aproxime o cartão na maquininha…",
                 )
             }
             runCatching {
@@ -1713,6 +1713,7 @@ class CashlessViewModel(
         CashlessMovementType.TRANSF_SAIDA -> "TRANSF. SAIDA"
         CashlessMovementType.TRANSF_ENTRADA -> "TRANSF. ENTRADA"
         CashlessMovementType.CONSUMO -> "CONSUMO"
+        CashlessMovementType.ESTORNO -> "ESTORNO"
         CashlessMovementType.SUBSTITUIDO -> "SUBSTITUIDO"
         else -> type
     }
@@ -1734,7 +1735,7 @@ class CashlessViewModel(
 
     private fun friendlyCardError(e: Throwable): String = when (e) {
         is CashlessUnavailableException -> e.message ?: "Cashless indisponível neste aparelho"
-        is CashlessOperationException -> e.message ?: "Falha na operação Mifare"
+        is CashlessOperationException -> e.message ?: "Falha na operação cashless"
         is TimeoutCancellationException ->
             "Tempo esgotado. Aproxime o cartão e tente de novo."
         else -> e.message ?: "Não foi possível falar com o cartão"

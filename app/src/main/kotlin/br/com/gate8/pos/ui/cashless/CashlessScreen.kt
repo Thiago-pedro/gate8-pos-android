@@ -233,7 +233,7 @@ fun CashlessScreen(
                     textAlign = TextAlign.Center,
                 )
                 Text(
-                    "Cartão Mifare · consulta e recarga",
+                    "Cartão cashless · consulta e recarga",
                     color = Gate8Colors.TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier
@@ -647,7 +647,7 @@ private fun cashlessWaitModalUi(state: CashlessUiState): CashlessWaitModalUi? {
         return CashlessWaitModalUi(
             title = title,
             detail = state.message
-                ?: "Aproxime o cartão Mifare na maquininha",
+                ?: "Aproxime o cartão na maquininha",
             showProgress = true,
             showCancel = state.recoverStep != CashlessRecoverStep.Idle,
             uidHint = state.pendingUid ?: state.recoverOldUid,

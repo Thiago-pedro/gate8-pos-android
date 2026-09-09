@@ -141,7 +141,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(12.dp))
                     Gate8MenuButton(
                         title = "Cashless",
-                        subtitle = "Consultar e adicionar saldo no Mifare",
+                        subtitle = "Consultar e adicionar saldo no cartão",
                         onClick = onCashless,
                         centerText = true,
                     )
