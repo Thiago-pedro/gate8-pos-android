@@ -313,6 +313,7 @@ class ProductsViewModel(
             var cashlessUid: String? = null
             var cashlessCpf: String? = null
             var cashlessBalanceAfter: Double? = null
+            var cashlessBalanceCentsAfter: Int? = null
             val payment = if (method == PaymentMethodApi.CASHLESS) {
                 runCatching {
                     val pre = cashlessCard.readCard()
@@ -324,8 +325,11 @@ class ProductsViewModel(
                     val debitCents = (total * 100.0).roundToInt()
                     cashlessUid = snap.uidHex
                     cashlessBalanceAfter = snap.balanceReais
+                    cashlessBalanceCentsAfter = centsAfter
+                    // Só Room + extrato local. NÃO PATCH balance aqui — o POST /sales
+                    // com payment_method=cashless + card_uid já debita no Lovable.
                     runCatching {
-                        cashlessAccounts.updateBalance(snap.uidHex, centsAfter)
+                        cashlessAccounts.updateBalanceLocal(snap.uidHex, centsAfter)
                         cashlessAccounts.recordMovement(
                             uidHex = snap.uidHex,
                             type = CashlessMovementType.CONSUMO,
@@ -387,6 +391,7 @@ class ProductsViewModel(
                 total = total,
                 payment = pay,
                 cart = cart,
+                cardUid = cashlessUid,
             )
 
             val pending = PendingSaleEntity(
@@ -445,6 +450,20 @@ class ProductsViewModel(
                     schedulePendingSync()
                 }
                 .onFailure { e ->
+                    // Venda não subiu: PATCH balance como sync/fallback (Lovable deduplica).
+                    if (method == PaymentMethodApi.CASHLESS &&
+                        !cashlessUid.isNullOrBlank() &&
+                        cashlessBalanceCentsAfter != null
+                    ) {
+                        runCatching {
+                            cashlessAccounts.syncCashlessSaleFallback(
+                                uidHex = cashlessUid!!,
+                                balanceCents = cashlessBalanceCentsAfter!!,
+                                operatorName = operatorName,
+                                items = request.items,
+                            )
+                        }
+                    }
                     handleCheckoutFailure(
                         e = e,
                         cart = cart,

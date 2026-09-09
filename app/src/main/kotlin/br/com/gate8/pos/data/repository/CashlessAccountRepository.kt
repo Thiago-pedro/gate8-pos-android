@@ -13,6 +13,7 @@ import br.com.gate8.pos.data.remote.dto.CashlessCardDto
 import br.com.gate8.pos.data.remote.dto.CashlessPatchRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessReassignRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
+import br.com.gate8.pos.data.remote.dto.SaleItemDto
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -182,6 +183,49 @@ class CashlessAccountRepository(
             PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
         }
         dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** Atualiza saldo só no Room (após débito no chip + POST /sales cashless). */
+    suspend fun updateBalanceLocal(uidHex: String, balanceCents: Int) {
+        val uid = uidHex.uppercase()
+        val cents = balanceCents.coerceAtLeast(0)
+        val current = dao.getByUid(uid) ?: return
+        if (current.blocked) return
+        dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+    }
+
+    /**
+     * Fallback quando a venda cashless não pôde ir em `POST /sales`:
+     * sincroniza saldo (e opcionalmente itens) via PATCH — o servidor deduplica.
+     */
+    suspend fun syncCashlessSaleFallback(
+        uidHex: String,
+        balanceCents: Int,
+        operatorName: String?,
+        items: List<SaleItemDto>?,
+    ) {
+        val uid = uidHex.uppercase()
+        val cents = balanceCents.coerceAtLeast(0)
+        val current = dao.getByUid(uid)
+        when (
+            val patch = patchRemoteResult(
+                uid,
+                CashlessPatchRequestDto(
+                    balanceCents = cents,
+                    operatorName = operatorName,
+                    items = items,
+                ),
+            )
+        ) {
+            PatchRemoteResult.CardReplaced -> {
+                dao.deleteByUid(uid)
+                return
+            }
+            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+        }
+        if (current != null && !current.blocked) {
+            dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+        }
     }
 
     suspend fun setBlocked(uidHex: String, blocked: Boolean, balanceCents: Int? = null) {

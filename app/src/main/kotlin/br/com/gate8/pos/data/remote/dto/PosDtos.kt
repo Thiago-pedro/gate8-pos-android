@@ -90,6 +90,8 @@ data class CreateSaleRequestDto(
     /** Legado Lovable — mesmas colunas `stone_*` usadas em `by_brand`. */
     val stone: AcquirerPaymentDto? = null,
     val items: List<SaleItemDto>,
+    /** UID do chip Mifare — obrigatório quando `payment_method` = `cashless`. */
+    @SerialName("card_uid") val cardUid: String? = null,
 )
 
 @Serializable
@@ -330,6 +332,9 @@ data class CashlessRegisterRequestDto(
 data class CashlessPatchRequestDto(
     @SerialName("balance_cents") val balanceCents: Int? = null,
     val blocked: Boolean? = null,
+    /** Fallback de venda cashless quando o POST /sales falhou. */
+    @SerialName("operator_name") val operatorName: String? = null,
+    val items: List<SaleItemDto>? = null,
 )
 
 @Serializable

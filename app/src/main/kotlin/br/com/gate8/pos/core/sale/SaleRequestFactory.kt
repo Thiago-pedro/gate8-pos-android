@@ -17,6 +17,8 @@ object SaleRequestFactory {
         total: Double,
         payment: PaymentResult,
         cart: List<CartLine>,
+        /** UID do chip — obrigatório em venda `cashless` (débito na conveniência). */
+        cardUid: String? = null,
     ): CreateSaleRequestDto {
         val acquirer = if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
             null
@@ -28,14 +30,11 @@ object SaleRequestFactory {
                 transactionId = payment.transactionId,
             )
         }
+        val uid = cardUid?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
         return CreateSaleRequestDto(
             clientReference = clientReference,
             operatorName = operatorName,
-            // Lovable hoje aceita credit|debit|pix|cash|other — cashless vai como other.
-            paymentMethod = when (method) {
-                PaymentMethodApi.CASHLESS -> "other"
-                else -> method.apiValue
-            },
+            paymentMethod = method.apiValue,
             totalAmount = total,
             acquirer = acquirer,
             // Lovable ainda agrega bandeira/NSU em colunas `stone_*`.
@@ -53,6 +52,7 @@ object SaleRequestFactory {
                     unitPrice = line.unitPrice,
                 )
             },
+            cardUid = if (method == PaymentMethodApi.CASHLESS) uid else null,
         )
     }
 }
