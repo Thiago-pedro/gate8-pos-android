@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 
 import androidx.compose.ui.unit.sp
 
+import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.ui.common.Gate8AlertDialog
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
 import br.com.gate8.pos.ui.common.Gate8MenuButton
@@ -144,6 +145,11 @@ fun SetupScreen(
             Spacer(Modifier.height(8.dp))
 
             InfoPanel {
+
+                InfoLine(
+                    "Versão",
+                    "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                )
 
                 state.producerName?.let { InfoLine("Produtor", it) }
 
