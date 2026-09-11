@@ -127,11 +127,19 @@ class LoginViewModel(
                 _navigation.tryEmit(LoginNavigation.Pending)
             }
             is LoginResult.Disabled -> {
+                // Cadastro órfão/desativado no servidor: zera fingerprint para o próximo
+                // login gerar identidade nova (evita maquininha presa sem aparecer no painel).
+                configStore.logout()
+                configStore.setProducerToken(token)
                 _state.update {
                     it.copy(
                         loading = false,
+                        producerToken = token,
+                        label = it.label,
                         disabledDeviceName = result.deviceName,
-                        error = "Maquininha bloqueada pelo produtor.",
+                        error = "Cadastro desta maquininha estava bloqueado no servidor. " +
+                            "Toque em Entrar de novo para tentar com identidade nova. " +
+                            "Se repetir, o painel/API (Lovable) ainda está devolvendo disabled.",
                     )
                 }
             }
