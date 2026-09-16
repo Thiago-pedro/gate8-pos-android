@@ -38,6 +38,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -561,9 +562,19 @@ class PdvViewModel(
 
     private companion object {
         private val brLocale = Locale("pt", "BR")
-        private val eventZone = ZoneId.of("America/Sao_Paulo")
-        private val eventDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
-        private val eventDateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
-        private val issuedAtFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", brLocale)
+        /** Lazy: evita crash no class-load em API &lt; 26 se desugar falhar. */
+        private val eventZone: ZoneId by lazy {
+            runCatching { ZoneId.of("America/Sao_Paulo") }
+                .getOrElse { ZoneOffset.of("-03:00") }
+        }
+        private val eventDateFmt by lazy {
+            DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
+        }
+        private val eventDateOnlyFmt by lazy {
+            DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
+        }
+        private val issuedAtFmt by lazy {
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", brLocale)
+        }
     }
 }

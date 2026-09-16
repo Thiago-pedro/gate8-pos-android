@@ -30,8 +30,8 @@ android {
         applicationId = "br.com.gate8.pos.terminal"
         minSdk = 23
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
         buildConfigField("String", "CIELO_CLIENT_ID", "\"\"")
         buildConfigField("String", "CIELO_ACCESS_TOKEN", "\"\"")
@@ -84,6 +84,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -103,6 +104,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime)

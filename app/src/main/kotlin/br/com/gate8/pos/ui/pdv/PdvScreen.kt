@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,11 +69,13 @@ import br.com.gate8.pos.ui.common.Gate8QuantitySelector
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -397,8 +400,13 @@ private fun EventPickerCard(
             .clickable(onClick = onClick),
     ) {
         if (!event.bannerUrl.isNullOrBlank()) {
+            val context = LocalContext.current
             AsyncImage(
-                model = event.bannerUrl,
+                model = ImageRequest.Builder(context)
+                    .data(event.bannerUrl)
+                    .size(800, 450)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = event.name,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -596,6 +604,13 @@ private fun formatEventDate(iso: String): String {
 }
 
 private val brLocale = Locale("pt", "BR")
-private val eventZone = ZoneId.of("America/Sao_Paulo")
-private val eventDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
-private val eventDateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
+private val eventZone: ZoneId by lazy {
+    runCatching { ZoneId.of("America/Sao_Paulo") }
+        .getOrElse { ZoneOffset.of("-03:00") }
+}
+private val eventDateFmt by lazy {
+    DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", brLocale)
+}
+private val eventDateOnlyFmt by lazy {
+    DateTimeFormatter.ofPattern("dd/MM/yyyy", brLocale)
+}
