@@ -250,6 +250,17 @@ fun SetupScreen(
 
             Spacer(Modifier.height(28.dp))
 
+            SectionTitle("Cozinha")
+
+            Spacer(Modifier.height(8.dp))
+
+            KitchenModeToggle(
+                enabled = state.kitchenMode,
+                onToggle = vm::setKitchenMode,
+            )
+
+            Spacer(Modifier.height(28.dp))
+
             SectionTitle("Sessão")
 
             Spacer(Modifier.height(12.dp))
@@ -359,6 +370,57 @@ private fun ConvenienceTicketToggle(
             Spacer(Modifier.height(4.dp))
             Text(
                 "Além dos comprovantes, sai uma ficha separada por unidade de item (ex.: 2 copões = 2 fichas). Desligado, sai só o recibo único.",
+                color = Gate8Colors.TextOnLight.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = enabled, onCheckedChange = onToggle)
+    }
+}
+
+@Composable
+private fun KitchenModeToggle(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Gate8Colors.CardSurface)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Modo cozinha",
+                    color = Gate8Colors.TextOnLight,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (enabled) Gate8Colors.AccentBlue
+                            else Gate8Colors.TextOnLight.copy(alpha = 0.25f),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        if (enabled) "LIGADO" else "DESLIGADO",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Esta maquininha só escuta vendas de alimentação e imprime a ficha do pedido com número crescente. Use em uma Cielo na cozinha.",
                 color = Gate8Colors.TextOnLight.copy(alpha = 0.7f),
                 fontSize = 12.sp,
             )

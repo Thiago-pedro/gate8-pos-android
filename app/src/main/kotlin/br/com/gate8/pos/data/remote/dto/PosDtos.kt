@@ -56,9 +56,18 @@ data class TicketBatchDto(
     val price: Double,
     val quantity: Int = 0,
     val sold: Int = 0,
-    val available: Int = 0,
+    /** `null` = o servidor não informou teto (lote sem controle de estoque). */
+    val available: Int? = null,
     @SerialName("valid_until") val validUntil: String? = null,
 )
+
+val TicketBatchDto.remaining: Int
+    get() = available ?: Int.MAX_VALUE
+
+val TicketBatchDto.isSoldOut: Boolean
+    get() = available != null && available <= 0
+
+fun TicketBatchDto.canAdd(inCart: Int): Boolean = !isSoldOut && inCart < remaining
 
 @Serializable
 data class ProductDto(
@@ -109,10 +118,11 @@ data class SaleItemDto(
     @SerialName("batch_id") val batchId: String? = null,
     @SerialName("event_id") val eventId: String? = null,
     @SerialName("holder_name") val holderName: String? = null,
-    @SerialName("holder_email") val holderEmail: String? = null,
+    @SerialName("holder_email")     val holderEmail: String? = null,
     val description: String,
     val quantity: Int,
     @SerialName("unit_price") val unitPrice: Double,
+    val category: String? = null,
 )
 
 @OptIn(ExperimentalSerializationApi::class)

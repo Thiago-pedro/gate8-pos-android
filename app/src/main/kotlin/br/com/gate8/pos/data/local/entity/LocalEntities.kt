@@ -10,6 +10,7 @@ data class CatalogCacheEntity(
     val json: String,
     val serverTime: String,
     val fetchedAt: Long,
+    val producerToken: String = "",
 )
 
 @Entity(tableName = "pending_sales")

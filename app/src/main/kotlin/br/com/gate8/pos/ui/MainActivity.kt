@@ -17,9 +17,11 @@ import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.common.Gate8SplashHost
 import br.com.gate8.pos.ui.config.SetupScreen
 import br.com.gate8.pos.ui.home.HomeScreen
+import br.com.gate8.pos.ui.kitchen.KitchenScreen
 import br.com.gate8.pos.ui.login.LoginPendingScreen
 import br.com.gate8.pos.ui.login.LoginScreen
 import br.com.gate8.pos.ui.navigation.Routes
+import br.com.gate8.pos.ui.navigation.goHome
 import br.com.gate8.pos.ui.pending.PendingScreen
 import br.com.gate8.pos.ui.pdv.PdvScreen
 import br.com.gate8.pos.ui.products.ProductsScreen
@@ -98,6 +100,15 @@ class MainActivity : ComponentActivity() {
                                         onRefund = { nav.navigate(Routes.Refund) },
                                         onReports = { nav.navigate(Routes.Reports) },
                                         onSetup = { nav.navigate(Routes.Setup) },
+                                        onKitchen = {
+                                            nav.navigate(Routes.Kitchen) { launchSingleTop = true }
+                                        },
+                                    )
+                                }
+                                composable(Routes.Kitchen) {
+                                    KitchenScreen(
+                                        onHome = { nav.goHome() },
+                                        onSetup = { nav.navigate(Routes.Setup) },
                                     )
                                 }
                                 composable(Routes.Setup) {
@@ -110,14 +121,14 @@ class MainActivity : ComponentActivity() {
                                         },
                                     )
                                 }
-                                composable(Routes.Pdv) { PdvScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Products) { ProductsScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Checkin) { CheckinScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Refund) { RefundScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Reports) { ReportsScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Cashier) { CashierScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Cashless) { CashlessScreen(onBack = { nav.popBackStack() }) }
-                                composable(Routes.Pending) { PendingScreen(onBack = { nav.popBackStack() }) }
+                                composable(Routes.Pdv) { PdvScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Products) { ProductsScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Checkin) { CheckinScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Refund) { RefundScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Reports) { ReportsScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Cashier) { CashierScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Cashless) { CashlessScreen(onBack = { nav.goHome() }) }
+                                composable(Routes.Pending) { PendingScreen(onBack = { nav.goHome() }) }
                             }
                         }
                     }

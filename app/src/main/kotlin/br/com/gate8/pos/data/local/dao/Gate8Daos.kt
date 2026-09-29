@@ -16,6 +16,9 @@ interface CatalogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: CatalogCacheEntity)
+
+    @Query("DELETE FROM catalog_cache")
+    fun clear()
 }
 
 @Dao

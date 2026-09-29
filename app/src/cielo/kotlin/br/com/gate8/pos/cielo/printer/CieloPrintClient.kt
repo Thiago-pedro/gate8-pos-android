@@ -22,6 +22,7 @@ internal object CieloPrintClient {
     private const val SIZE_META = 20
     /** Item + preço no mesmo bloco — evita espaço extra entre chamadas PRINT_TEXT. */
     private const val SIZE_ITEM_PRICE = 36
+    private const val SIZE_ORDER = 48
 
     /** Enfileira impressão de texto simples (comprovantes, relatórios). */
     fun printLines(lines: List<String>) {
@@ -72,6 +73,46 @@ internal object CieloPrintClient {
                 printTextAsync("\nAUT.: ${authorization.trim()}\n", ALIGN_CENTER, SIZE_META)
             }
             printTextAsync("\n" + ".".repeat(32) + "\n\n", ALIGN_CENTER, SIZE_META)
+        }
+    }
+
+    /**
+     * Pedido da cozinha: logo + PEDIDO N em destaque + itens (sem preço).
+     */
+    fun printKitchenFicha(
+        logoPath: String?,
+        producerName: String?,
+        dateTime: String,
+        terminalName: String,
+        orderNumber: Int,
+        items: List<Pair<Int, String>>,
+    ) {
+        enqueuePrint {
+            logoPath?.let { path -> printImageAsync(path) }
+            val meta = buildString {
+                producerName?.takeIf { it.isNotBlank() }?.let {
+                    append(it.trim())
+                    append('\n')
+                }
+                append(dateTime)
+                append('\n')
+                append(terminalName)
+                append('\n')
+            }
+            printTextAsync(meta, ALIGN_CENTER, SIZE_META)
+            printTextAsync("PEDIDO $orderNumber\n", ALIGN_CENTER, SIZE_ORDER)
+            val itemBlock = buildString {
+                items.forEach { (qty, desc) ->
+                    append(qty)
+                    append("x ")
+                    append(desc.trim().uppercase(brLocale))
+                    append('\n')
+                }
+            }
+            if (itemBlock.isNotBlank()) {
+                printTextAsync(itemBlock, ALIGN_CENTER, SIZE_ITEM_PRICE)
+            }
+            printTextAsync("\n" + ".".repeat(32) + "\n\n", ALIGN_CENTER, SIZE_META, formFeed = true)
         }
     }
 

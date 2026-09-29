@@ -5,6 +5,7 @@ import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.ReportPrintPayload
+import br.com.gate8.pos.printer.KitchenOrderPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
 
@@ -92,6 +93,10 @@ class MercadoPagoReceiptPrinter : ReceiptPrinter {
 
     override fun printCashlessStatement(payload: CashlessStatementPayload) {
         Log.i(TAG, "=== GATE8 EXTRATO CASHLESS (MP) === uid=${payload.uidHex} linhas=${payload.lines.size}")
+    }
+
+    override fun printKitchenOrder(payload: KitchenOrderPayload) {
+        Log.i(TAG, "=== GATE8 COZINHA (MP) === PEDIDO ${payload.orderNumber} itens=${payload.items.size}")
     }
 
     override fun printConvenienceTickets(

@@ -41,6 +41,7 @@ data class CartLine(
     val unitPrice: Double,
     val holderName: String? = null,
     val holderEmail: String? = null,
+    val category: String? = null,
 ) {
     val lineTotal: Double get() = quantity * unitPrice
 }

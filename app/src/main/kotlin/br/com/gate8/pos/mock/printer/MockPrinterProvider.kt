@@ -6,6 +6,7 @@ import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.ReportPrintPayload
+import br.com.gate8.pos.printer.KitchenOrderPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
 
@@ -183,6 +184,16 @@ class MockPrinterProvider : ReceiptPrinter {
         payload.lines.forEach { line ->
             sb.append("${line.dateLabel} ${line.label} ${line.amountLabel} -> ${line.balanceAfterLabel}\n")
         }
+        Log.i(TAG, sb.toString())
+    }
+
+    override fun printKitchenOrder(payload: KitchenOrderPayload) {
+        val sb = StringBuilder("=== GATE8 COZINHA (MOCK) ===\nPEDIDO ${payload.orderNumber}\n")
+        sb.append("${payload.terminalName}\n")
+        payload.items.forEach { line ->
+            sb.append("${line.quantity}x ${line.description.uppercase()}\n")
+        }
+        sb.append("..........................")
         Log.i(TAG, sb.toString())
     }
 

@@ -28,6 +28,10 @@ import br.com.gate8.pos.data.remote.dto.CashlessPatchRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessReassignRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessCloseResponseDto
 import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
+import br.com.gate8.pos.data.remote.dto.KitchenOrdersResponseDto
+import br.com.gate8.pos.data.remote.dto.KitchenPrintedResponseDto
+import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderRequestDto
+import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderResponseDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -48,6 +52,20 @@ interface PosApiService {
 
     @POST("api/public/pos/sales")
     suspend fun createSale(@Body body: CreateSaleRequestDto): Response<CreateSaleResponseDto>
+
+    @GET("api/public/pos/kitchen/orders")
+    @Headers("Cache-Control: no-cache")
+    suspend fun getKitchenOrders(): Response<KitchenOrdersResponseDto>
+
+    @POST("api/public/pos/kitchen/orders")
+    suspend fun submitKitchenOrder(
+        @Body body: SubmitKitchenOrderRequestDto,
+    ): Response<SubmitKitchenOrderResponseDto>
+
+    @POST("api/public/pos/kitchen/orders/{id}/printed")
+    suspend fun markKitchenOrderPrinted(
+        @Path("id") orderId: String,
+    ): Response<KitchenPrintedResponseDto>
 
     @POST("api/public/pos/sales/{id}/void")
     suspend fun voidSale(

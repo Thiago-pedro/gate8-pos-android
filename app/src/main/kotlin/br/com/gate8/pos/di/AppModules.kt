@@ -18,6 +18,7 @@ import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CashlessAccountRepository
+import br.com.gate8.pos.data.repository.KitchenRepository
 import br.com.gate8.pos.data.repository.ReportsRepository
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -32,6 +33,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import br.com.gate8.pos.ui.cashier.CashierViewModel
 import br.com.gate8.pos.ui.cashless.CashlessViewModel
 import br.com.gate8.pos.ui.config.SetupViewModel
+import br.com.gate8.pos.ui.kitchen.KitchenViewModel
 import br.com.gate8.pos.ui.login.LoginViewModel
 import br.com.gate8.pos.ui.pdv.PdvViewModel
 import br.com.gate8.pos.ui.products.ProductsViewModel
@@ -46,6 +48,7 @@ private val json = Json {
     ignoreUnknownKeys = true
     isLenient = true
     encodeDefaults = true
+    coerceInputValues = true
 }
 
 val appModule = module {
@@ -64,12 +67,23 @@ val appModule = module {
     single { MpOrderReconciliation(get()) }
 
     single {
+        Room.databaseBuilder(androidContext(), Gate8Database::class.java, "gate8_pos.db")
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    single { get<Gate8Database>().catalogDao() }
+    single { get<Gate8Database>().pendingSaleDao() }
+    single { get<Gate8Database>().cashlessAccountDao() }
+    single { get<Gate8Database>().cashlessMovementDao() }
+
+    single {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
             else HttpLoggingInterceptor.Level.NONE
         }
         OkHttpClient.Builder()
-            .addInterceptor(AuthInterceptor(get(), get()))
+            .addInterceptor(AuthInterceptor(get(), get(), get()))
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -91,17 +105,6 @@ val appModule = module {
 
     single { get<Retrofit>().create(PosApiService::class.java) }
 
-    single {
-        Room.databaseBuilder(androidContext(), Gate8Database::class.java, "gate8_pos.db")
-            .fallbackToDestructiveMigration()
-            .build()
-    }
-
-    single { get<Gate8Database>().catalogDao() }
-    single { get<Gate8Database>().pendingSaleDao() }
-    single { get<Gate8Database>().cashlessAccountDao() }
-    single { get<Gate8Database>().cashlessMovementDao() }
-
     single { CatalogRepository(get(), get(), get(), get(), get()) }
     single { SaleRepository(get(), get(), get()) }
     single { CheckinRepository(get()) }
@@ -109,9 +112,10 @@ val appModule = module {
     single { ReportsRepository(get()) }
     single { CashierRepository(get(), get()) }
     single { CashlessAccountRepository(get(), get(), get(), get()) }
+    single { KitchenRepository(get(), get(), get()) }
 
-    viewModel { LoginViewModel(androidApplication(), get(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { LoginViewModel(androidApplication(), get(), get(), get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { RefundViewModel(get(), get()) }
     viewModel { ReportsViewModel(get(), get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
@@ -123,9 +127,10 @@ val appModule = module {
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
     viewModel {
         ProductsViewModel(
-            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
         )
     }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
+    viewModel { KitchenViewModel(get(), get(), get()) }
 }

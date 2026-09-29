@@ -24,6 +24,7 @@ import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
+import br.com.gate8.pos.data.repository.KitchenRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
@@ -114,6 +115,7 @@ class ProductsViewModel(
     private val cashlessCard: CashlessCardGateway,
     private val cashlessAccounts: CashlessAccountRepository,
     private val json: Json,
+    private val kitchenRepository: KitchenRepository,
     private val isDebug: Boolean,
 ) : ViewModel() {
 
@@ -129,6 +131,7 @@ class ProductsViewModel(
 
     fun onScreenVisible() {
         refreshCashierStatus()
+        refreshCatalog()
     }
 
     fun toggleSearch() {
@@ -223,6 +226,7 @@ class ProductsViewModel(
                     description = product.name,
                     quantity = 1,
                     unitPrice = product.price,
+                    category = product.category,
                 )
             }
             s.copy(cart = newCart, error = null)
@@ -446,6 +450,7 @@ class ProductsViewModel(
                         )
                     }
                     beginReceiptPrint(cart, total, method, pay, successUi, cashlessMeta)
+                    enqueueKitchen(success.saleId, clientRef, cart)
                     refreshCatalog()
                     schedulePendingSync()
                 }
@@ -497,6 +502,7 @@ class ProductsViewModel(
         )
         _state.update { it.copy(loading = false, payingMethod = null, cart = emptyList(), showCart = false) }
         beginReceiptPrint(cart, total, method, pay, successUi)
+        enqueueKitchen(recovered.saleSuccess.saleId, clientRef, cart)
         refreshCatalog()
     }
 
@@ -612,6 +618,12 @@ class ProductsViewModel(
     private fun terminalName(): String =
         configStore.getDeviceName()?.takeIf { it.isNotBlank() } ?: configStore.getDeviceShortId()
 
+    private fun enqueueKitchen(saleId: String?, clientRef: String, cart: List<CartLine>) {
+        viewModelScope.launch {
+            runCatching { kitchenRepository.submitFromSale(saleId, clientRef, cart) }
+        }
+    }
+
     private fun products(): List<ProductDto> = _state.value.catalog?.products.orEmpty()
 
     private fun validateCartStock(): Boolean {
@@ -660,6 +672,7 @@ class ProductsViewModel(
             cashlessCpfMasked = cashless.cpfMasked,
             cashlessBalanceAfter = cashless.balanceAfter,
         )
+        enqueueKitchen(null, clientRef, cart)
         val apiHint = when {
             e is ApiException && e.isStockOrProductError() -> e.saleErrorMessage()
             e is ApiException -> null

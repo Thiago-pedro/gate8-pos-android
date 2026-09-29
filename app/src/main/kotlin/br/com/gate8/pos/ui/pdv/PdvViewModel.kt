@@ -17,6 +17,9 @@ import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
+import br.com.gate8.pos.data.remote.dto.canAdd
+import br.com.gate8.pos.data.remote.dto.isSoldOut
+import br.com.gate8.pos.data.remote.dto.remaining
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CatalogRepository
@@ -114,6 +117,7 @@ class PdvViewModel(
 
     fun onScreenVisible() {
         refreshCashierStatus()
+        refreshCatalog()
     }
 
     private fun refreshCashierStatus() {
@@ -180,12 +184,12 @@ class PdvViewModel(
         _state.value.cart.firstOrNull { it.batchId == batchId }?.quantity ?: 0
 
     fun addTicket(batch: TicketBatchDto, eventName: String) {
-        if (batch.available <= 0) {
+        if (batch.isSoldOut) {
             _state.update { it.copy(error = "${batch.name} esgotado") }
             return
         }
         val inCart = quantityInCart(batch.id)
-        if (inCart >= batch.available) {
+        if (!batch.canAdd(inCart)) {
             _state.update {
                 it.copy(error = "Disponível: ${batch.available} (${batch.name})")
             }
@@ -276,7 +280,7 @@ class PdvViewModel(
         return cart.mapNotNull { line ->
             val batchId = line.batchId ?: return@mapNotNull null
             val batch = batches.firstOrNull { it.id == batchId } ?: return@mapNotNull null
-            val qty = line.quantity.coerceAtMost(batch.available)
+            val qty = line.quantity.coerceAtMost(batch.remaining)
             if (qty <= 0) null else line.copy(quantity = qty)
         }
     }

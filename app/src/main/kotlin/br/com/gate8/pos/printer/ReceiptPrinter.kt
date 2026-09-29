@@ -67,6 +67,11 @@ interface ReceiptPrinter {
     fun printCashlessStatement(payload: CashlessStatementPayload)
 
     /**
+     * Pedido da cozinha: uma ficha com número crescente e os itens de alimentação.
+     */
+    fun printKitchenOrder(payload: KitchenOrderPayload)
+
+    /**
      * Modo ficha: imprime uma ficha separada para cada unidade de cada item
      * (ex.: 2 copões = 2 fichas), cada uma com a logo Gate8, data, terminal,
      * descrição, preço e o AUT (mesma autorização do comprovante) no rodapé.
@@ -127,6 +132,8 @@ class NoOpReceiptPrinter : ReceiptPrinter {
     ) = Unit
 
     override fun printCashlessStatement(payload: CashlessStatementPayload) = Unit
+
+    override fun printKitchenOrder(payload: KitchenOrderPayload) = Unit
 
     override fun printConvenienceTickets(
         lines: List<CartLine>,

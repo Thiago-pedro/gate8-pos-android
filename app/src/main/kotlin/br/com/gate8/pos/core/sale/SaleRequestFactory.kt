@@ -50,6 +50,7 @@ object SaleRequestFactory {
                     description = line.description,
                     quantity = line.quantity,
                     unitPrice = line.unitPrice,
+                    category = line.category,
                 )
             },
             cardUid = if (method == PaymentMethodApi.CASHLESS) uid else null,

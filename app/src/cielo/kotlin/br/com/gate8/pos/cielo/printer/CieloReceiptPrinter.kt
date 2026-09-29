@@ -7,6 +7,7 @@ import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
+import br.com.gate8.pos.printer.KitchenOrderPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -178,6 +179,19 @@ class CieloReceiptPrinter(
         runCatching {
             CieloPrintClient.printLines(Gate8ReceiptTextBuilder.cashlessStatement(payload))
         }.onFailure { Log.e(TAG, "printCashlessStatement falhou", it) }
+    }
+
+    override fun printKitchenOrder(payload: KitchenOrderPayload) {
+        runCatching {
+            CieloPrintClient.printKitchenFicha(
+                logoPath = CieloLogoBitmap.prepareLogoPath(appContext),
+                producerName = configStore.getEstablishmentName(),
+                dateTime = timeFormat.format(Date(payload.soldAtMillis)),
+                terminalName = payload.terminalName,
+                orderNumber = payload.orderNumber,
+                items = payload.items.map { it.quantity to it.description },
+            )
+        }.onFailure { Log.e(TAG, "printKitchenOrder falhou", it) }
     }
 
     override fun printConvenienceTickets(

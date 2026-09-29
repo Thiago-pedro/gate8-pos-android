@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -56,6 +58,7 @@ fun HomeScreen(
     onRefund: () -> Unit,
     onReports: () -> Unit,
     onSetup: () -> Unit,
+    onKitchen: () -> Unit = {},
     vm: SetupViewModel = koinViewModel(),
 ) {
     val setupState by vm.state.collectAsState()
@@ -65,10 +68,19 @@ fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 vm.onScreenVisible()
+                if (vm.isKitchenMode()) onKitchen()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) {
+        if (vm.isKitchenMode()) onKitchen()
+    }
+
+    BackHandler {
+        // Na home da maquininha o voltar do sistema não deve fechar o app.
     }
 
     Gate8ScreenBackground {

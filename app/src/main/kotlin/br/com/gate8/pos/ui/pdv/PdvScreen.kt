@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
+import br.com.gate8.pos.data.remote.dto.canAdd
+import br.com.gate8.pos.data.remote.dto.isSoldOut
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8AlertDialog
@@ -325,7 +327,7 @@ fun PdvScreen(
                     quantity = line.quantity,
                     unitPrice = line.unitPrice,
                     lineTotal = line.lineTotal,
-                    canIncrement = batch?.let { it.available > 0 && line.quantity < it.available } ?: false,
+                    canIncrement = batch?.canAdd(line.quantity) ?: false,
                 )
             }
             ModalBottomSheet(
@@ -522,8 +524,8 @@ private fun TicketBatchCard(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
 ) {
-    val soldOut = batch.available <= 0
-    val canIncrement = !soldOut && quantity < batch.available
+    val soldOut = batch.isSoldOut
+    val canIncrement = batch.canAdd(quantity)
 
     Column(
         Modifier

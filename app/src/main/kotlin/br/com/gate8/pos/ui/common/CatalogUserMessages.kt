@@ -5,6 +5,7 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 
 /** Mensagens amigáveis para falha ao carregar catálogo / produtos. */
@@ -13,6 +14,7 @@ object CatalogUserMessages {
     fun fromThrowable(error: Throwable?, fallback: String): String {
         if (error == null) return fallback
         val root = generateSequence(error) { it.cause }.last()
+        val msg = error.message?.trim().orEmpty()
         return when {
             root is HttpException -> fromHttp(root.code())
             error is ApiException -> fromHttp(error.httpCode, error.message)
@@ -21,16 +23,17 @@ object CatalogUserMessages {
                 "Sem conexão com o servidor. Verifique a internet do aparelho."
             root is ConnectException ->
                 "Não foi possível conectar ao servidor. Tente novamente."
+            root is SerializationException ||
+                msg.contains("Unexpected JSON", ignoreCase = true) ||
+                msg.contains("Unexpected symbol", ignoreCase = true) ->
+                "Não foi possível ler o catálogo. Toque em Atualizar."
             root is IOException ->
                 "Falha de conexão. Verifique a rede e tente novamente."
-            else -> {
-                val msg = error.message?.trim().orEmpty()
-                when {
-                    msg.matches(Regex("""HTTP\s+\d{3}""", RegexOption.IGNORE_CASE)) ->
-                        fromHttp(msg.substringAfter("HTTP").trim().toIntOrNull() ?: 0)
-                    msg.isNotBlank() -> msg
-                    else -> fallback
-                }
+            else -> when {
+                msg.matches(Regex("""HTTP\s+\d{3}""", RegexOption.IGNORE_CASE)) ->
+                    fromHttp(msg.substringAfter("HTTP").trim().toIntOrNull() ?: 0)
+                msg.isNotBlank() -> msg
+                else -> fallback
             }
         }
     }

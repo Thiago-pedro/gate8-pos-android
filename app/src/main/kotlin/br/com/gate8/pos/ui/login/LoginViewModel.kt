@@ -7,6 +7,7 @@ import br.com.gate8.pos.core.device.DeviceFingerprint
 import br.com.gate8.pos.device.PosHardwareInfo
 import br.com.gate8.pos.core.util.ProducerTokenValidator
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.domain.model.LoginResult
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -41,6 +42,7 @@ class LoginViewModel(
     private val configStore: DeviceConfigStore,
     private val loginRepository: LoginRepository,
     private val hardwareInfo: PosHardwareInfo,
+    private val catalogRepository: CatalogRepository,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -93,6 +95,7 @@ class LoginViewModel(
             _state.update { it.copy(loading = true, error = null, pendingDeviceName = null, disabledDeviceName = null) }
             val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore, hardwareInfo)
             configStore.setProducerToken(token)
+            catalogRepository.clear()
 
             runCatching {
                 loginRepository.login(
@@ -130,6 +133,7 @@ class LoginViewModel(
                 // Cadastro órfão/desativado no servidor: zera fingerprint para o próximo
                 // login gerar identidade nova (evita maquininha presa sem aparecer no painel).
                 configStore.logout()
+                catalogRepository.clear()
                 configStore.setProducerToken(token)
                 _state.update {
                     it.copy(

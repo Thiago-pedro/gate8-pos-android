@@ -1,5 +1,7 @@
 package br.com.gate8.pos.ui.navigation
 
+import androidx.navigation.NavController
+
 object Routes {
     const val Login = "login"
     const val LoginPending = "login_pending"
@@ -13,4 +15,13 @@ object Routes {
     const val Cashier = "cashier"
     const val Cashless = "cashless"
     const val Pending = "pending"
+    const val Kitchen = "kitchen"
 }
+
+fun NavController.goHome() {
+    val atHome = popBackStack(Routes.Home, inclusive = false)
+    if (!atHome) {
+        navigate(Routes.Home) { launchSingleTop = true }
+    }
+}
+

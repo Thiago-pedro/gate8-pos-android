@@ -7,6 +7,7 @@ import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
@@ -45,6 +46,8 @@ data class SetupUiState(
     val showClearPendingConfirm: Boolean = false,
     /** Modo ficha na conveniência: cada item sai em uma ficha separada. */
     val convenienceTicketMode: Boolean = false,
+    /** Esta maquininha só escuta e imprime pedidos de alimentação. */
+    val kitchenMode: Boolean = false,
 )
 
 class SetupViewModel(
@@ -55,6 +58,7 @@ class SetupViewModel(
     private val cashierRepository: CashierRepository,
     private val terminalSettings: TerminalSettingsGateway,
     private val hardwareInfo: PosHardwareInfo,
+    private val catalogRepository: CatalogRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -82,6 +86,7 @@ class SetupViewModel(
                 lastSale = saleAdmin.loadLastSale(),
                 pendingSyncCount = 0,
                 convenienceTicketMode = configStore.isConvenienceTicketMode(),
+                kitchenMode = configStore.isKitchenMode(),
             )
         }
         viewModelScope.launch {
@@ -277,6 +282,23 @@ class SetupViewModel(
         }
     }
 
+    fun setKitchenMode(enabled: Boolean) {
+        configStore.setKitchenMode(enabled)
+        _state.update {
+            it.copy(
+                kitchenMode = enabled,
+                message = if (enabled) {
+                    "Modo cozinha ligado: esta maquininha só imprime pedidos de alimentação"
+                } else {
+                    "Modo cozinha desligado: esta maquininha volta a vender"
+                },
+                error = null,
+            )
+        }
+    }
+
+    fun isKitchenMode(): Boolean = configStore.isKitchenMode()
+
     fun setConvenienceTicketMode(enabled: Boolean) {
         configStore.setConvenienceTicketMode(enabled)
         _state.update {
@@ -299,6 +321,7 @@ class SetupViewModel(
     }
 
     fun logout() {
+        catalogRepository.clear()
         configStore.logout()
     }
 

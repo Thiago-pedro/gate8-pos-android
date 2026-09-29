@@ -27,6 +27,7 @@ class CatalogRepository(
                 json = json.encodeToString(CatalogResponseDto.serializer(), catalog),
                 serverTime = catalog.serverTime,
                 fetchedAt = System.currentTimeMillis(),
+                producerToken = configStore.getProducerToken().orEmpty(),
             ),
         )
         return catalog
@@ -34,8 +35,19 @@ class CatalogRepository(
 
     suspend fun getCached(): CatalogResponseDto? {
         val row = catalogDao.get() ?: return null
+        val current = configStore.getProducerToken().orEmpty()
+        if (row.producerToken.isNotBlank() && current.isNotBlank() &&
+            !row.producerToken.equals(current, ignoreCase = true)
+        ) {
+            catalogDao.clear()
+            return null
+        }
         return runCatching {
             json.decodeFromString(CatalogResponseDto.serializer(), row.json)
         }.getOrNull()
+    }
+
+    fun clear() {
+        catalogDao.clear()
     }
 }

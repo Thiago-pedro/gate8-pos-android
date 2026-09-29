@@ -112,6 +112,48 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putBoolean(KEY_CONVENIENCE_TICKET_MODE, enabled).apply()
     }
 
+    /** Esta maquininha só escuta e imprime pedidos de alimentação. */
+    fun isKitchenMode(): Boolean = prefs.getBoolean(KEY_KITCHEN_MODE, false)
+
+    fun setKitchenMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_KITCHEN_MODE, enabled).apply()
+    }
+
+    @Synchronized
+    fun nextKitchenOrderNumber(): Int {
+        val next = prefs.getInt(KEY_KITCHEN_SEQ, 0) + 1
+        prefs.edit().putInt(KEY_KITCHEN_SEQ, next).commit()
+        return next
+    }
+
+    fun getKitchenPendingJson(): String? = prefs.getString(KEY_KITCHEN_PENDING, null)
+
+    fun setKitchenPendingJson(json: String) {
+        prefs.edit().putString(KEY_KITCHEN_PENDING, json).apply()
+    }
+
+    fun getKitchenPrintedIds(): Set<String> =
+        prefs.getString(KEY_KITCHEN_PRINTED, "")
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
+
+    @Synchronized
+    fun addKitchenPrintedId(id: String) {
+        val next = getKitchenPrintedIds() + id
+        prefs.edit().putString(KEY_KITCHEN_PRINTED, next.joinToString("|")).commit()
+    }
+
+    fun clearKitchenQueue() {
+        prefs.edit()
+            .remove(KEY_KITCHEN_PENDING)
+            .remove(KEY_KITCHEN_PRINTED)
+            .remove(KEY_KITCHEN_SEQ)
+            .apply()
+    }
+
     fun getDeviceShortId(): String {
         val fromName = getDeviceName()?.takeIf { it.isNotBlank() }
         if (fromName != null) return fromName.take(12)
@@ -140,6 +182,9 @@ class DeviceConfigStore(context: Context) {
             // Zera a identidade da maquininha: o próximo login gera um novo
             // fingerprint e o dispositivo precisa ser liberado de novo no painel.
             .remove(KEY_FINGERPRINT)
+            .remove(KEY_KITCHEN_PENDING)
+            .remove(KEY_KITCHEN_PRINTED)
+            .remove(KEY_KITCHEN_SEQ)
             .apply()
     }
 
@@ -156,5 +201,9 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_MP_TERMINAL_ID = "mp_terminal_id"
         private const val KEY_SHORT_ID = "device_short_id"
         private const val KEY_CONVENIENCE_TICKET_MODE = "convenience_ticket_mode"
+        private const val KEY_KITCHEN_MODE = "kitchen_mode"
+        private const val KEY_KITCHEN_SEQ = "kitchen_order_seq"
+        private const val KEY_KITCHEN_PENDING = "kitchen_pending_json"
+        private const val KEY_KITCHEN_PRINTED = "kitchen_printed_ids"
     }
 }
