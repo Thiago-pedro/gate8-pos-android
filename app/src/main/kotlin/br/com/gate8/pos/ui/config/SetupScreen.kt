@@ -279,9 +279,7 @@ fun SetupScreen(
 
                     } else {
 
-                        vm.logout()
-
-                        onLogout()
+                        vm.logout(onLogout)
 
                     }
 

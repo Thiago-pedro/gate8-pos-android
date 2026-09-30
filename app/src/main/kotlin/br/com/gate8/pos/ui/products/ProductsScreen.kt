@@ -146,9 +146,9 @@ fun ProductsScreen(
 
     if (state.paymentCancelled) {
         Gate8AlertDialog(
-            title = "Pagamento cancelado",
-            reason = "A cobrança foi cancelada.",
-            detail = "Os itens continuam no carrinho.",
+            title = "Pagamento não concluído",
+            reason = "A cobrança não foi finalizada na maquininha.",
+            detail = "Os itens continuam no carrinho. Tente novamente.",
             icon = Icons.Filled.Cancel,
             accent = Gate8Colors.AccentBlue,
             onDismiss = { vm.dismissPaymentCancelled() },

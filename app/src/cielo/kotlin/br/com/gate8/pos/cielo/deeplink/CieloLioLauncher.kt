@@ -20,6 +20,7 @@ internal object CieloLioLauncher {
         val launch = {
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 addCategory(Intent.CATEGORY_DEFAULT)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 `package` = URIAPP_PACKAGE
             }
             if (intent.resolveActivity(activity.packageManager) == null) {

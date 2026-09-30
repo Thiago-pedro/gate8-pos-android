@@ -18,7 +18,7 @@ interface CatalogDao {
     suspend fun upsert(entity: CatalogCacheEntity)
 
     @Query("DELETE FROM catalog_cache")
-    fun clear()
+    suspend fun clear()
 }
 
 @Dao

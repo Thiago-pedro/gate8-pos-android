@@ -47,7 +47,7 @@ class CatalogRepository(
         }.getOrNull()
     }
 
-    fun clear() {
+    suspend fun clear() {
         catalogDao.clear()
     }
 }

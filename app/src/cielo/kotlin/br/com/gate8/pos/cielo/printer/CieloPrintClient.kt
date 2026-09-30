@@ -7,6 +7,7 @@ import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkResponse
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
+import br.com.gate8.pos.cielo.deeplink.CieloLioOp
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -209,9 +210,9 @@ internal object CieloPrintClient {
     private suspend fun launchPrint(body: JSONObject): CieloDeeplinkResponse {
         val base64 = CieloDeeplinkSession.toBase64(body.toString())
         val uri = Uri.parse(
-            "lio://print?request=${Uri.encode(base64)}&urlCallback=${Uri.encode(CieloDeeplinkSession.CALLBACK)}",
+            "lio://print?request=${Uri.encode(base64)}&urlCallback=${Uri.encode(CieloDeeplinkSession.CALLBACK_PRINT)}",
         )
-        return CieloDeeplinkSession.awaitResponse {
+        return CieloDeeplinkSession.awaitResponse(CieloLioOp.PRINT) {
             val activity = CieloActivityHolder.get()
                 ?: throw IllegalStateException("Abra o app Gate8 na Cielo Smart para imprimir.")
             CieloLioLauncher.start(activity, uri)

@@ -22,6 +22,7 @@ import br.com.gate8.pos.ui.login.LoginPendingScreen
 import br.com.gate8.pos.ui.login.LoginScreen
 import br.com.gate8.pos.ui.navigation.Routes
 import br.com.gate8.pos.ui.navigation.goHome
+import br.com.gate8.pos.ui.navigation.goLogin
 import br.com.gate8.pos.ui.pending.PendingScreen
 import br.com.gate8.pos.ui.pdv.PdvScreen
 import br.com.gate8.pos.ui.products.ProductsScreen
@@ -58,9 +59,7 @@ class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(Unit) {
                         sessionEvents.unauthorized.collect {
-                            nav.navigate(Routes.Login) {
-                                popUpTo(0) { inclusive = true }
-                            }
+                            nav.goLogin()
                         }
                     }
 
@@ -114,11 +113,7 @@ class MainActivity : ComponentActivity() {
                                 composable(Routes.Setup) {
                                     SetupScreen(
                                         onDone = { nav.popBackStack() },
-                                        onLogout = {
-                                            nav.navigate(Routes.Login) {
-                                                popUpTo(0) { inclusive = true }
-                                            }
-                                        },
+                                        onLogout = { nav.goLogin() },
                                     )
                                 }
                                 composable(Routes.Pdv) { PdvScreen(onBack = { nav.goHome() }) }

@@ -13,11 +13,13 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.device.PosHardwareInfo
 import br.com.gate8.pos.payment.TerminalSettingsGateway
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Prefixo fixo do nome do operador para identificar vendas feitas na maquininha. */
 private const val OPERATOR_PREFIX = "POS - "
@@ -320,9 +322,17 @@ class SetupViewModel(
             .onFailure { e -> _state.update { it.copy(error = e.message, message = null) } }
     }
 
-    fun logout() {
-        catalogRepository.clear()
-        configStore.logout()
+    fun logout(onDone: () -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                catalogRepository.clear()
+            }
+            withContext(Dispatchers.IO) {
+                configStore.setKitchenMode(false)
+                configStore.logout()
+            }
+            onDone()
+        }
     }
 
     fun isLoggedIn(): Boolean = configStore.isLoggedIn()

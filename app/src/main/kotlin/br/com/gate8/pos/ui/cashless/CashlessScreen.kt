@@ -152,8 +152,8 @@ fun CashlessScreen(
 
     if (state.paymentCancelled) {
         Gate8AlertDialog(
-            title = "Pagamento cancelado",
-            reason = "A cobrança foi cancelada.",
+            title = "Pagamento não concluído",
+            reason = "A cobrança não foi finalizada na maquininha.",
             detail = "O valor continua na tela para tentar de novo.",
             icon = Icons.Filled.Cancel,
             accent = Gate8Colors.AccentBlue,

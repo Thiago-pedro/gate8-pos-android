@@ -30,8 +30,8 @@ android {
         applicationId = "br.com.gate8.pos.terminal"
         minSdk = 23
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 7
+        versionName = "1.0.6"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
         buildConfigField("String", "CIELO_CLIENT_ID", "\"\"")
         buildConfigField("String", "CIELO_ACCESS_TOKEN", "\"\"")
@@ -134,4 +134,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.json:json:20240303")
 }

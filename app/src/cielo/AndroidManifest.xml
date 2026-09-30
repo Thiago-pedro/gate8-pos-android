@@ -32,6 +32,22 @@
                     android:host="response"
                     android:scheme="gate8cielo" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="payment"
+                    android:scheme="gate8cielo" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="print"
+                    android:scheme="gate8cielo" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

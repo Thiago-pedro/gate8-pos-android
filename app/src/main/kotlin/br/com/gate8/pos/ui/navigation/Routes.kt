@@ -25,3 +25,10 @@ fun NavController.goHome() {
     }
 }
 
+fun NavController.goLogin() {
+    navigate(Routes.Login) {
+        popUpTo(graph.id) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+

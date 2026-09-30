@@ -111,7 +111,7 @@ class LoginViewModel(
         }
     }
 
-    private fun handleLoginResult(result: LoginResult, token: String) {
+    private suspend fun handleLoginResult(result: LoginResult, token: String) {
         when (result) {
             is LoginResult.Active -> {
                 configStore.setDeviceToken(result.deviceToken)

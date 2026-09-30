@@ -7,6 +7,8 @@ import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkResponse
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
+import br.com.gate8.pos.cielo.deeplink.CieloLioOp
+import br.com.gate8.pos.core.util.CieloUserText
 import br.com.gate8.pos.data.remote.dto.MpSaleDraftDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.CardBrandNormalizer
@@ -59,7 +61,7 @@ class CieloPaymentGateway : PaymentGateway {
                 // merchantCode no deep link é o EC formatado; merchant-id UUID vai só se a Cielo pedir —
                 // deixamos reference para conciliação Gate8.
             }
-            put("installments", 0)
+            put("installments", installmentsFor(method))
             put(
                 "items",
                 JSONArray().put(
@@ -75,16 +77,15 @@ class CieloPaymentGateway : PaymentGateway {
             put("value", cents.toString())
         }
 
-        val response = launchLio("payment", body)
+        val response = launchLio("payment", body, CieloDeeplinkSession.CALLBACK_PAYMENT)
         if (cancelRequested) throw PaymentCancelledException()
         return when (response) {
             is CieloDeeplinkResponse.Error -> {
-                if (response.reason.contains("CANCEL", ignoreCase = true) ||
-                    response.reason.contains("usuário", ignoreCase = true)
-                ) {
+                val reason = CieloUserText.repair(response.reason)
+                if (CieloUserText.isUserCancel(reason)) {
                     throw PaymentCancelledException()
                 }
-                throw IllegalStateException(formatCieloError(response.code, response.reason))
+                throw IllegalStateException(formatCieloError(response.code, reason))
             }
             is CieloDeeplinkResponse.Success -> mapPaymentSuccess(response.json, method)
         }
@@ -123,7 +124,7 @@ class CieloPaymentGateway : PaymentGateway {
             put("authCode", authCode)
             put("value", cents)
         }
-        return when (val response = launchLio("payment-reversal", body)) {
+        return when (val response = launchLio("payment-reversal", body, CieloDeeplinkSession.CALLBACK_PAYMENT)) {
             is CieloDeeplinkResponse.Error ->
                 VoidResult(success = false, message = response.reason)
             is CieloDeeplinkResponse.Success ->
@@ -131,12 +132,16 @@ class CieloPaymentGateway : PaymentGateway {
         }
     }
 
-    private suspend fun launchLio(path: String, body: JSONObject): CieloDeeplinkResponse {
+    private suspend fun launchLio(
+        path: String,
+        body: JSONObject,
+        callback: String,
+    ): CieloDeeplinkResponse {
         val base64 = CieloDeeplinkSession.toBase64(body.toString())
         val uri = Uri.parse(
-            "lio://$path?request=${Uri.encode(base64)}&urlCallback=${Uri.encode(CieloDeeplinkSession.CALLBACK)}",
+            "lio://$path?request=${Uri.encode(base64)}&urlCallback=${Uri.encode(callback)}",
         )
-        return CieloDeeplinkSession.awaitResponse {
+        return CieloDeeplinkSession.awaitResponse(CieloLioOp.PAYMENT) {
             val activity = CieloActivityHolder.get()
                 ?: throw IllegalStateException("Abra o app Gate8 na Cielo Smart para pagar.")
             CieloLioLauncher.start(activity, uri)
@@ -145,9 +150,13 @@ class CieloPaymentGateway : PaymentGateway {
     }
 
     private fun mapPaymentSuccess(json: JSONObject, method: PaymentMethodApi): PaymentResult {
-        val orderId = json.optString("id")
         val payments = json.optJSONArray("payments")
         val payment = payments?.optJSONObject(0)
+        val orderId = json.optString("id").ifBlank {
+            payment?.optString("id").orEmpty().ifBlank {
+                payment?.optString("externalId").orEmpty()
+            }
+        }
         val cieloCode = payment?.optString("cieloCode").orEmpty()
         val authCode = payment?.optString("authCode").orEmpty()
         val brand = extractBrand(payment, method)
@@ -202,6 +211,12 @@ class CieloPaymentGateway : PaymentGateway {
         PaymentMethodApi.CREDIT -> "CREDITO_AVISTA"
         PaymentMethodApi.PIX -> "PIX"
         else -> "CREDITO_AVISTA"
+    }
+
+    /** Crédito à vista na LIO exige 1. Débito/Pix usam 0. */
+    private fun installmentsFor(method: PaymentMethodApi): Int = when (method) {
+        PaymentMethodApi.CREDIT -> 1
+        else -> 0
     }
 
     private fun ensureCredentials() {

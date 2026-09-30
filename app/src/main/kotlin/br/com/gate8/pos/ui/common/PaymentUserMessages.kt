@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.common
 
+import br.com.gate8.pos.core.util.CieloUserText
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.payment.PaymentTimedOutException
 import java.io.IOException
@@ -14,6 +15,9 @@ object PaymentUserMessages {
     const val CART_RETRY_HINT = "Os itens continuam no carrinho. Tente novamente."
 
     const val DEFAULT_FAILURE = "Não foi possível concluir o pagamento."
+
+    const val NOT_FINISHED =
+        "O pagamento não foi finalizado na maquininha. Nada foi cobrado."
 
     /** Terminal Cielo ainda sem elegibilidade de pagamento (opt-in). */
     const val CIELO_OPTIN =
@@ -54,14 +58,17 @@ object PaymentUserMessages {
 
     private fun formatThrowable(error: Throwable): String {
         val root = generateSequence(error) { it.cause }.last()
-        val message = error.message?.trim().orEmpty()
-        val rootMessage = root.message?.trim().orEmpty()
+        val message = CieloUserText.repair(error.message?.trim().orEmpty())
+        val rootMessage = CieloUserText.repair(root.message?.trim().orEmpty())
         val combined = "$message $rootMessage"
 
+        if (CieloUserText.isOperationNotFinished(combined)) return NOT_FINISHED
         cieloOptinMessage(combined)?.let { return it }
         cieloAlreadyDoneMessage(combined)?.let { return it }
 
-        val cleaned = stripLeadingErrorCodes(message.ifBlank { rootMessage })
+        val cleaned = CieloUserText.repair(
+            stripLeadingErrorCodes(message.ifBlank { rootMessage }),
+        )
 
         return when {
             root is SocketTimeoutException ||

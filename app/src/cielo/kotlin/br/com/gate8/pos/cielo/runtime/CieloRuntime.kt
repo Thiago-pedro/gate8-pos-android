@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
+import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloResponseActivity
 import br.com.gate8.pos.payment.PaymentRuntime
 
@@ -17,6 +18,7 @@ class CieloRuntime(
                     // Callback Cielo é translúcido e some rápido — não usar como host do deep link.
                     if (activity is CieloResponseActivity) return
                     CieloActivityHolder.set(activity)
+                    CieloDeeplinkSession.onHostActivityResumed()
                 }
 
                 override fun onActivityDestroyed(activity: Activity) {
