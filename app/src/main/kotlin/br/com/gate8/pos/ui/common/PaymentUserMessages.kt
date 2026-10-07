@@ -2,7 +2,6 @@ package br.com.gate8.pos.ui.common
 
 import br.com.gate8.pos.core.util.CieloUserText
 import br.com.gate8.pos.core.network.ApiException
-import br.com.gate8.pos.payment.PaymentTimedOutException
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -35,10 +34,6 @@ object PaymentUserMessages {
 
     fun failureReason(error: Throwable?): String {
         if (error == null) return DEFAULT_FAILURE
-        if (error is PaymentTimedOutException) {
-            return "Não foi possível confirmar o pagamento a tempo. " +
-                "Verifique na maquininha se a cobrança foi aprovada antes de tentar de novo."
-        }
         if (error is ApiException) return formatApiException(error)
         return formatThrowable(error)
     }
@@ -50,7 +45,7 @@ object PaymentUserMessages {
                 return message.takeIf { it.isNotBlank() } ?: "Pagamento recusado na maquininha."
             "order_already_queued" ->
                 return message.takeIf { it.isNotBlank() }
-                    ?: "Já existe cobrança pendente na maquininha. Conclua ou cancele na Point."
+                    ?: "Já existe cobrança pendente na maquininha. Conclua ou cancele antes de cobrar de novo."
         }
         if (message.isNotBlank()) return ensureSentence(message)
         return DEFAULT_FAILURE

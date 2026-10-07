@@ -17,8 +17,9 @@ import br.com.gate8.pos.ui.theme.Gate8Colors
 @Composable
 fun Gate8ScreenTopBar(
     onMenu: () -> Unit,
-    onAction: () -> Unit,
+    onAction: () -> Unit = {},
     actionContentDescription: String = "Atualizar",
+    showAction: Boolean = true,
 ) {
     Box(
         Modifier
@@ -38,15 +39,17 @@ fun Gate8ScreenTopBar(
             horizontalPadding = 52.dp,
         )
 
-        IconButton(
-            onClick = onAction,
-            modifier = Modifier.align(Alignment.CenterEnd),
-        ) {
-            Icon(
-                Icons.Filled.Search,
-                contentDescription = actionContentDescription,
-                tint = Gate8Colors.TextPrimary,
-            )
+        if (showAction) {
+            IconButton(
+                onClick = onAction,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = actionContentDescription,
+                    tint = Gate8Colors.TextPrimary,
+                )
+            }
         }
     }
 }

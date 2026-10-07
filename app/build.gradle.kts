@@ -38,20 +38,10 @@ android {
         buildConfigField("String", "CIELO_MERCHANT_ID", "\"\"")
     }
 
-    flavorDimensions += "environment"
+    flavorDimensions += "acquirer"
     productFlavors {
-        create("mock") {
-            dimension = "environment"
-            buildConfigField("boolean", "USE_MOCK_PAYMENT", "true")
-        }
-        create("mercadopago") {
-            dimension = "environment"
-            buildConfigField("boolean", "USE_MOCK_PAYMENT", "false")
-            versionNameSuffix = "-mp"
-        }
         create("cielo") {
-            dimension = "environment"
-            buildConfigField("boolean", "USE_MOCK_PAYMENT", "false")
+            dimension = "acquirer"
             versionNameSuffix = "-cielo"
             minSdk = 24
             targetSdk = 29

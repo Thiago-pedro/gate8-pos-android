@@ -26,11 +26,15 @@ internal object CieloPrintClient {
     private const val SIZE_ORDER = 48
 
     /** Enfileira impressão de texto simples (comprovantes, relatórios). */
-    fun printLines(lines: List<String>) {
-        if (lines.isEmpty()) return
-        val text = lines.joinToString("\n") + "\n\n"
+    fun printLines(lines: List<String>, orderNumber: Int? = null) {
+        if (lines.isEmpty() && orderNumber == null) return
         enqueuePrint {
-            printTextAsync(text, ALIGN_CENTER, SIZE_META)
+            if (orderNumber != null && orderNumber > 0) {
+                printTextAsync("PEDIDO $orderNumber\n", ALIGN_CENTER, SIZE_ORDER)
+            }
+            if (lines.isNotEmpty()) {
+                printTextAsync(lines.joinToString("\n") + "\n\n", ALIGN_CENTER, SIZE_META)
+            }
         }
     }
 
@@ -46,9 +50,13 @@ internal object CieloPrintClient {
         itemDescription: String,
         unitPrice: String,
         authorization: String?,
+        orderNumber: Int? = null,
     ) {
         enqueuePrint {
             logoPath?.let { path -> printImageAsync(path) }
+            if (orderNumber != null && orderNumber > 0) {
+                printTextAsync("PEDIDO $orderNumber\n", ALIGN_CENTER, SIZE_ORDER)
+            }
             val meta = buildString {
                 producerName?.takeIf { it.isNotBlank() }?.let {
                     append(it.trim())
@@ -87,6 +95,7 @@ internal object CieloPrintClient {
         terminalName: String,
         orderNumber: Int,
         items: List<Pair<Int, String>>,
+        note: String? = null,
     ) {
         enqueuePrint {
             logoPath?.let { path -> printImageAsync(path) }
@@ -102,6 +111,9 @@ internal object CieloPrintClient {
             }
             printTextAsync(meta, ALIGN_CENTER, SIZE_META)
             printTextAsync("PEDIDO $orderNumber\n", ALIGN_CENTER, SIZE_ORDER)
+            note?.trim()?.takeIf { it.isNotBlank() }?.let { text ->
+                printTextAsync(text.uppercase(brLocale) + "\n", ALIGN_CENTER, SIZE_ITEM_PRICE)
+            }
             val itemBlock = buildString {
                 items.forEach { (qty, desc) ->
                     append(qty)

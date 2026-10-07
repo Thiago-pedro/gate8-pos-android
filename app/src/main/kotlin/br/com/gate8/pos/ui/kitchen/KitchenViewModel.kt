@@ -23,7 +23,7 @@ data class KitchenUiState(
     val apiAvailable: Boolean? = null,
     val lastOrderNumber: Int? = null,
     val lastItemsLabel: String? = null,
-    val status: String = "Ouvindo vendas de alimentação…",
+    val status: String = "Ouvindo vendas da categoria Cozinha…",
     val printing: Boolean = false,
     val error: String? = null,
 )
@@ -103,7 +103,7 @@ class KitchenViewModel(
                 apiAvailable = result.apiAvailable,
                 error = null,
                 status = if (result.apiAvailable) {
-                    "Ouvindo vendas de alimentação"
+                    "Ouvindo vendas da categoria Cozinha"
                 } else {
                     "Ouvindo neste aparelho"
                 },
@@ -137,5 +137,6 @@ class KitchenViewModel(
         terminalName = order.terminalName,
         soldAtMillis = order.soldAtMillis,
         items = order.items.map { KitchenOrderLine(it.description, it.quantity) },
+        note = order.note,
     )
 }

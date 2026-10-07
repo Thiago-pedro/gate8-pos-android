@@ -30,4 +30,16 @@ data class LastSaleRecord(
     val cashlessUid: String? = null,
     val cashlessCpfMasked: String? = null,
     val cashlessBalanceAfter: Double? = null,
+    /** Partes quando a venda foi paga em mais de uma forma. Vazio no pagamento único. */
+    val payments: List<LastSalePaymentRecord> = emptyList(),
+)
+
+@Serializable
+data class LastSalePaymentRecord(
+    val method: String,
+    val amountCents: Long,
+    val nsu: String? = null,
+    val authorization: String? = null,
+    val transactionId: String? = null,
+    val brand: String? = null,
 )

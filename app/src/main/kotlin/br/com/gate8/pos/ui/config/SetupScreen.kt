@@ -205,36 +205,6 @@ fun SetupScreen(
 
 
 
-            if (state.showTerminalSection) {
-                Spacer(Modifier.height(20.dp))
-
-                SectionTitle("Mercado Pago Point")
-
-                Spacer(Modifier.height(8.dp))
-
-                Gate8OutlinedTextField(
-                    value = state.terminalId,
-                    onValueChange = vm::updateTerminalId,
-                    label = "Terminal ID",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "ID do terminal Point em modo PDV (ex.: NEWLAND_N950__N950NCB801293324).",
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 12.sp,
-                )
-
-                Spacer(Modifier.height(10.dp))
-
-                Gate8MenuButton(
-                    title = if (state.terminalSaving) "Salvando…" else "Salvar terminal",
-                    subtitle = "Necessário para cobranças via API de Orders",
-                    onClick = vm::saveTerminalId,
-                )
-            }
-
             Spacer(Modifier.height(28.dp))
 
 
@@ -418,7 +388,7 @@ private fun KitchenModeToggle(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "Esta maquininha só escuta vendas de alimentação e imprime a ficha do pedido com número crescente. Use em uma Cielo na cozinha.",
+                "Ligada, esta maquininha escuta a conveniência e imprime a ficha dos itens da categoria Cozinha. Use em uma Cielo na cozinha.",
                 color = Gate8Colors.TextOnLight.copy(alpha = 0.7f),
                 fontSize = 12.sp,
             )

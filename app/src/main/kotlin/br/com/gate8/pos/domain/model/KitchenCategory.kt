@@ -1,6 +1,12 @@
 package br.com.gate8.pos.domain.model
 
+/**
+ * Categoria da conveniência que dispara ficha na maquininha em modo cozinha.
+ * No painel o nome cadastrado é "Cozinha".
+ */
 object KitchenCategory {
+    const val NAME = "Cozinha"
+
     fun matches(category: String?): Boolean {
         val normalized = category.orEmpty()
             .lowercase()
@@ -11,12 +17,6 @@ object KitchenCategory {
             .replace("é", "e")
             .replace("ê", "e")
             .trim()
-        if (normalized.isBlank()) return false
-        return normalized.contains("aliment") ||
-            normalized.contains("comida") ||
-            normalized.contains("food") ||
-            normalized.contains("lanche") ||
-            normalized.contains("cozinha") ||
-            normalized.contains("kitchen")
+        return normalized == "cozinha" || normalized == "kitchen"
     }
 }

@@ -2,7 +2,7 @@ package br.com.gate8.pos.cielo.settings
 
 import br.com.gate8.pos.payment.TerminalSettingsGateway
 
-/** Deep Link não exige Terminal ID (diferente do MP Point PDV). */
+/** Deep Link da Cielo Smart não usa Terminal ID. */
 class CieloSettingsGatewayImpl : TerminalSettingsGateway {
     override val showTerminalSection: Boolean = false
 

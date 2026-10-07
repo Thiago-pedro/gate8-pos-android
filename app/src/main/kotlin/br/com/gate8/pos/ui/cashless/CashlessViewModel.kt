@@ -9,7 +9,6 @@ import br.com.gate8.pos.cashless.CashlessUnavailableException
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
-import br.com.gate8.pos.core.sale.SaleDraftFactory
 import br.com.gate8.pos.core.sale.SaleRequestFactory
 import br.com.gate8.pos.core.util.BrazilianDocumentValidator
 import br.com.gate8.pos.core.util.ClientReferenceGenerator
@@ -24,13 +23,11 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.payment.MpOrderReconciliation
 import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.payment.PixExpiredException
 import br.com.gate8.pos.payment.chargeResilient
-import br.com.gate8.pos.payment.tryReconcileAfterPaymentFailure
 import br.com.gate8.pos.printer.CashlessStatementLine
 import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
@@ -120,7 +117,6 @@ class CashlessViewModel(
     private val saleRepository: SaleRepository,
     private val saleAdmin: SaleAdminService,
     private val pendingSaleSync: PendingSaleSync,
-    private val mpOrderReconciliation: MpOrderReconciliation,
     private val configStore: DeviceConfigStore,
     private val cashierRepository: CashierRepository,
     private val printer: ReceiptPrinter,
@@ -1301,11 +1297,6 @@ class CashlessViewModel(
             isDebug,
         )
         val operatorName = configStore.getOperatorName()
-        val saleDraft = if (method != PaymentMethodApi.CASH) {
-            SaleDraftFactory.mpSaleDraft(cart, amount, method, operatorName)
-        } else {
-            null
-        }
 
         viewModelScope.launch {
             _state.update {
@@ -1321,23 +1312,10 @@ class CashlessViewModel(
             }
 
             val payment = runCatching {
-                paymentGateway.chargeResilient(amount, method, clientRef, saleDraft)
+                paymentGateway.chargeResilient(amount, method, clientRef)
             }
             if (payment.isFailure) {
                 val err = payment.exceptionOrNull()
-                val recovered = tryReconcileAfterPaymentFailure(mpOrderReconciliation, err, method)
-                if (recovered != null) {
-                    finishAfterPayment(
-                        amount = amount,
-                        method = method,
-                        clientRef = clientRef,
-                        operatorName = operatorName,
-                        pay = recovered.payment,
-                        baseCart = cart,
-                        requireUid = requireUid,
-                    )
-                    return@launch
-                }
                 _state.update {
                     when (err) {
                         is PaymentCancelledException ->

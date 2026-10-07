@@ -26,12 +26,9 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -69,6 +66,7 @@ import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
 import br.com.gate8.pos.ui.common.paymentLoadingMessage
 import br.com.gate8.pos.ui.common.Gate8QuantitySelector
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
+import br.com.gate8.pos.ui.common.SplitPaymentDialog
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -81,7 +79,6 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdvScreen(
     onBack: () -> Unit,
@@ -96,7 +93,6 @@ fun PdvScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val selectedEvent = state.selectedEventId?.let { id ->
         state.catalog?.events?.firstOrNull { it.id == id }
     }
@@ -153,6 +149,33 @@ fun PdvScreen(
         PaymentFailedAlert(
             reason = state.paymentFailedReason,
             onDismiss = { vm.dismissPaymentFailed() },
+        )
+    }
+
+    val split = state.split
+    if (split != null && !state.loading) {
+        SplitPaymentDialog(
+            ui = split,
+            cashEnabled = state.cashierOpen,
+            onAdd = vm::splitAddPart,
+            onPick = vm::splitPickMethod,
+            onAmountChange = vm::splitAmountChange,
+            onConfirmAmount = vm::confirmSplitAmount,
+            onBack = vm::splitBack,
+            onRequestCancel = vm::requestCancelSplit,
+            onConfirmCancel = vm::confirmCancelSplit,
+            onDismissCancel = vm::dismissCancelSplit,
+            onDismissReport = vm::dismissSplitReport,
+        )
+    }
+
+    if (state.splitNotice != null) {
+        Gate8AlertDialog(
+            title = "Pagamento dividido",
+            reason = "A venda não foi concluída.",
+            detail = state.splitNotice,
+            accent = Gate8Colors.AccentBlue,
+            onDismiss = { vm.dismissSplitNotice() },
         )
     }
 
@@ -328,33 +351,30 @@ fun PdvScreen(
                     unitPrice = line.unitPrice,
                     lineTotal = line.lineTotal,
                     canIncrement = batch?.canAdd(line.quantity) ?: false,
+                    imageUrl = selectedEvent?.bannerUrl,
                 )
             }
-            ModalBottomSheet(
-                onDismissRequest = { vm.closeCart() },
-                sheetState = sheetState,
-                containerColor = Color.Transparent,
-            ) {
-                Gate8CartSheet(
-                    itemCount = cartItemCount,
-                    total = cartTotal,
-                    lines = cartLines,
-                    loading = state.loading,
-                    loadingMessage = paymentLoadingMessage(state.payingMethod),
-                    onIncrement = { batchId ->
-                        selectedEvent?.ticketBatches
-                            ?.firstOrNull { it.id == batchId }
-                            ?.let { vm.addTicket(it, selectedEvent.name) }
-                    },
-                    onDecrement = { vm.removeTicket(it) },
-                    onPayDebit = { vm.checkout(PaymentMethodApi.DEBIT) },
-                    onPayCredit = { vm.checkout(PaymentMethodApi.CREDIT) },
-                    onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
-                    onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
-                    onClear = { vm.clearCart() },
-                    cashEnabled = state.cashierOpen,
-                )
-            }
+            Gate8CartSheet(
+                itemCount = cartItemCount,
+                total = cartTotal,
+                lines = cartLines,
+                loading = state.loading,
+                loadingMessage = paymentLoadingMessage(state.payingMethod),
+                onBack = { vm.closeCart() },
+                onIncrement = { batchId ->
+                    selectedEvent?.ticketBatches
+                        ?.firstOrNull { it.id == batchId }
+                        ?.let { vm.addTicket(it, selectedEvent.name) }
+                },
+                onDecrement = { vm.removeTicket(it) },
+                onPayDebit = { vm.checkout(PaymentMethodApi.DEBIT) },
+                onPayCredit = { vm.checkout(PaymentMethodApi.CREDIT) },
+                onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
+                onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
+                onClear = { vm.clearCart() },
+                cashEnabled = state.cashierOpen,
+                onSplitPay = { vm.openSplitPayment() },
+            )
         },
     )
     }

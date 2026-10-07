@@ -36,6 +36,7 @@ class CieloReceiptPrinter(
         cashlessUid: String?,
         cashlessCpfMasked: String?,
         cashlessBalanceAfter: Double?,
+        orderNumber: Int?,
     ) {
         printGate8Sale(
             lines = lines,
@@ -48,6 +49,7 @@ class CieloReceiptPrinter(
             cashlessUid = cashlessUid,
             cashlessCpfMasked = cashlessCpfMasked,
             cashlessBalanceAfter = cashlessBalanceAfter,
+            orderNumber = orderNumber,
         )
     }
 
@@ -128,6 +130,7 @@ class CieloReceiptPrinter(
         cashlessUid: String?,
         cashlessCpfMasked: String?,
         cashlessBalanceAfter: Double?,
+        orderNumber: Int?,
     ) {
         printGate8Sale(
             lines = lines,
@@ -140,6 +143,7 @@ class CieloReceiptPrinter(
             cashlessUid = cashlessUid,
             cashlessCpfMasked = cashlessCpfMasked,
             cashlessBalanceAfter = cashlessBalanceAfter,
+            orderNumber = orderNumber,
         )
     }
 
@@ -154,6 +158,7 @@ class CieloReceiptPrinter(
         cashlessUid: String? = null,
         cashlessCpfMasked: String? = null,
         cashlessBalanceAfter: Double? = null,
+        orderNumber: Int? = null,
     ) {
         runCatching {
             CieloPrintClient.printLines(
@@ -171,6 +176,7 @@ class CieloReceiptPrinter(
                     cashlessCpfMasked = cashlessCpfMasked,
                     cashlessBalanceAfter = cashlessBalanceAfter,
                 ),
+                orderNumber = orderNumber,
             )
         }.onFailure { Log.e(TAG, "printSale falhou", it) }
     }
@@ -190,6 +196,7 @@ class CieloReceiptPrinter(
                 terminalName = payload.terminalName,
                 orderNumber = payload.orderNumber,
                 items = payload.items.map { it.quantity to it.description },
+                note = payload.note,
             )
         }.onFailure { Log.e(TAG, "printKitchenOrder falhou", it) }
     }
@@ -198,6 +205,7 @@ class CieloReceiptPrinter(
         lines: List<CartLine>,
         terminalName: String,
         authorization: String?,
+        orderNumber: Int?,
     ) {
         runCatching {
             val logoPath = CieloLogoBitmap.prepareLogoPath(appContext)
@@ -213,6 +221,7 @@ class CieloReceiptPrinter(
                         itemDescription = line.description,
                         unitPrice = money(line.unitPrice),
                         authorization = authorization,
+                        orderNumber = orderNumber,
                     )
                 }
             }

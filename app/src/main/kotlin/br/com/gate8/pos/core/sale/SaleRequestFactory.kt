@@ -3,6 +3,7 @@ package br.com.gate8.pos.core.sale
 import br.com.gate8.pos.data.remote.dto.AcquirerPaymentDto
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.SaleItemDto
+import br.com.gate8.pos.data.remote.dto.SalePaymentPartDto
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.CardBrandNormalizer
@@ -19,8 +20,14 @@ object SaleRequestFactory {
         cart: List<CartLine>,
         /** UID do chip — obrigatório em venda `cashless` (débito na conveniência). */
         cardUid: String? = null,
+        payments: List<SalePaymentPartDto>? = null,
     ): CreateSaleRequestDto {
-        val acquirer = if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
+        val parts = payments?.takeIf { it.isNotEmpty() }
+        val acquirer = if (
+            (parts != null && parts.size > 1) ||
+            method == PaymentMethodApi.CASH ||
+            method == PaymentMethodApi.CASHLESS
+        ) {
             null
         } else {
             AcquirerPaymentDto(
@@ -54,6 +61,7 @@ object SaleRequestFactory {
                 )
             },
             cardUid = if (method == PaymentMethodApi.CASHLESS) uid else null,
+            payments = parts,
         )
     }
 }

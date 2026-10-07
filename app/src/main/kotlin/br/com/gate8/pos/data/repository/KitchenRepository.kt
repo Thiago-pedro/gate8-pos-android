@@ -24,12 +24,17 @@ class KitchenRepository(
             .map { KitchenOrderItem(it.description.trim(), it.quantity.coerceAtLeast(1)) }
             .filter { it.description.isNotBlank() }
 
-    suspend fun submitFromSale(saleId: String?, clientReference: String, cart: List<CartLine>) {
+    suspend fun submitFromSale(
+        saleId: String?,
+        clientReference: String,
+        cart: List<CartLine>,
+        note: String? = null,
+    ): Int? {
         val items = foodItemsFrom(cart)
-        if (items.isEmpty()) return
+        if (items.isEmpty()) return null
         val terminal = configStore.getDeviceName()?.takeIf { it.isNotBlank() }
             ?: configStore.getDeviceShortId()
-        submit(saleId, clientReference, terminal, items)
+        return submit(saleId, clientReference, terminal, items, note)
     }
 
     suspend fun submit(
@@ -37,11 +42,15 @@ class KitchenRepository(
         clientReference: String,
         terminalName: String,
         items: List<KitchenOrderItem>,
-    ) {
-        if (items.isEmpty()) return
+        note: String? = null,
+    ): Int {
+        if (items.isEmpty()) return 0
         val existing = loadPending()
-        if (existing.any { it.id == clientReference }) return
+        if (existing.any { it.id == clientReference }) {
+            return existing.first { it.id == clientReference }.orderNumber
+        }
 
+        val trimmedNote = note?.trim()?.take(80)?.takeIf { it.isNotBlank() }
         val orderNumber = configStore.nextKitchenOrderNumber()
         var order = KitchenOrder(
             id = clientReference,
@@ -49,7 +58,13 @@ class KitchenRepository(
             terminalName = terminalName,
             soldAtMillis = System.currentTimeMillis(),
             items = items,
+            note = trimmedNote,
         )
+        val wireItems = if (trimmedNote == null) {
+            items
+        } else {
+            items + KitchenOrderItem(noteLine(trimmedNote), 1)
+        }
 
         runCatching {
             val response = api.submitKitchenOrder(
@@ -57,7 +72,8 @@ class KitchenRepository(
                     saleId = saleId,
                     clientReference = clientReference,
                     terminalName = terminalName,
-                    items = items.map { KitchenOrderItemDto(it.description, it.quantity) },
+                    note = trimmedNote,
+                    items = wireItems.map { KitchenOrderItemDto(it.description, it.quantity) },
                 ),
             )
             if (response.isSuccessful) {
@@ -76,6 +92,7 @@ class KitchenRepository(
         }.onFailure { Log.i(TAG, "POST kitchen/orders indisponível — fila local", it) }
 
         savePending(existing + order)
+        return order.orderNumber
     }
 
     suspend fun pollPending(): KitchenPollResult {
@@ -140,13 +157,30 @@ class KitchenRepository(
         )
     }
 
-    private fun KitchenOrderDto.toDomain(): KitchenOrder = KitchenOrder(
-        id = id,
-        orderNumber = orderNumber ?: 0,
-        terminalName = terminalName?.takeIf { it.isNotBlank() } ?: "PDV",
-        soldAtMillis = parseSoldAt(soldAt),
-        items = items.map { KitchenOrderItem(it.description, it.quantity.coerceAtLeast(1)) },
-    )
+    private fun KitchenOrderDto.toDomain(): KitchenOrder {
+        val parsed = items.map { KitchenOrderItem(it.description, it.quantity.coerceAtLeast(1)) }
+        val (food, embeddedNote) = splitKitchenNote(parsed)
+        val note = note?.trim()?.takeIf { it.isNotBlank() } ?: embeddedNote
+        return KitchenOrder(
+            id = id,
+            orderNumber = orderNumber ?: 0,
+            terminalName = terminalName?.takeIf { it.isNotBlank() } ?: "PDV",
+            soldAtMillis = parseSoldAt(soldAt),
+            items = food,
+            note = note,
+        )
+    }
+
+    private fun splitKitchenNote(
+        items: List<KitchenOrderItem>,
+    ): Pair<List<KitchenOrderItem>, String?> {
+        val note = items.firstOrNull { it.description.startsWith(NOTE_PREFIX) }
+            ?.description
+            ?.removePrefix(NOTE_PREFIX)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        return items.filterNot { it.description.startsWith(NOTE_PREFIX) } to note
+    }
 
     private fun parseSoldAt(value: String?): Long {
         if (value.isNullOrBlank()) return System.currentTimeMillis()
@@ -158,5 +192,8 @@ class KitchenRepository(
 
     companion object {
         private const val TAG = "Gate8Kitchen"
+        private const val NOTE_PREFIX = "OBS: "
+
+        private fun noteLine(note: String) = NOTE_PREFIX + note
     }
 }

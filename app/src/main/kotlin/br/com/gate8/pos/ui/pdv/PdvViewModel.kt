@@ -6,7 +6,6 @@ import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.core.network.ApiException
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
-import br.com.gate8.pos.core.sale.SaleDraftFactory
 import br.com.gate8.pos.core.sale.SaleRequestFactory
 import br.com.gate8.pos.ui.common.CatalogUserMessages
 import br.com.gate8.pos.ui.common.PaymentUserMessages
@@ -14,6 +13,7 @@ import br.com.gate8.pos.core.util.ClientReferenceGenerator
 import br.com.gate8.pos.data.local.entity.PendingSaleEntity
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.prefs.SplitPaymentStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
@@ -29,12 +29,18 @@ import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.SaleTicketGroup
 import br.com.gate8.pos.payment.PaymentCancelledException
-import br.com.gate8.pos.payment.MpOrderReconciliation
 import br.com.gate8.pos.payment.chargeResilient
-import br.com.gate8.pos.payment.tryReconcileAfterPaymentFailure
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.payment.PixExpiredException
+import br.com.gate8.pos.payment.PrepaidCheckout
+import br.com.gate8.pos.payment.SplitCancelOutcome
+import br.com.gate8.pos.payment.SplitPaymentController
+import br.com.gate8.pos.payment.SplitPaymentUi
+import br.com.gate8.pos.payment.SplitPayments
+import br.com.gate8.pos.payment.SplitSessionRecord
+import br.com.gate8.pos.payment.SplitStep
+import br.com.gate8.pos.payment.toCartLine
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.TicketPrintPayload
 import java.time.LocalDate
@@ -77,6 +83,8 @@ data class PdvUiState(
     val cashierOpen: Boolean = false,
     /** Quando preenchido, mostra o prompt "imprimir via do cliente?" antes dos ingressos. */
     val pendingClientCopy: PendingClientCopy? = null,
+    val split: SplitPaymentUi? = null,
+    val splitNotice: String? = null,
 )
 
 /**
@@ -98,21 +106,33 @@ class PdvViewModel(
     private val printer: ReceiptPrinter,
     private val saleAdmin: SaleAdminService,
     private val pendingSaleSync: PendingSaleSync,
-    private val mpOrderReconciliation: MpOrderReconciliation,
     private val configStore: DeviceConfigStore,
     private val cashierRepository: CashierRepository,
     private val json: Json,
+    private val splitStore: SplitPaymentStore,
     private val isDebug: Boolean,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PdvUiState())
     val state: StateFlow<PdvUiState> = _state.asStateFlow()
 
+    private val splitPay = SplitPaymentController(paymentGateway, splitStore, "pdv")
+    private var splitFinished = false
+
     private var catalogFetchGeneration = 0
 
     init {
         refreshCatalog()
         refreshCashierStatus()
+        splitPay.restore()?.let { restored ->
+            _state.update {
+                it.copy(
+                    cart = restored.session.cartLines.map { line -> line.toCartLine() },
+                    split = restored,
+                    showCart = false,
+                )
+            }
+        }
     }
 
     fun onScreenVisible() {
@@ -285,40 +305,35 @@ class PdvViewModel(
         }
     }
 
-    fun checkout(method: PaymentMethodApi) {
+    fun checkout(method: PaymentMethodApi, prepaid: PrepaidCheckout? = null) {
         val cart = _state.value.cart
         if (cart.isEmpty()) {
+            splitFinished = false
             _state.update { it.copy(error = "Carrinho vazio") }
             return
         }
-        if (method == PaymentMethodApi.CASH && !_state.value.cashierOpen) {
+        if (prepaid == null && method == PaymentMethodApi.CASH && !_state.value.cashierOpen) {
+            splitFinished = false
             _state.update { it.copy(error = "Caixa fechado. Abra o caixa na Home.") }
             return
         }
         val total = cart.sumOf { it.lineTotal }
-        val clientRef = ClientReferenceGenerator.newReference(
+        val clientRef = prepaid?.clientReference ?: ClientReferenceGenerator.newReference(
             configStore.getDeviceShortId(),
             isDebug,
         )
         val operatorName = configStore.getOperatorName()
-        val saleDraft = if (method != PaymentMethodApi.CASH) {
-            SaleDraftFactory.mpSaleDraft(cart, total, method, operatorName)
-        } else {
-            null
-        }
 
         viewModelScope.launch {
+            try {
             _state.update { it.copy(loading = true, payingMethod = method, error = null, message = null) }
-            val payment = runCatching {
-                paymentGateway.chargeResilient(total, method, clientRef, saleDraft)
+            val payment = if (prepaid != null) {
+                Result.success(prepaid.pay)
+            } else {
+                runCatching { paymentGateway.chargeResilient(total, method, clientRef) }
             }
             if (payment.isFailure) {
                 val err = payment.exceptionOrNull()
-                val recovered = tryReconcileAfterPaymentFailure(mpOrderReconciliation, err, method)
-                if (recovered != null) {
-                    completeRecoveredCheckout(cart, total, method, clientRef, recovered)
-                    return@launch
-                }
                 _state.update {
                     when (err) {
                         is PaymentCancelledException ->
@@ -345,6 +360,7 @@ class PdvViewModel(
                 total = total,
                 payment = pay,
                 cart = cart,
+                payments = prepaid?.salePayments,
             )
 
             val pending = PendingSaleEntity(
@@ -365,6 +381,8 @@ class PdvViewModel(
                         method = method,
                         payment = pay,
                         ticketCodes = success.ticketCodes,
+                        paymentLabel = prepaid?.paymentLabel,
+                        payments = prepaid?.localPayments.orEmpty(),
                     )
                     val successMsg = if (success.duplicated) {
                         "Venda já registrada!"
@@ -383,7 +401,16 @@ class PdvViewModel(
                         else -> e.message ?: "Falha na API — venda na fila offline"
                     }
                     printAcquirerVias(method, pay)
-                    saleAdmin.recordCheckout(null, clientRef, cart, total, method, pay)
+                    saleAdmin.recordCheckout(
+                        null,
+                        clientRef,
+                        cart,
+                        total,
+                        method,
+                        pay,
+                        paymentLabel = prepaid?.paymentLabel,
+                        payments = prepaid?.localPayments.orEmpty(),
+                    )
                     _state.update {
                         it.copy(
                             loading = false,
@@ -393,33 +420,139 @@ class PdvViewModel(
                     }
                     schedulePendingSync()
                 }
+            } finally {
+                splitFinished = false
+            }
         }
     }
 
-    private fun completeRecoveredCheckout(
-        cart: List<CartLine>,
-        total: Double,
-        method: PaymentMethodApi,
-        clientRef: String,
-        recovered: MpOrderReconciliation.RecoveredCheckout,
-    ) {
-        val pay = recovered.payment
-        val success = recovered.saleSuccess
-        saleAdmin.recordCheckout(
-            saleId = success.saleId,
-            clientReference = clientRef,
-            cart = cart,
-            total = total,
-            method = method,
-            payment = pay,
-            ticketCodes = success.ticketCodes,
-        )
-        val successMsg = if (success.duplicated) {
-            "Venda já registrada!"
-        } else {
-            "Venda recuperada com sucesso!"
+    fun dismissSplitNotice() {
+        _state.update { it.copy(splitNotice = null) }
+    }
+
+    fun openSplitPayment() {
+        val cart = _state.value.cart
+        if (cart.isEmpty() || _state.value.loading) {
+            if (cart.isEmpty()) _state.update { it.copy(error = "Carrinho vazio") }
+            return
         }
-        beginTicketPrint(cart, method, pay, success, successMsg)
+        beginSplit()
+    }
+
+    fun splitPickMethod(method: PaymentMethodApi) {
+        val ui = _state.value.split ?: return
+        _state.update { it.copy(split = splitPay.pickMethod(ui, method)) }
+    }
+
+    fun splitAmountChange(value: String) {
+        val ui = _state.value.split ?: return
+        _state.update { it.copy(split = splitPay.editAmount(ui, value)) }
+    }
+
+    fun splitBack() {
+        val ui = _state.value.split ?: return
+        if (ui.step == SplitStep.Summary) requestCancelSplit()
+        else _state.update { it.copy(split = splitPay.backToSummary(ui)) }
+    }
+
+    fun splitAddPart() {
+        val ui = _state.value.split ?: return
+        _state.update { it.copy(split = ui.copy(step = SplitStep.PickMethod, error = null)) }
+    }
+
+    fun confirmSplitAmount() {
+        val ui = _state.value.split ?: return
+        if (_state.value.loading || splitFinished) return
+        _state.update { it.copy(loading = true, payingMethod = ui.draftMethod, split = ui.copy(error = null)) }
+        viewModelScope.launch {
+            val charged = runCatching { splitPay.charge(ui) }
+            charged.onSuccess { updated ->
+                _state.update { it.copy(loading = false, payingMethod = null, split = updated) }
+                if (updated.error == null && updated.session.remainingCents() == 0L) {
+                    finishSplit(updated.session)
+                }
+            }.onFailure { err ->
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        payingMethod = null,
+                        split = ui.copy(
+                            error = when (err) {
+                                is PaymentCancelledException ->
+                                    "Cobrança cancelada. Essa parte não foi adicionada."
+                                is PixExpiredException ->
+                                    "O Pix expirou. Essa parte não foi adicionada."
+                                else -> PaymentUserMessages.failureReason(err)
+                            },
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun requestCancelSplit() {
+        val ui = _state.value.split ?: return
+        if (ui.session.parts.isEmpty()) {
+            splitPay.clear()
+            _state.update { it.copy(split = null) }
+            return
+        }
+        _state.update { it.copy(split = ui.copy(confirmingCancel = true)) }
+    }
+
+    fun dismissCancelSplit() {
+        val ui = _state.value.split ?: return
+        _state.update { it.copy(split = ui.copy(confirmingCancel = false)) }
+    }
+
+    fun confirmCancelSplit() {
+        val ui = _state.value.split ?: return
+        if (_state.value.loading) return
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, payingMethod = null) }
+            when (val outcome = splitPay.cancel(ui)) {
+                is SplitCancelOutcome.Cleared -> _state.update {
+                    it.copy(loading = false, split = null, splitNotice = outcome.message.ifBlank { null })
+                }
+                is SplitCancelOutcome.StillOpen -> _state.update {
+                    it.copy(loading = false, split = outcome.ui)
+                }
+            }
+        }
+    }
+
+    fun dismissSplitReport() {
+        val ui = _state.value.split ?: return
+        _state.update { it.copy(split = ui.copy(cancelReport = null)) }
+    }
+
+    private fun beginSplit() {
+        val ui = splitPay.begin(
+            cart = _state.value.cart,
+            kitchenNote = null,
+            newClientReference = ClientReferenceGenerator.newReference(
+                configStore.getDeviceShortId(),
+                isDebug,
+            ),
+        )
+        _state.update {
+            it.copy(
+                split = ui,
+                showCart = false,
+                cart = ui.session.cartLines.map { line -> line.toCartLine() }.ifEmpty { it.cart },
+            )
+        }
+    }
+
+    private fun finishSplit(session: SplitSessionRecord) {
+        if (splitFinished || session.remainingCents() != 0L || session.parts.isEmpty()) return
+        splitFinished = true
+        val prepaid = SplitPayments.toPrepaid(session)
+        val cart = session.cartLines.map { it.toCartLine() }
+        splitPay.clear()
+        _state.update { it.copy(split = null, cart = cart.ifEmpty { it.cart }, showCart = false) }
+        checkout(prepaid.method, prepaid)
     }
 
     private fun schedulePendingSync() {
@@ -429,9 +562,7 @@ class PdvViewModel(
     }
 
     /**
-     * Em cartão/Pix (Stone/MP): imprime via do lojista e pergunta a via do cliente;
-     * ingressos só depois ([answerClientCopy]).
-     * No flavor **cielo**: vias ficam com a Cielo — Gate8 imprime ingressos direto.
+     * Vias do cartão ficam com a Cielo — Gate8 imprime os ingressos direto.
      * Em dinheiro: ingresso direto.
      */
     private fun beginTicketPrint(

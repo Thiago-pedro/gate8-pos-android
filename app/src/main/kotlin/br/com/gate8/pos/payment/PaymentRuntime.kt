@@ -1,6 +1,6 @@
 package br.com.gate8.pos.payment
 
-/** Bootstrap do flavor de pagamento — no-op no mock. */
+/** Bootstrap da Cielo Smart ao abrir o app. */
 interface PaymentRuntime {
     fun onApplicationStart() {}
 }

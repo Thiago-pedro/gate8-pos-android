@@ -1,4 +1,4 @@
-name: Android mockDebug Release
+name: Android cieloDebug Release
 
 on:
   push:
@@ -27,35 +27,35 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build mockDebug APK
+      - name: Build cieloDebug APK
         uses: gradle/gradle-build-action@v3
         with:
-          arguments: :app:assembleMockDebug --no-daemon --stacktrace
+          arguments: :app:assembleCieloDebug --no-daemon --stacktrace
 
       - name: Prepare release asset
         run: |
-          APK=$(find app/build/outputs/apk/mock/debug -name "*.apk" | head -1)
+          APK=$(find app/build/outputs/apk/cielo/debug -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
             echo "APK not found"
             find app/build/outputs -name "*.apk"
             exit 1
           fi
-          cp "$APK" gate8-pos-mock-debug.apk
-          ls -la gate8-pos-mock-debug.apk
+          cp "$APK" gate8-pos-cielo-debug.apk
+          ls -la gate8-pos-cielo-debug.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Gate8 POS mockDebug — build ${{ github.run_number }}
+          name: Gate8 POS cieloDebug — build ${{ github.run_number }}
           body: |
-            APK gerado automaticamente (flavor **mock**, buildType **debug**).
+            APK gerado automaticamente (flavor **cielo**, buildType **debug**).
 
             - Commit: ${{ github.sha }}
             - Branch: ${{ github.ref_name }}
             - Workflow: ${{ github.run_id }}
 
-            Instale no dispositivo e configure `g8pos_...` em **Configuração**.
-          files: gate8-pos-mock-debug.apk
+            Instale na maquininha Cielo Smart e configure `g8pos_...` em **Configuração**.
+          files: gate8-pos-cielo-debug.apk
           make_latest: true
           generate_release_notes: false

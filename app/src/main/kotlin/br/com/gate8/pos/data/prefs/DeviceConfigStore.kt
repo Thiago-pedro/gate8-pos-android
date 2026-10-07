@@ -96,12 +96,6 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putString(KEY_OPERATOR, name).apply()
     }
 
-    fun getMercadoPagoTerminalId(): String? = prefs.getString(KEY_MP_TERMINAL_ID, null)
-
-    fun setMercadoPagoTerminalId(terminalId: String) {
-        prefs.edit().putString(KEY_MP_TERMINAL_ID, terminalId.trim()).apply()
-    }
-
     /**
      * Modo ficha na conveniência: quando ligado, cada unidade de item sai em uma ficha
      * separada (ex.: 2 copões = 2 fichas). Desligado (padrão), tudo sai em um recibo só.
@@ -112,7 +106,7 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putBoolean(KEY_CONVENIENCE_TICKET_MODE, enabled).apply()
     }
 
-    /** Esta maquininha só escuta e imprime pedidos de alimentação. */
+    /** Esta maquininha só escuta e imprime itens da categoria Cozinha. */
     fun isKitchenMode(): Boolean = prefs.getBoolean(KEY_KITCHEN_MODE, false)
 
     fun setKitchenMode(enabled: Boolean) {
@@ -198,7 +192,6 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_DEVICE_NAME = "device_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_OPERATOR = "operator_name"
-        private const val KEY_MP_TERMINAL_ID = "mp_terminal_id"
         private const val KEY_SHORT_ID = "device_short_id"
         private const val KEY_CONVENIENCE_TICKET_MODE = "convenience_ticket_mode"
         private const val KEY_KITCHEN_MODE = "kitchen_mode"

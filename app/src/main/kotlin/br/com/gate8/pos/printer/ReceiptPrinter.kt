@@ -16,6 +16,7 @@ interface ReceiptPrinter {
         cashlessUid: String? = null,
         cashlessCpfMasked: String? = null,
         cashlessBalanceAfter: Double? = null,
+        orderNumber: Int? = null,
     )
 
     fun printVoidReceipt(
@@ -59,6 +60,7 @@ interface ReceiptPrinter {
         cashlessUid: String? = null,
         cashlessCpfMasked: String? = null,
         cashlessBalanceAfter: Double? = null,
+        orderNumber: Int? = null,
     )
 
     /**
@@ -67,7 +69,7 @@ interface ReceiptPrinter {
     fun printCashlessStatement(payload: CashlessStatementPayload)
 
     /**
-     * Pedido da cozinha: uma ficha com número crescente e os itens de alimentação.
+     * Pedido da cozinha: uma ficha com número crescente e os itens da categoria Cozinha.
      */
     fun printKitchenOrder(payload: KitchenOrderPayload)
 
@@ -80,6 +82,7 @@ interface ReceiptPrinter {
         lines: List<CartLine>,
         terminalName: String,
         authorization: String?,
+        orderNumber: Int? = null,
     )
 }
 
@@ -96,6 +99,7 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         cashlessUid: String?,
         cashlessCpfMasked: String?,
         cashlessBalanceAfter: Double?,
+        orderNumber: Int?,
     ) = Unit
 
     override fun printVoidReceipt(
@@ -129,6 +133,7 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         cashlessUid: String?,
         cashlessCpfMasked: String?,
         cashlessBalanceAfter: Double?,
+        orderNumber: Int?,
     ) = Unit
 
     override fun printCashlessStatement(payload: CashlessStatementPayload) = Unit
@@ -139,5 +144,6 @@ class NoOpReceiptPrinter : ReceiptPrinter {
         lines: List<CartLine>,
         terminalName: String,
         authorization: String?,
+        orderNumber: Int?,
     ) = Unit
 }

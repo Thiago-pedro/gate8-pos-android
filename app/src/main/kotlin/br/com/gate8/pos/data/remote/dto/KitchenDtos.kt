@@ -15,6 +15,7 @@ data class KitchenOrderDto(
     @SerialName("order_number") val orderNumber: Int? = null,
     @SerialName("terminal_name") val terminalName: String? = null,
     @SerialName("sold_at") val soldAt: String? = null,
+    val note: String? = null,
     val items: List<KitchenOrderItemDto> = emptyList(),
 )
 
@@ -29,6 +30,7 @@ data class SubmitKitchenOrderRequestDto(
     @SerialName("sale_id") val saleId: String? = null,
     @SerialName("client_reference") val clientReference: String,
     @SerialName("terminal_name") val terminalName: String,
+    val note: String? = null,
     val items: List<KitchenOrderItemDto>,
 )
 

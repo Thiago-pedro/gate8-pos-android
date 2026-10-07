@@ -1,10 +1,22 @@
 package br.com.gate8.pos.data.remote.dto
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonNames
+import kotlinx.serialization.json.contentOrNull
 
 @Serializable
 data class CatalogResponseDto(
@@ -69,12 +81,38 @@ val TicketBatchDto.isSoldOut: Boolean
 
 fun TicketBatchDto.canAdd(inCart: Int): Boolean = !isSoldOut && inCart < remaining
 
+/** Aceita categoria como texto ou como objeto `{ "name": "Cozinha" }`. */
+object ProductCategorySerializer : KSerializer<String?> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ProductCategory", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: String?) {
+        if (value == null) encoder.encodeNull() else encoder.encodeString(value)
+    }
+
+    override fun deserialize(decoder: Decoder): String? {
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: return runCatching { decoder.decodeString() }.getOrNull()
+        return when (val element = jsonDecoder.decodeJsonElement()) {
+            is JsonNull -> null
+            is JsonPrimitive -> element.contentOrNull?.takeIf { it.isNotBlank() }
+            is JsonObject -> sequenceOf("name", "nome", "label", "title")
+                .mapNotNull { key -> (element[key] as? JsonPrimitive)?.contentOrNull }
+                .firstOrNull { it.isNotBlank() }
+            else -> null
+        }
+    }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ProductDto(
     val id: String,
     val name: String,
     val description: String? = null,
     val sku: String? = null,
+    @Serializable(with = ProductCategorySerializer::class)
+    @JsonNames("category", "categoria", "category_name")
     val category: String? = null,
     val price: Double,
     /** `null` quando o painel desliga "Controlar estoque deste produto". */
@@ -101,6 +139,25 @@ data class CreateSaleRequestDto(
     val items: List<SaleItemDto>,
     /** UID do chip Mifare — obrigatório quando `payment_method` = `cashless`. */
     @SerialName("card_uid") val cardUid: String? = null,
+    /**
+     * Partes de um pagamento dividido. Omitido na venda de uma forma só,
+     * para o payload antigo continuar igual.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val payments: List<SalePaymentPartDto>? = null,
+)
+
+@Serializable
+data class SalePaymentPartDto(
+    val method: String,
+    @SerialName("amount_cents") val amountCents: Long,
+    val amount: Double,
+    val status: String,
+    val nsu: String? = null,
+    val authorization: String? = null,
+    val brand: String? = null,
+    @SerialName("transaction_id") val transactionId: String? = null,
 )
 
 @Serializable
@@ -198,89 +255,9 @@ data class CheckinTicketDto(
 )
 
 @Serializable
-data class CreateMpOrderRequestDto(
-    val amount: Double,
-    @SerialName("terminal_id") val terminalId: String,
-    @SerialName("client_reference") val clientReference: String,
-    @SerialName("payment_method") val paymentMethod: String,
-    val description: String = "Gate8 POS",
-    @SerialName("sale_draft") val saleDraft: MpSaleDraftDto? = null,
-)
-
-@Serializable
-data class MpSaleDraftDto(
-    @SerialName("operator_name") val operatorName: String,
-    @SerialName("payment_method") val paymentMethod: String,
-    @SerialName("total_amount") val totalAmount: Double,
-    val items: List<SaleItemDto>,
-)
-
-@Serializable
-data class ReconcileMpOrderRequestDto(
-    @SerialName("operator_name") val operatorName: String? = null,
-    @SerialName("payment_method") val paymentMethod: String? = null,
-    @SerialName("total_amount") val totalAmount: Double? = null,
-    val items: List<SaleItemDto>? = null,
-)
-
-@Serializable
-data class ReconcileMpOrderResponseDto(
-    @SerialName("sale_id") val saleId: String? = null,
-    val duplicated: Boolean = false,
-    val reconciled: Boolean = false,
-    @SerialName("mp_order_id") val mpOrderId: String? = null,
-    val tickets: List<SaleTicketGroupDto> = emptyList(),
-    @SerialName("purchase_code") val purchaseCode: String? = null,
-    val error: String? = null,
-    val message: String? = null,
-)
-
-@Serializable
-data class CreateMpOrderResponseDto(
-    @SerialName("mp_order_id") val mpOrderId: String,
-    @SerialName("mp_payment_id") val mpPaymentId: String? = null,
-    val status: String,
-    @SerialName("status_detail") val statusDetail: String? = null,
-    @SerialName("client_reference") val clientReference: String? = null,
-    @SerialName("expiration_time") val expirationTime: String? = null,
-)
-
-@Serializable
-data class MpOrderStatusResponseDto(
-    @SerialName("mp_order_id") val mpOrderId: String,
-    val status: String,
-    @SerialName("status_detail") val statusDetail: String? = null,
-    @SerialName("client_reference") val clientReference: String? = null,
-    val payment: MpOrderPaymentDto? = null,
-    val acquirer: AcquirerPaymentDto? = null,
-)
-
-@Serializable
-data class MpOrderPaymentDto(
-    @SerialName("mp_payment_id") val mpPaymentId: String? = null,
-    val status: String? = null,
-    val amount: String? = null,
-    @SerialName("payment_method_type") val paymentMethodType: String? = null,
-    @SerialName("payment_method_id") val paymentMethodId: String? = null,
-)
-
-@Serializable
-data class MpOrderActionResponseDto(
-    @SerialName("mp_order_id") val mpOrderId: String,
-    val status: String,
-)
-
-@Serializable
-data class MpRefundRequestDto(
-    val amount: Double? = null,
-)
-
-@Serializable
 data class ApiErrorDto(
     val error: String? = null,
     val code: String? = null,
-    @SerialName("mp_code") val mpCode: String? = null,
-    @SerialName("mp_message") val mpMessage: String? = null,
     @SerialName("product_id") val productId: String? = null,
     val available: Int? = null,
     val details: JsonElement? = null,

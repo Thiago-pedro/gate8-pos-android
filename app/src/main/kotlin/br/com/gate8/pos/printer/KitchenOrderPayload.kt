@@ -5,6 +5,7 @@ data class KitchenOrderPayload(
     val terminalName: String,
     val soldAtMillis: Long,
     val items: List<KitchenOrderLine>,
+    val note: String? = null,
 )
 
 data class KitchenOrderLine(

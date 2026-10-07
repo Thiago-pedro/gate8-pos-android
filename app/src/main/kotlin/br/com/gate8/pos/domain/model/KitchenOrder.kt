@@ -9,6 +9,8 @@ data class KitchenOrder(
     val terminalName: String,
     val soldAtMillis: Long,
     val items: List<KitchenOrderItem>,
+    /** Mesa ou observação digitada na conveniência. */
+    val note: String? = null,
 )
 
 @Serializable

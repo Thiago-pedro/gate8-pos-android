@@ -9,7 +9,6 @@ import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
 import br.com.gate8.pos.cielo.deeplink.CieloLioOp
 import br.com.gate8.pos.core.util.CieloUserText
-import br.com.gate8.pos.data.remote.dto.MpSaleDraftDto
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.payment.CardBrandNormalizer
 import br.com.gate8.pos.payment.PaymentCancelledException
@@ -37,7 +36,6 @@ class CieloPaymentGateway : PaymentGateway {
         amount: Double,
         method: PaymentMethodApi,
         clientReference: String?,
-        saleDraft: MpSaleDraftDto?,
     ): PaymentResult {
         if (method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS) {
             return PaymentResult(

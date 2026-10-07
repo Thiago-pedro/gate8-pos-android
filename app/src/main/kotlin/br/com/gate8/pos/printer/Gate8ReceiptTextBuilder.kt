@@ -127,9 +127,15 @@ object Gate8ReceiptTextBuilder {
         authorization: String?,
         via: String = "CLIENTE",
     ) {
-        target.add("PAGAMENTO: ${paymentLabel.uppercase(brLocale)}")
-        if (!nsu.isNullOrBlank()) target.add("NSU: $nsu")
-        if (!authorization.isNullOrBlank()) target.add("AUT.: $authorization")
+        val lines = paymentLabel.lines().filter { it.isNotBlank() }
+        if (lines.size > 1) {
+            target.add("PAGAMENTO:")
+            lines.forEach { target.add(it.uppercase(brLocale)) }
+        } else {
+            target.add("PAGAMENTO: ${paymentLabel.uppercase(brLocale)}")
+            if (!nsu.isNullOrBlank()) target.add("NSU: $nsu")
+            if (!authorization.isNullOrBlank()) target.add("AUT.: $authorization")
+        }
         target.add("VIA: $via")
     }
 
@@ -335,7 +341,7 @@ object Gate8ReceiptTextBuilder {
                 "original com foto para acesso ao evento.",
         )
 
-    /** Compat: pós-QR completo (mock). */
+    /** Texto completo depois do QR, para impressoras que não cortam o cupom. */
     fun ticketBottomLines(p: TicketPrintPayload): List<String> =
         listOf(ticketManualLine(p)) +
             ticketMidLines(p) +

@@ -8,8 +8,10 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.ItemType
 import br.com.gate8.pos.domain.model.LastSaleLineRecord
+import br.com.gate8.pos.domain.model.LastSalePaymentRecord
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import br.com.gate8.pos.payment.MoneyCents
 import br.com.gate8.pos.payment.PaymentGateway
 import br.com.gate8.pos.payment.PaymentResult
 import br.com.gate8.pos.printer.ReceiptPrinter
@@ -47,6 +49,8 @@ class SaleAdminService(
         cashlessUid: String? = null,
         cashlessCpfMasked: String? = null,
         cashlessBalanceAfter: Double? = null,
+        paymentLabel: String? = null,
+        payments: List<LastSalePaymentRecord> = emptyList(),
     ) {
         lastSaleStore.save(
             LastSaleRecord(
@@ -54,7 +58,7 @@ class SaleAdminService(
                 clientReference = clientReference,
                 total = total,
                 paymentMethod = method.apiValue,
-                paymentLabel = method.displayLabel(),
+                paymentLabel = paymentLabel ?: method.displayLabel(),
                 nsu = payment.nsu,
                 authorization = payment.authorization,
                 transactionId = payment.transactionId,
@@ -70,6 +74,7 @@ class SaleAdminService(
                 cashlessUid = cashlessUid,
                 cashlessCpfMasked = cashlessCpfMasked,
                 cashlessBalanceAfter = cashlessBalanceAfter,
+                payments = payments,
             ),
         )
     }
@@ -127,6 +132,9 @@ class SaleAdminService(
             ?: return Result.failure(IllegalStateException("Venda não encontrada"))
         if (sale.voided) {
             return Result.failure(IllegalStateException("Esta venda já foi estornada"))
+        }
+        if (sale.payments.isNotEmpty()) {
+            return voidSplitSale(sale)
         }
         val method = PaymentMethodApi.fromApiValue(sale.paymentMethod)
         when (method) {
@@ -186,6 +194,75 @@ class SaleAdminService(
         return Result.success(
             "Estorno concluído · R$ ${"%.2f".format(sale.total)} · $label$cashlessNote$syncNote",
         )
+    }
+
+    /**
+     * Estorna cada parte eletrônica pelo valor dela. Se alguma cobrança continuar
+     * aprovada, a venda não é marcada como estornada.
+     */
+    private suspend fun voidSplitSale(sale: LastSaleRecord): Result<String> {
+        val notes = mutableListOf<String>()
+        var failed = false
+        for (part in sale.payments) {
+            val method = PaymentMethodApi.fromApiValue(part.method)
+            val label = "${method.displayLabel()} R$ ${MoneyCents.format(part.amountCents)}"
+            if (method == PaymentMethodApi.CASH) {
+                notes += "$label não passa pela Cielo. Devolva o dinheiro ao cliente."
+                continue
+            }
+            if (method == PaymentMethodApi.CASHLESS) {
+                notes += "$label cashless precisa de devolução no cartão."
+                failed = true
+                continue
+            }
+            val txId = part.transactionId
+            if (txId.isNullOrBlank()) {
+                failed = true
+                notes += "$label aprovado, sem ID para estorno."
+                continue
+            }
+            val voided = runCatching {
+                paymentGateway.voidTransaction(
+                    txId,
+                    part.nsu,
+                    MoneyCents.toReais(part.amountCents),
+                    method,
+                    authorization = part.authorization,
+                )
+            }.getOrElse {
+                br.com.gate8.pos.payment.VoidResult(false, it.message ?: "Falha no estorno")
+            }
+            if (voided.success) {
+                notes += "$label estornado."
+            } else {
+                failed = true
+                notes += "$label continua aprovado. ${voided.message}"
+            }
+        }
+        val detail = notes.joinToString(" ")
+        if (failed) {
+            return Result.failure(IllegalStateException("Estorno incompleto. $detail"))
+        }
+        lastSaleStore.markVoided(sale.clientReference)
+        runCatching {
+            val cartLines = sale.lines.map { line ->
+                CartLine(
+                    itemType = ItemType.PRODUCT,
+                    description = line.description,
+                    quantity = line.quantity,
+                    unitPrice = line.unitPrice,
+                )
+            }
+            printer.printVoidReceipt(
+                lines = cartLines,
+                total = sale.total,
+                paymentLabel = sale.paymentLabel,
+                nsu = null,
+                authorization = null,
+            )
+        }
+        val syncNote = syncVoidToBackend(sale)
+        return Result.success("Estorno concluído. $detail$syncNote")
     }
 
     /**

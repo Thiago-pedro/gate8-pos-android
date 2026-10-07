@@ -48,7 +48,7 @@ data class SetupUiState(
     val showClearPendingConfirm: Boolean = false,
     /** Modo ficha na conveniência: cada item sai em uma ficha separada. */
     val convenienceTicketMode: Boolean = false,
-    /** Esta maquininha só escuta e imprime pedidos de alimentação. */
+    /** Esta maquininha só escuta e imprime itens da categoria Cozinha. */
     val kitchenMode: Boolean = false,
 )
 
@@ -290,7 +290,7 @@ class SetupViewModel(
             it.copy(
                 kitchenMode = enabled,
                 message = if (enabled) {
-                    "Modo cozinha ligado: esta maquininha só imprime pedidos de alimentação"
+                    "Modo cozinha ligado: imprime os itens da categoria Cozinha"
                 } else {
                     "Modo cozinha desligado: esta maquininha volta a vender"
                 },

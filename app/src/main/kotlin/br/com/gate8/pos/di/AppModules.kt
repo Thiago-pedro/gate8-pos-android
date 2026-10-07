@@ -4,10 +4,10 @@ import androidx.room.Room
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.data.local.db.Gate8Database
 import br.com.gate8.pos.core.sale.PendingSaleSync
-import br.com.gate8.pos.payment.MpOrderReconciliation
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.prefs.LastSaleStore
+import br.com.gate8.pos.data.prefs.SplitPaymentStore
 import br.com.gate8.pos.data.remote.api.PosApiService
 import br.com.gate8.pos.data.remote.interceptor.AuthInterceptor
 import br.com.gate8.pos.data.repository.CatalogRepository
@@ -62,9 +62,14 @@ val appModule = module {
             get(),
         )
     }
+    single {
+        SplitPaymentStore(
+            androidContext().getSharedPreferences("gate8_pos_split", Context.MODE_PRIVATE),
+            get(),
+        )
+    }
     single { SaleAdminService(get(), get(), get(), get(), get(), get()) }
     single { PendingSaleSync(get(), get()) }
-    single { MpOrderReconciliation(get()) }
 
     single {
         Room.databaseBuilder(androidContext(), Gate8Database::class.java, "gate8_pos.db")
@@ -121,7 +126,7 @@ val appModule = module {
     viewModel { CashierViewModel(get(), get(), get()) }
     viewModel {
         CashlessViewModel(
-            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,
         )
     }
     viewModel { PdvViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG) }
