@@ -2,10 +2,13 @@ package br.com.gate8.pos.ui.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.PointOfSale
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.ShoppingBasket
+import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -34,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -99,90 +113,71 @@ fun HomeScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(20.dp))
 
-                val establishmentName = setupState.merchantName ?: setupState.producerName
-                establishmentName?.let {
-                    Text(
-                        "Estabelecimento: $it",
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                setupState.deviceName?.let {
-                    Text(
-                        "Dispositivo: $it",
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = if (establishmentName != null) 4.dp else 0.dp),
-                    )
-                }
+                HomeIdentityBlock(
+                    establishment = setupState.merchantName ?: setupState.producerName,
+                    device = setupState.deviceName,
+                    operator = setupState.operatorName,
+                )
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(22.dp))
 
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Bilheteria",
                     subtitle = "Vender ingressos dos eventos",
+                    icon = Icons.Outlined.ConfirmationNumber,
                     onClick = onPdv,
-                    centerText = true,
+                    highlighted = true,
                 )
                 Spacer(Modifier.height(12.dp))
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Conveniência",
                     subtitle = "Vender bebidas, comidas e acessórios",
+                    icon = Icons.Outlined.ShoppingBasket,
                     onClick = onProducts,
-                    centerText = true,
                 )
                 Spacer(Modifier.height(12.dp))
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Caixa",
-                    subtitle = if (setupState.cashierOpen) {
-                        "Aberto · gaveta esperada R$ ${"%.2f".format(setupState.cashierExpectedDrawer)}"
-                    } else {
-                        "Fechado — abra para vender em dinheiro"
-                    },
+                    subtitle = "Abertura, fechamento e movimentações",
+                    icon = Icons.Outlined.PointOfSale,
                     onClick = onCashier,
-                    centerText = true,
                 )
                 if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true)) {
                     Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
+                    HomeMenuCard(
                         title = "Cashless",
                         subtitle = "Consultar e adicionar saldo no cartão",
+                        icon = Icons.Outlined.CreditCard,
                         onClick = onCashless,
-                        centerText = true,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Cancelamento / Estorno",
                     subtitle = "Estornar o pagamento da última venda",
+                    icon = Icons.Outlined.Undo,
                     onClick = onRefund,
-                    centerText = true,
                 )
                 Spacer(Modifier.height(12.dp))
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Relatórios",
                     subtitle = "Vendas por período, pagamento e bandeira",
+                    icon = Icons.Outlined.Assessment,
                     onClick = onReports,
-                    centerText = true,
                 )
                 Spacer(Modifier.height(12.dp))
-                Gate8MenuButton(
+                HomeMenuCard(
                     title = "Reimprimir comprovante",
                     subtitle = if (setupState.lastSale != null) {
                         "Última venda · R$ ${"%.2f".format(setupState.lastSale?.total)}"
                     } else {
                         "Nenhuma venda registrada ainda"
                     },
+                    icon = Icons.Outlined.Print,
                     onClick = vm::reprintLast,
                     enabled = setupState.lastSale != null,
-                    centerText = true,
                 )
 
                 setupState.message?.let {
@@ -208,12 +203,12 @@ fun HomeScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                     }
-                    Gate8MenuButton(
+                    HomeMenuCard(
                         title = if (setupState.syncing) "Enviando vendas…" else "Enviar vendas ao servidor",
                         subtitle = "${setupState.pendingSyncCount} na fila local (pagamento já feito)",
+                        icon = Icons.Outlined.Print,
                         onClick = vm::syncPendingSales,
                         enabled = !setupState.syncing,
-                        centerText = true,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -331,6 +326,98 @@ private fun OperatorRequiredDialog(
                 centerText = true,
             )
         }
+    }
+}
+
+@Composable
+private fun HomeIdentityBlock(
+    establishment: String?,
+    device: String?,
+    operator: String,
+) {
+    val operatorLabel = operator.takeIf { it.isNotBlank() }?.let { "POS - $it" } ?: "—"
+    val lineStyle = TextStyle(
+        color = Gate8Colors.TextSecondary,
+        fontSize = 14.sp,
+        lineHeight = 16.sp,
+        textAlign = TextAlign.Center,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+    )
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        if (!establishment.isNullOrBlank()) {
+            Text("Estabelecimento: $establishment", style = lineStyle)
+        }
+        if (!device.isNullOrBlank()) {
+            Text("Dispositivo: $device", style = lineStyle)
+        }
+        Text("Operador: $operatorLabel", style = lineStyle)
+    }
+}
+
+@Composable
+private fun HomeMenuCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    highlighted: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val alpha = if (enabled) 1f else 0.45f
+    val titleColor = if (highlighted) Color.White else Gate8Colors.TextPrimary
+    val subtitleColor = if (highlighted) Color.White.copy(alpha = 0.9f) else Gate8Colors.TextSecondary
+    val accent = if (highlighted) Color.White else Gate8Colors.AccentBlue
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (highlighted) Gate8Colors.AccentBlue else Color.White)
+            .then(
+                if (highlighted) {
+                    Modifier
+                } else {
+                    Modifier.border(1.5.dp, Gate8Colors.AccentBlue.copy(alpha = alpha), shape)
+                },
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = accent.copy(alpha = alpha),
+            modifier = Modifier.size(28.dp),
+        )
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 14.dp),
+        ) {
+            Text(
+                title,
+                color = titleColor.copy(alpha = alpha),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                subtitle,
+                color = subtitleColor.copy(alpha = alpha),
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = accent.copy(alpha = alpha),
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

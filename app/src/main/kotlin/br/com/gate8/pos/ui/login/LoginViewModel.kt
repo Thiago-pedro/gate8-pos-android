@@ -26,7 +26,6 @@ import java.net.UnknownHostException
 data class LoginUiState(
     val loading: Boolean = false,
     val producerToken: String = "",
-    val label: String = "",
     val error: String? = null,
     val pendingDeviceName: String? = null,
     val disabledDeviceName: String? = null,
@@ -54,22 +53,13 @@ class LoginViewModel(
     init {
         configStore.ensureDefaultBaseUrl()
         DeviceFingerprint.getOrCreate(application, configStore, hardwareInfo)
-        val savedToken = configStore.getProducerToken()
-        val savedLabel = configStore.getDeviceName() ?: ""
-        _state.update {
-            it.copy(
-                producerToken = savedToken ?: "",
-                label = savedLabel,
-            )
+        if (configStore.isLoggedIn()) {
+            _state.update { it.copy(producerToken = configStore.getProducerToken().orEmpty()) }
         }
     }
 
     fun onProducerTokenChange(value: String) {
         _state.update { it.copy(producerToken = ProducerTokenValidator.normalize(value), error = null) }
-    }
-
-    fun onLabelChange(value: String) {
-        _state.update { it.copy(label = value.take(80), error = null) }
     }
 
     fun login() {
@@ -78,7 +68,7 @@ class LoginViewModel(
             _state.update { it.copy(error = "Token inválido — use 6 caracteres (A-Z, 2-9)") }
             return
         }
-        performLogin(token, _state.value.label)
+        performLogin(token)
     }
 
     fun retryPending() {
@@ -87,10 +77,10 @@ class LoginViewModel(
             _state.update { it.copy(error = "Token do produtor não encontrado. Faça login novamente.") }
             return
         }
-        performLogin(token, configStore.getDeviceName())
+        performLogin(token)
     }
 
-    private fun performLogin(token: String, label: String?) {
+    private fun performLogin(token: String) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, pendingDeviceName = null, disabledDeviceName = null) }
             val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore, hardwareInfo)
@@ -101,7 +91,7 @@ class LoginViewModel(
                 loginRepository.login(
                     producerToken = token,
                     fingerprint = fingerprint,
-                    label = label,
+                    label = null,
                 )
             }.onSuccess { result ->
                 handleLoginResult(result, token)
@@ -139,7 +129,6 @@ class LoginViewModel(
                     it.copy(
                         loading = false,
                         producerToken = token,
-                        label = it.label,
                         disabledDeviceName = result.deviceName,
                         error = "Cadastro desta maquininha estava bloqueado no servidor. " +
                             "Toque em Entrar de novo para tentar com identidade nova. " +

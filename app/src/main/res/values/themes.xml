@@ -18,7 +18,7 @@
 
     <style name="Theme.Gate8POS.Splash" parent="android:Theme.Material.Light.NoActionBar">
 
-        <item name="android:windowBackground">@color/gate8_background</item>
+        <item name="android:windowBackground">@drawable/splash_window_bg</item>
 
         <item name="android:statusBarColor">@color/gate8_background</item>
 

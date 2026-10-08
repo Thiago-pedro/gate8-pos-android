@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.cashless
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Contactless
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -242,89 +248,61 @@ fun CashlessScreen(
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(Modifier.height(16.dp))
-
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .fillMaxWidth(),
-                ) {
-                    Gate8OutlinedTextField(
-                        value = state.amountInput,
-                        onValueChange = vm::onAmountChange,
-                        label = "Valor a creditar (R$)",
-                        placeholder = "10,00",
-                        prefix = "R$ ",
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
-                        title = "Adicionar saldo",
-                        subtitle = "Identifica o cartão · cadastra se for novo · depois cobra",
-                        onClick = vm::startTopUp,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
-                    )
-
-                    state.pendingChipCredit?.let { pending ->
-                        Spacer(Modifier.height(12.dp))
-                        Gate8MenuButton(
-                            title = "Creditar cartão",
-                            subtitle = "Pagamento OK · aproxime ${pending.requireUid} · " +
-                                "R$ ${"%.2f".format(pending.amount)}",
-                            onClick = vm::retryChipCredit,
-                            enabled = !state.loading,
-                            dimWhenDisabled = false,
-                            centerText = true,
-                        )
+                state.card?.let { card ->
+                    val balance = card.balanceReais ?: 0.0
+                    val who = state.accountName?.takeIf { it.isNotBlank() }
+                    val status = when {
+                        card.isBlocked || state.accountBlocked -> "Bloqueado"
+                        who != null -> who
+                        else -> "Cartão lido"
                     }
-
-                    Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
-                        title = "Consultar saldo",
-                        subtitle = "Mostra o saldo em um aviso na tela",
-                        onClick = vm::consultBalance,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
+                    Text(
+                        "Saldo R$ ${"%.2f".format(balance)} · $status",
+                        color = Gate8Colors.TextSecondary,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
                     )
-
-                    Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
-                        title = "Imprimir extrato",
-                        subtitle = "Toda a movimentação deste cartão nesta maquininha",
-                        onClick = vm::printStatement,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-                    Gate8MenuButton(
-                        title = "Opções do cartão",
-                        subtitle = "Perda/roubo · bloquear · desbloquear · zerar · recuperar",
-                        onClick = vm::openCardOptions,
-                        enabled = !busy,
-                        dimWhenDisabled = false,
-                        centerText = true,
-                    )
-
-                    state.card?.let { card ->
-                        Spacer(Modifier.height(18.dp))
-                        CardInfoCard(
-                            card = card,
-                            name = state.accountName,
-                            cpf = state.accountCpf,
-                            phone = state.accountPhone,
-                            accountBlocked = state.accountBlocked,
-                        )
-                    }
-
-                    Spacer(Modifier.height(24.dp))
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                Gate8OutlinedTextField(
+                    value = state.amountInput,
+                    onValueChange = vm::onAmountChange,
+                    label = "Valor a creditar (R$)",
+                    placeholder = "10,00",
+                    prefix = "R$ ",
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+
+                state.pendingChipCredit?.let { pending ->
+                    Spacer(Modifier.height(10.dp))
+                    Gate8MenuButton(
+                        title = "Creditar cartão",
+                        subtitle = "Pagamento OK · aproxime ${pending.requireUid} · " +
+                            "R$ ${"%.2f".format(pending.amount)}",
+                        onClick = vm::retryChipCredit,
+                        enabled = !state.loading,
+                        dimWhenDisabled = false,
+                        centerText = true,
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                CashlessActionGrid(
+                    enabled = !busy,
+                    onTopUp = vm::startTopUp,
+                    onConsult = vm::consultBalance,
+                    onPrint = vm::printStatement,
+                    onOptions = vm::openCardOptions,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -783,6 +761,104 @@ private fun CashlessWaitingCardModal(
                 }
             }
         }
+    }
+}
+
+private data class CashlessTile(
+    val label: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+    val highlighted: Boolean = false,
+)
+
+@Composable
+private fun CashlessActionGrid(
+    enabled: Boolean,
+    onTopUp: () -> Unit,
+    onConsult: () -> Unit,
+    onPrint: () -> Unit,
+    onOptions: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tiles = listOf(
+        CashlessTile("Adicionar saldo", Icons.Outlined.CreditCard, onTopUp, highlighted = true),
+        CashlessTile("Consultar saldo", Icons.Outlined.AccountBalanceWallet, onConsult),
+        CashlessTile("Imprimir extrato", Icons.Outlined.Print, onPrint),
+        CashlessTile("Opções do cartão", Icons.Outlined.Settings, onOptions),
+    )
+    Column(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        tiles.chunked(2).forEach { row ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.forEach { tile ->
+                    CashlessTileButton(tile, enabled, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CashlessTileButton(
+    tile: CashlessTile,
+    enabled: Boolean,
+    modifier: Modifier,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val highlighted = tile.highlighted && enabled
+    val background = when {
+        highlighted -> Gate8Colors.AccentBlue
+        enabled -> Color.White
+        else -> Gate8Colors.CardSurfaceElevated
+    }
+    val content = when {
+        highlighted -> Color.White
+        enabled -> Gate8Colors.AccentBlue
+        else -> Gate8Colors.TextSecondary
+    }
+    val labelColor = when {
+        highlighted -> Color.White
+        enabled -> Gate8Colors.TextPrimary
+        else -> Gate8Colors.TextSecondary
+    }
+    Column(
+        modifier
+            .fillMaxSize()
+            .clip(shape)
+            .background(background)
+            .then(
+                if (highlighted) {
+                    Modifier
+                } else {
+                    Modifier.border(1.5.dp, Gate8Colors.AccentBlue.copy(alpha = if (enabled) 1f else 0.35f), shape)
+                },
+            )
+            .clickable(enabled = enabled, onClick = tile.onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            tile.icon,
+            contentDescription = null,
+            tint = content,
+            modifier = Modifier.size(32.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            tile.label,
+            color = labelColor,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp,
+        )
     }
 }
 

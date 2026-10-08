@@ -4,6 +4,8 @@
 
     <color name="gate8_background">#FFFFFFFF</color>
 
+    <color name="gate8_icon_bg">#FF00124A</color>
+
     <color name="gate8_accent">#FF1740D8</color>
 
 </resources>

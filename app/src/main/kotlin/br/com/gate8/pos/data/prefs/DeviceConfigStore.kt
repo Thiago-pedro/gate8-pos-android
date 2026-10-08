@@ -169,6 +169,7 @@ class DeviceConfigStore(context: Context) {
         prefs.edit()
             .remove(KEY_TOKEN)
             .remove(KEY_DEVICE_ID)
+            .remove(KEY_PRODUCER_TOKEN)
             .remove(KEY_PRODUCER_NAME)
             .remove(KEY_MERCHANT_NAME)
             .remove(KEY_DEVICE_NAME)
