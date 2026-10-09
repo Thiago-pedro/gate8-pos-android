@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.kitchen
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
@@ -8,6 +9,7 @@ import br.com.gate8.pos.domain.model.KitchenOrder
 import br.com.gate8.pos.printer.KitchenOrderLine
 import br.com.gate8.pos.printer.KitchenOrderPayload
 import br.com.gate8.pos.printer.ReceiptPrinter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +23,8 @@ import kotlinx.coroutines.sync.withLock
 data class KitchenUiState(
     val kitchenMode: Boolean = true,
     val apiAvailable: Boolean? = null,
-    val lastOrderNumber: Int? = null,
-    val lastItemsLabel: String? = null,
+    val recentOrders: List<KitchenOrder> = emptyList(),
     val status: String = "Ouvindo vendas da categoria Cozinha…",
-    val printing: Boolean = false,
     val error: String? = null,
 )
 
@@ -33,7 +33,12 @@ class KitchenViewModel(
     private val kitchenRepository: KitchenRepository,
     private val configStore: DeviceConfigStore,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(KitchenUiState(kitchenMode = configStore.isKitchenMode()))
+    private val _state = MutableStateFlow(
+        KitchenUiState(
+            kitchenMode = configStore.isKitchenMode(),
+            recentOrders = kitchenRepository.recentOrders(),
+        ),
+    )
     val state: StateFlow<KitchenUiState> = _state.asStateFlow()
 
     private val printMutex = Mutex()
@@ -41,43 +46,29 @@ class KitchenViewModel(
     init {
         viewModelScope.launch {
             while (isActive) {
-                pollAndPrint()
+                try {
+                    kitchenRepository.flushUnsynced()
+                    pollAndPrint()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Falha ao ouvir a cozinha", e)
+                    _state.update {
+                        it.copy(error = e.message ?: "Falha ao ouvir a fila. Tentando de novo.")
+                    }
+                }
                 delay(2_500)
             }
         }
     }
 
     fun onScreenVisible() {
-        _state.update { it.copy(kitchenMode = configStore.isKitchenMode(), error = null) }
-    }
-
-    fun printTestOrder() {
-        viewModelScope.launch {
-            printMutex.withLock {
-                _state.update { it.copy(printing = true, error = null) }
-                val number = kitchenRepository.nextLocalOrderNumber()
-                val terminal = configStore.getDeviceName()?.takeIf { it.isNotBlank() }
-                    ?: configStore.getDeviceShortId()
-                printer.printKitchenOrder(
-                    KitchenOrderPayload(
-                        orderNumber = number,
-                        terminalName = terminal,
-                        soldAtMillis = System.currentTimeMillis(),
-                        items = listOf(
-                            KitchenOrderLine("X-Burger", 2),
-                            KitchenOrderLine("Batata frita", 1),
-                        ),
-                    ),
-                )
-                _state.update {
-                    it.copy(
-                        printing = false,
-                        lastOrderNumber = number,
-                        lastItemsLabel = "2x X-Burger, 1x Batata frita",
-                        status = "Pedido teste impresso",
-                    )
-                }
-            }
+        _state.update {
+            it.copy(
+                kitchenMode = configStore.isKitchenMode(),
+                recentOrders = kitchenRepository.recentOrders(),
+                error = null,
+            )
         }
     }
 
@@ -97,39 +88,66 @@ class KitchenViewModel(
             }
             .getOrNull() ?: return
 
+        val offline = !result.apiAvailable
         _state.update {
             it.copy(
                 kitchenMode = true,
                 apiAvailable = result.apiAvailable,
-                error = null,
-                status = if (result.apiAvailable) {
-                    "Ouvindo vendas da categoria Cozinha"
+                error = if (offline) {
+                    "Sem conexão com a fila. Pedido de outra maquininha espera a internet voltar."
                 } else {
-                    "Ouvindo neste aparelho"
+                    null
+                },
+                status = if (offline) {
+                    "Sem conexão com a fila"
+                } else {
+                    "Ouvindo vendas da categoria Cozinha"
                 },
             )
         }
 
         result.orders.forEach { incoming ->
-            val order = if (incoming.orderNumber <= 0) {
-                incoming.copy(orderNumber = kitchenRepository.nextLocalOrderNumber())
-            } else {
+            val order = if (incoming.orderNumber > 0) {
                 incoming
+            } else {
+                incoming.copy(orderNumber = stableOrderNumber(incoming.id))
             }
-            printMutex.withLock {
-                printer.printKitchenOrder(toPayload(order))
-                kitchenRepository.markPrinted(order)
-                _state.update {
+            val printed = printMutex.withLock {
+                val ok = try {
+                    printer.printKitchenOrder(toPayload(order))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Impressão do pedido ${order.orderNumber} falhou", e)
+                    false
+                }
+                if (!ok) return@withLock false
+                runCatching { kitchenRepository.markPrinted(order) }
+                    .onFailure { e -> Log.e(TAG, "Pedido impresso, mas a fila não foi atualizada", e) }
+                kitchenRepository.rememberPrinted(order)
+                true
+            }
+            _state.update {
+                if (printed) {
                     it.copy(
-                        lastOrderNumber = order.orderNumber,
-                        lastItemsLabel = order.items.joinToString { item ->
-                            "${item.quantity}x ${item.description}"
-                        },
+                        recentOrders = kitchenRepository.recentOrders(),
                         status = "Pedido ${order.orderNumber} impresso",
+                        error = null,
+                    )
+                } else {
+                    it.copy(
+                        error = "Pedido ${order.orderNumber} não saiu na impressora. Tentando de novo.",
                     )
                 }
             }
         }
+    }
+
+    /** Número estável quando o painel não devolveu o pedido. Não muda a cada tentativa. */
+    private fun stableOrderNumber(id: String): Int {
+        val digits = id.filter { it.isDigit() }.takeLast(4).toIntOrNull()
+        if (digits != null && digits > 0) return digits
+        return (id.hashCode() and 0xFFFF).coerceAtLeast(1)
     }
 
     private fun toPayload(order: KitchenOrder) = KitchenOrderPayload(
@@ -139,4 +157,8 @@ class KitchenViewModel(
         items = order.items.map { KitchenOrderLine(it.description, it.quantity) },
         note = order.note,
     )
+
+    private companion object {
+        const val TAG = "Gate8Kitchen"
+    }
 }

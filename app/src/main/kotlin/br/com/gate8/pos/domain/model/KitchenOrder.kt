@@ -11,6 +11,11 @@ data class KitchenOrder(
     val items: List<KitchenOrderItem>,
     /** Mesa ou observação digitada na conveniência. */
     val note: String? = null,
+    /**
+     * false enquanto o POST para o painel não foi aceito.
+     * Pedidos antigos sem esse campo continuam como já enviados.
+     */
+    val synced: Boolean = true,
 )
 
 @Serializable

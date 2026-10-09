@@ -113,6 +113,18 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putBoolean(KEY_KITCHEN_MODE, enabled).apply()
     }
 
+    /** UID do cartão cashless que libera estorno neste terminal. */
+    fun getManagerCardUid(): String? =
+        prefs.getString(KEY_MANAGER_CARD_UID, null)?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun setManagerCardUid(uid: String) {
+        prefs.edit().putString(KEY_MANAGER_CARD_UID, uid.trim().uppercase()).apply()
+    }
+
+    fun clearManagerCardUid() {
+        prefs.edit().remove(KEY_MANAGER_CARD_UID).apply()
+    }
+
     @Synchronized
     fun nextKitchenOrderNumber(): Int {
         val next = prefs.getInt(KEY_KITCHEN_SEQ, 0) + 1
@@ -124,6 +136,12 @@ class DeviceConfigStore(context: Context) {
 
     fun setKitchenPendingJson(json: String) {
         prefs.edit().putString(KEY_KITCHEN_PENDING, json).apply()
+    }
+
+    fun getKitchenRecentJson(): String? = prefs.getString(KEY_KITCHEN_RECENT, null)
+
+    fun setKitchenRecentJson(json: String) {
+        prefs.edit().putString(KEY_KITCHEN_RECENT, json).apply()
     }
 
     fun getKitchenPrintedIds(): Set<String> =
@@ -145,6 +163,7 @@ class DeviceConfigStore(context: Context) {
             .remove(KEY_KITCHEN_PENDING)
             .remove(KEY_KITCHEN_PRINTED)
             .remove(KEY_KITCHEN_SEQ)
+            .remove(KEY_KITCHEN_RECENT)
             .apply()
     }
 
@@ -180,6 +199,8 @@ class DeviceConfigStore(context: Context) {
             .remove(KEY_KITCHEN_PENDING)
             .remove(KEY_KITCHEN_PRINTED)
             .remove(KEY_KITCHEN_SEQ)
+            .remove(KEY_KITCHEN_RECENT)
+            .remove(KEY_MANAGER_CARD_UID)
             .apply()
     }
 
@@ -199,5 +220,7 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_KITCHEN_SEQ = "kitchen_order_seq"
         private const val KEY_KITCHEN_PENDING = "kitchen_pending_json"
         private const val KEY_KITCHEN_PRINTED = "kitchen_printed_ids"
+        private const val KEY_KITCHEN_RECENT = "kitchen_recent_json"
+        private const val KEY_MANAGER_CARD_UID = "manager_card_uid"
     }
 }

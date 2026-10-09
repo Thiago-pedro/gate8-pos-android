@@ -114,6 +114,15 @@ class MainActivity : ComponentActivity() {
                                     SetupScreen(
                                         onDone = { nav.popBackStack() },
                                         onLogout = { nav.goLogin() },
+                                        onOpenKitchen = {
+                                            val backToKitchen = nav.popBackStack(Routes.Kitchen, inclusive = false)
+                                            if (!backToKitchen) {
+                                                nav.navigate(Routes.Kitchen) {
+                                                    popUpTo(Routes.Setup) { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                            }
+                                        },
                                     )
                                 }
                                 composable(Routes.Pdv) { PdvScreen(onBack = { nav.goHome() }) }

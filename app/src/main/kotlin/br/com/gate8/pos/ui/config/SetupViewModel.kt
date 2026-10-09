@@ -2,7 +2,11 @@ package br.com.gate8.pos.ui.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.cashless.CashlessCardGateway
 import br.com.gate8.pos.core.network.ApiException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import br.com.gate8.pos.core.sale.PendingSaleSync
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.local.entity.PendingSaleStatus
@@ -50,6 +54,11 @@ data class SetupUiState(
     val convenienceTicketMode: Boolean = false,
     /** Esta maquininha só escuta e imprime itens da categoria Cozinha. */
     val kitchenMode: Boolean = false,
+    /** OK do aviso de modo cozinha ligado abre a tela da cozinha. */
+    val openKitchenOnDismiss: Boolean = false,
+    /** UID do cartão cashless que libera estorno. */
+    val managerCardUid: String? = null,
+    val waitingManagerCard: Boolean = false,
 )
 
 class SetupViewModel(
@@ -61,9 +70,11 @@ class SetupViewModel(
     private val terminalSettings: TerminalSettingsGateway,
     private val hardwareInfo: PosHardwareInfo,
     private val catalogRepository: CatalogRepository,
+    private val cashlessCard: CashlessCardGateway,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
+    private var managerJob: Job? = null
 
     init {
         refresh()
@@ -89,6 +100,7 @@ class SetupViewModel(
                 pendingSyncCount = 0,
                 convenienceTicketMode = configStore.isConvenienceTicketMode(),
                 kitchenMode = configStore.isKitchenMode(),
+                managerCardUid = configStore.getManagerCardUid(),
             )
         }
         viewModelScope.launch {
@@ -159,7 +171,7 @@ class SetupViewModel(
 
     /** Fecha o modal de aviso (sucesso ou erro) da tela de configurações. */
     fun dismissNotice() {
-        _state.update { it.copy(message = null, error = null) }
+        _state.update { it.copy(message = null, error = null, openKitchenOnDismiss = false) }
     }
 
     fun confirmClearPendingQueue() {
@@ -289,8 +301,9 @@ class SetupViewModel(
         _state.update {
             it.copy(
                 kitchenMode = enabled,
+                openKitchenOnDismiss = enabled,
                 message = if (enabled) {
-                    "Modo cozinha ligado: imprime os itens da categoria Cozinha"
+                    "Modo cozinha ligado"
                 } else {
                     "Modo cozinha desligado: esta maquininha volta a vender"
                 },
@@ -300,6 +313,59 @@ class SetupViewModel(
     }
 
     fun isKitchenMode(): Boolean = configStore.isKitchenMode()
+
+    fun enrollManagerCard() {
+        if (_state.value.waitingManagerCard) return
+        _state.update { it.copy(waitingManagerCard = true, error = null, message = null) }
+        managerJob?.cancel()
+        managerJob = viewModelScope.launch {
+            try {
+                val uid = cashlessCard.readCard().uidHex.trim()
+                ensureActive()
+                if (!_state.value.waitingManagerCard) return@launch
+                if (uid.isBlank()) {
+                    throw IllegalStateException("Cartão sem identificação. Aproxime de novo.")
+                }
+                configStore.setManagerCardUid(uid)
+                _state.update {
+                    it.copy(
+                        waitingManagerCard = false,
+                        managerCardUid = uid.uppercase(),
+                        message = "Cartão do gerente gravado",
+                        error = null,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        waitingManagerCard = false,
+                        error = e.message ?: "Não foi possível ler o cartão.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelManagerEnroll() {
+        if (!_state.value.waitingManagerCard) return
+        managerJob?.cancel()
+        managerJob = null
+        _state.update { it.copy(waitingManagerCard = false) }
+    }
+
+    fun clearManagerCard() {
+        if (_state.value.waitingManagerCard) return
+        configStore.clearManagerCardUid()
+        _state.update {
+            it.copy(
+                managerCardUid = null,
+                message = "Cartão do gerente removido",
+                error = null,
+            )
+        }
+    }
 
     fun setConvenienceTicketMode(enabled: Boolean) {
         configStore.setConvenienceTicketMode(enabled)
@@ -336,4 +402,9 @@ class SetupViewModel(
     }
 
     fun isLoggedIn(): Boolean = configStore.isLoggedIn()
+
+    override fun onCleared() {
+        managerJob?.cancel()
+        super.onCleared()
+    }
 }

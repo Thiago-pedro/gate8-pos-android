@@ -21,12 +21,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -211,7 +215,7 @@ fun PdvScreen(
                             if (selectedEvent != null) {
                                 "Escolha os lotes e quantidades"
                             } else {
-                                "Eventos publicados no Gate8"
+                                "Eventos publicados"
                             },
                             color = Gate8Colors.TextSecondary,
                             fontSize = 14.sp,
@@ -414,11 +418,13 @@ private fun EventPickerCard(
     event: EventCatalogDto,
     onClick: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface)
+            .border(1.5.dp, Gate8Colors.AccentBlue, shape)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.32f))
             .clickable(onClick = onClick),
     ) {
         if (!event.bannerUrl.isNullOrBlank()) {
@@ -432,8 +438,7 @@ private fun EventPickerCard(
                 contentDescription = event.name,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                    .aspectRatio(16f / 9f),
                 contentScale = ContentScale.Crop,
             )
         } else {
@@ -441,7 +446,7 @@ private fun EventPickerCard(
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .background(Gate8Colors.CardSurfaceElevated),
+                    .background(Gate8Colors.AccentBlue.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -452,52 +457,79 @@ private fun EventPickerCard(
                 )
             }
         }
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Text(
                 event.name,
                 color = Gate8Colors.TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             event.eventDate?.let {
-                Text(
-                    formatEventDate(it),
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 12.sp,
+                EventMetaRow(
+                    icon = Icons.Outlined.CalendarMonth,
+                    text = formatEventDate(it),
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            event.location?.takeIf { it.isNotBlank() }?.let {
+                EventMetaRow(
+                    icon = Icons.Outlined.LocationOn,
+                    text = it,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            event.location?.let {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 4.dp),
-                ) {
-                    Icon(
-                        Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = Gate8Colors.TextSecondary,
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        it,
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Text(
-                "${event.ticketBatches.size} opção(ões) de ingresso",
-                color = Gate8Colors.AccentBlue,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(top = 6.dp),
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 12.dp, bottom = 10.dp),
+                color = Gate8Colors.TextSecondary.copy(alpha = 0.18f),
             )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "${event.ticketBatches.size} opção(ões) de ingresso",
+                    color = Gate8Colors.AccentBlue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Gate8Colors.TextSecondary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun EventMetaRow(
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Gate8Colors.TextSecondary,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text,
+            color = Gate8Colors.TextSecondary,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

@@ -19,6 +19,7 @@ import br.com.gate8.pos.data.repository.LoginRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.KitchenRepository
+import br.com.gate8.pos.data.repository.KitchenUploadRetry
 import br.com.gate8.pos.data.repository.ReportsRepository
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -70,6 +71,7 @@ val appModule = module {
     }
     single { SaleAdminService(get(), get(), get(), get(), get(), get()) }
     single { PendingSaleSync(get(), get()) }
+    single { KitchenUploadRetry(get()) }
 
     single {
         Room.databaseBuilder(androidContext(), Gate8Database::class.java, "gate8_pos.db")
@@ -120,8 +122,8 @@ val appModule = module {
     single { KitchenRepository(get(), get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { RefundViewModel(get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { RefundViewModel(get(), get(), get()) }
     viewModel { ReportsViewModel(get(), get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get()) }
     viewModel {

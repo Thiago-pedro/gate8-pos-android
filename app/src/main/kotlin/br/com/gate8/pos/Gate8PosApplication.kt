@@ -1,6 +1,7 @@
 package br.com.gate8.pos
 
 import android.app.Application
+import br.com.gate8.pos.data.repository.KitchenUploadRetry
 import br.com.gate8.pos.di.appModule
 import br.com.gate8.pos.di.flavorModules
 import br.com.gate8.pos.payment.PaymentRuntime
@@ -16,5 +17,6 @@ class Gate8PosApplication : Application() {
             modules(appModule, *flavorModules().toTypedArray())
         }
         GlobalContext.get().get<PaymentRuntime>().onApplicationStart()
+        GlobalContext.get().get<KitchenUploadRetry>().start()
     }
 }

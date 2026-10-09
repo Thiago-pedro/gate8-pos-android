@@ -1,9 +1,12 @@
 package br.com.gate8.pos.ui.refund
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,10 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,13 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8BackTopBar
-import br.com.gate8.pos.ui.common.Gate8ConfirmDialog
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.common.Gate8SuccessDialog
@@ -61,7 +60,10 @@ fun RefundScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            vm.cancelManagerWait()
+        }
     }
 
     Gate8ScreenBackground {
@@ -121,7 +123,7 @@ fun RefundScreen(
                     Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val visible = state.visibleSales
                     if (visible.isEmpty()) {
@@ -147,44 +149,23 @@ fun RefundScreen(
                 }
             }
 
-            state.pendingVoid?.let { pending ->
-                val cashless = pending.paymentMethod == PaymentMethodApi.CASHLESS.apiValue
-                Gate8ConfirmDialog(
-                    title = "Confirmar estorno",
-                    message = if (cashless) {
-                        "Estornar a venda cashless de R$ ${"%.2f".format(pending.total)}? " +
-                            "Depois aproxime o mesmo cartão para devolver o saldo. " +
-                            "Digite o token de login da maquininha para confirmar."
-                    } else {
-                        "Estornar a venda de R$ ${"%.2f".format(pending.total)} " +
-                            "(${pending.paymentLabel})? Digite o token de login da maquininha para confirmar."
-                    },
-                    confirmLabel = "Estornar",
-                    onConfirm = vm::confirmVoid,
-                    onDismiss = vm::dismissConfirm,
-                    content = {
-                        Gate8OutlinedTextField(
-                            value = state.tokenInput,
-                            onValueChange = vm::onTokenChange,
-                            label = "Token de login (6 caracteres)",
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Characters,
-                            ),
-                        )
-                        state.tokenError?.let {
-                            Spacer(Modifier.height(8.dp))
-                            Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
-                        }
-                    },
-                )
-            }
+            PaymentWaitingOverlay(
+                visible = state.waitingManagerCard,
+                method = PaymentMethodApi.CASHLESS,
+                amount = state.pendingVoid?.total ?: 0.0,
+                titleOverride = "Cartão do gerente",
+                messageOverride = "Aproxime o cartão do gerente para liberar o estorno.",
+                amountCaption = "Estorno",
+                onCancel = vm::cancelManagerWait,
+            )
 
             PaymentWaitingOverlay(
                 visible = state.waitingCashlessCard,
                 method = PaymentMethodApi.CASHLESS,
                 amount = state.waitingCashlessAmount,
                 titleOverride = "Estorno cashless",
+                messageOverride = "Aproxime o mesmo cartão da venda para devolver o saldo.",
+                amountCaption = "Valor a devolver",
             )
 
             if (state.voidSuccess) {
@@ -203,63 +184,95 @@ private fun SaleCard(
     enabled: Boolean,
     onVoid: () -> Unit,
 ) {
-    val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(sale.createdAt))
+    val date = SimpleDateFormat("dd/MM HH:mm", Locale("pt", "BR")).format(Date(sale.createdAt))
+    val payment = sale.paymentLabel
+        .replace('\n', ' ')
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    val meta = listOfNotNull(
+        sale.nsu?.takeIf { it.isNotBlank() }?.let { "NSU $it" },
+        sale.cashlessUid?.takeIf { it.isNotBlank() }?.let { "UID $it" },
+        sale.saleId?.takeIf { it.isNotBlank() }?.let { "ID $it" },
+    ).joinToString(" · ")
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .border(1.5.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
             .background(Gate8Colors.CardSurface)
-            .padding(16.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(date, color = Gate8Colors.TextOnLight, fontSize = 12.sp)
-        Text(
-            "Total: R$ ${"%.2f".format(sale.total)} · ${sale.paymentLabel}",
-            color = Gate8Colors.TextPrimary,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        sale.nsu?.takeIf { it.isNotBlank() }?.let {
-            Text("NSU: $it", color = Gate8Colors.TextOnLight, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        sale.cashlessUid?.takeIf { it.isNotBlank() }?.let {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                "Cartão UID: $it",
-                color = Gate8Colors.TextOnLight,
+                date,
+                color = Gate8Colors.TextSecondary,
                 fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+            )
+            Text(
+                "R$ ${"%.2f".format(sale.total)}",
+                color = Gate8Colors.AccentBlue,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
             )
         }
-        if (sale.saleId != null) {
-            Text("ID: ${sale.saleId}", color = Gate8Colors.TextOnLight, fontSize = 11.sp)
+        Text(
+            payment,
+            color = Gate8Colors.TextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (meta.isNotBlank()) {
+            Text(
+                meta,
+                color = Gate8Colors.TextSecondary,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Spacer(Modifier.height(8.dp))
         sale.lines.forEach { line ->
             Text(
                 "${line.quantity}x ${line.description} — R$ ${"%.2f".format(line.lineTotal)}",
                 fontSize = 12.sp,
-                color = Gate8Colors.TextOnLight,
+                lineHeight = 15.sp,
+                color = Gate8Colors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(6.dp))
         if (sale.voided) {
             Text(
                 "ESTORNADA",
                 color = Gate8Colors.Error,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
             )
         } else {
-            Button(
-                onClick = onVoid,
-                enabled = enabled,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Gate8Colors.Error,
-                    contentColor = Color.White,
-                ),
-                modifier = Modifier.fillMaxWidth(),
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (enabled) Gate8Colors.Error else Gate8Colors.Error.copy(alpha = 0.35f),
+                    )
+                    .clickable(enabled = enabled, onClick = onVoid),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("Estornar")
+                Text(
+                    "Estornar",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }

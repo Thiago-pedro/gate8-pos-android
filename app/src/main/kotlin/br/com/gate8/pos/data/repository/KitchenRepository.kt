@@ -11,6 +11,8 @@ import br.com.gate8.pos.domain.model.KitchenCategory
 import br.com.gate8.pos.domain.model.KitchenOrder
 import br.com.gate8.pos.domain.model.KitchenOrderItem
 import br.com.gate8.pos.domain.model.KitchenPollResult
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -19,6 +21,7 @@ class KitchenRepository(
     private val configStore: DeviceConfigStore,
     private val json: Json,
 ) {
+    private val queueLock = Mutex()
     fun foodItemsFrom(cart: List<CartLine>): List<KitchenOrderItem> =
         cart.filter { KitchenCategory.matches(it.category) }
             .map { KitchenOrderItem(it.description.trim(), it.quantity.coerceAtLeast(1)) }
@@ -43,59 +46,63 @@ class KitchenRepository(
         terminalName: String,
         items: List<KitchenOrderItem>,
         note: String? = null,
-    ): Int {
-        if (items.isEmpty()) return 0
+    ): Int = queueLock.withLock {
+        if (items.isEmpty()) return@withLock 0
         val existing = loadPending()
-        if (existing.any { it.id == clientReference }) {
-            return existing.first { it.id == clientReference }.orderNumber
+        val already = existing.firstOrNull { it.id == clientReference }
+        if (already != null) {
+            if (already.synced) return@withLock already.orderNumber
+            val uploaded = upload(already, saleId, adoptServerNumber = true)
+            if (uploaded != null) {
+                savePending(existing.map { if (it.id == clientReference) uploaded else it })
+                return@withLock uploaded.orderNumber
+            }
+            return@withLock already.orderNumber
         }
 
         val trimmedNote = note?.trim()?.take(80)?.takeIf { it.isNotBlank() }
-        val orderNumber = configStore.nextKitchenOrderNumber()
-        var order = KitchenOrder(
+        val order = KitchenOrder(
             id = clientReference,
-            orderNumber = orderNumber,
+            orderNumber = configStore.nextKitchenOrderNumber(),
             terminalName = terminalName,
             soldAtMillis = System.currentTimeMillis(),
             items = items,
             note = trimmedNote,
+            synced = false,
         )
-        val wireItems = if (trimmedNote == null) {
-            items
-        } else {
-            items + KitchenOrderItem(noteLine(trimmedNote), 1)
+        val saved = upload(order, saleId, adoptServerNumber = true) ?: order
+        if (!saved.synced) {
+            Log.w(TAG, "Pedido ${saved.orderNumber} ficou na fila local. Nova tentativa em seguida.")
         }
-
-        runCatching {
-            val response = api.submitKitchenOrder(
-                SubmitKitchenOrderRequestDto(
-                    saleId = saleId,
-                    clientReference = clientReference,
-                    terminalName = terminalName,
-                    note = trimmedNote,
-                    items = wireItems.map { KitchenOrderItemDto(it.description, it.quantity) },
-                ),
-            )
-            if (response.isSuccessful) {
-                val body = response.body()
-                val serverNumber = body?.orderNumber
-                val serverId = body?.id?.takeIf { it.isNotBlank() }
-                if (serverNumber != null || serverId != null) {
-                    order = order.copy(
-                        id = serverId ?: order.id,
-                        orderNumber = serverNumber ?: order.orderNumber,
-                    )
-                }
-            } else {
-                Log.i(TAG, "POST kitchen/orders ${response.code()} — fila local neste aparelho")
-            }
-        }.onFailure { Log.i(TAG, "POST kitchen/orders indisponível — fila local", it) }
-
-        savePending(existing + order)
-        return order.orderNumber
+        savePending(existing + saved)
+        saved.orderNumber
     }
 
-    suspend fun pollPending(): KitchenPollResult {
+    /** Reenvia pedidos que a conveniência não conseguiu entregar ao painel. */
+    suspend fun flushUnsynced() {
+        queueLock.withLock {
+            val pending = loadPending()
+            if (pending.none { !it.synced }) return@withLock
+            var changed = false
+            val next = pending.map { order ->
+                if (order.synced) {
+                    order
+                } else {
+                    val uploaded = upload(order, saleId = null, adoptServerNumber = false)
+                    if (uploaded != null) {
+                        changed = true
+                        Log.i(TAG, "Pedido ${uploaded.orderNumber} enviado ao painel na nova tentativa")
+                        uploaded
+                    } else {
+                        order
+                    }
+                }
+            }
+            if (changed) savePending(next)
+        }
+    }
+
+    suspend fun pollPending(): KitchenPollResult = queueLock.withLock {
         var apiAvailable = false
         val remote = runCatching {
             val response = api.getKitchenOrders()
@@ -119,13 +126,17 @@ class KitchenRepository(
 
         val printed = configStore.getKitchenPrintedIds()
         val local = loadPending()
-        val merged = (remote + local)
+        val remoteNumbers = remote.map { it.orderNumber }.filter { it > 0 }.toSet()
+        val localKeep = local.filter { order ->
+            !order.synced || order.orderNumber !in remoteNumbers
+        }
+        val merged = (remote + localKeep)
             .distinctBy { it.id }
             .filter { it.id !in printed && it.items.isNotEmpty() }
-        return KitchenPollResult(merged, apiAvailable)
+        KitchenPollResult(merged, apiAvailable)
     }
 
-    suspend fun markPrinted(order: KitchenOrder) {
+    suspend fun markPrinted(order: KitchenOrder) = queueLock.withLock {
         configStore.addKitchenPrintedId(order.id)
         savePending(loadPending().filterNot { it.id == order.id })
         runCatching {
@@ -136,6 +147,62 @@ class KitchenRepository(
         }.onFailure {
             Log.i(TAG, "POST kitchen/orders/${order.id}/printed indisponível", it)
         }
+    }
+
+    private suspend fun upload(
+        order: KitchenOrder,
+        saleId: String?,
+        adoptServerNumber: Boolean,
+    ): KitchenOrder? {
+        val wireItems = if (order.note.isNullOrBlank()) {
+            order.items
+        } else {
+            order.items + KitchenOrderItem(noteLine(order.note), 1)
+        }
+        return runCatching {
+            val response = api.submitKitchenOrder(
+                SubmitKitchenOrderRequestDto(
+                    saleId = saleId,
+                    clientReference = order.id,
+                    terminalName = order.terminalName,
+                    orderNumber = order.orderNumber.takeIf { it > 0 },
+                    note = order.note,
+                    items = wireItems.map { KitchenOrderItemDto(it.description, it.quantity) },
+                ),
+            )
+            if (!response.isSuccessful) {
+                Log.w(TAG, "POST kitchen/orders ${response.code()} — pedido ${order.orderNumber} segue pendente")
+                return@runCatching null
+            }
+            val body = response.body()
+            val serverId = body?.id?.takeIf { it.isNotBlank() }
+            val serverNumber = body?.orderNumber?.takeIf { it > 0 }
+            order.copy(
+                synced = true,
+                orderNumber = if (adoptServerNumber) serverNumber ?: order.orderNumber else order.orderNumber,
+            ).also { saved ->
+                if (serverId != null && serverId != order.id) {
+                    Log.i(TAG, "Painel aceitou pedido ${saved.orderNumber} como $serverId")
+                }
+            }
+        }.onFailure {
+            Log.w(TAG, "POST kitchen/orders indisponível — pedido ${order.orderNumber} segue pendente", it)
+        }.getOrNull()
+    }
+
+    /** Guarda os 4 pedidos de cozinha mais recentes, o mais novo primeiro. */
+    fun rememberPrinted(order: KitchenOrder) {
+        val next = (listOf(order) + recentOrders().filterNot { it.id == order.id }).take(4)
+        configStore.setKitchenRecentJson(
+            json.encodeToString(ListSerializer(KitchenOrder.serializer()), next),
+        )
+    }
+
+    fun recentOrders(): List<KitchenOrder> {
+        val raw = configStore.getKitchenRecentJson() ?: return emptyList()
+        return runCatching {
+            json.decodeFromString(ListSerializer(KitchenOrder.serializer()), raw)
+        }.getOrDefault(emptyList()).take(4)
     }
 
     fun nextLocalOrderNumber(): Int = configStore.nextKitchenOrderNumber()

@@ -53,6 +53,9 @@ fun PaymentWaitingOverlay(
     amount: Double,
     onCancel: (() -> Unit)? = null,
     titleOverride: String? = null,
+    messageOverride: String? = null,
+    amountCaption: String = "Valor a pagar",
+    showAmount: Boolean = true,
 ) {
     if (!visible) return
     // Cielo: UI nativa no deep link — exceto cashless (leitura no próprio Gate8).
@@ -61,7 +64,7 @@ fun PaymentWaitingOverlay(
     ) {
         return
     }
-    val message = paymentLoadingMessage(method) ?: return
+    val message = messageOverride ?: paymentLoadingMessage(method) ?: return
 
     val title: String
     val icon: ImageVector
@@ -120,20 +123,21 @@ fun PaymentWaitingOverlay(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    "Valor a pagar",
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 16.sp,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "R$ ${"%.2f".format(amount)}",
-                    color = Gate8Colors.TextPrimary,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-
-                Spacer(Modifier.height(48.dp))
+                if (showAmount) {
+                    Text(
+                        amountCaption,
+                        color = Gate8Colors.TextSecondary,
+                        fontSize = 16.sp,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "R$ ${"%.2f".format(amount)}",
+                        color = Gate8Colors.TextPrimary,
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(48.dp))
+                }
 
                 Box(
                     Modifier

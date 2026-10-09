@@ -2,11 +2,14 @@ package br.com.gate8.pos.ui.refund
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.gate8.pos.cashless.CashlessCardGateway
 import br.com.gate8.pos.core.sale.SaleAdminService
-import br.com.gate8.pos.core.util.ProducerTokenValidator
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,8 +28,8 @@ data class RefundUiState(
     val message: String? = null,
     val error: String? = null,
     val pendingVoid: LastSaleRecord? = null,
-    val tokenInput: String = "",
-    val tokenError: String? = null,
+    /** Aguardando o cartão cashless do gerente para liberar o estorno. */
+    val waitingManagerCard: Boolean = false,
     /** Quando true, mostra o modal de "estorno concluído". */
     val voidSuccess: Boolean = false,
 ) {
@@ -53,9 +56,11 @@ data class RefundUiState(
 class RefundViewModel(
     private val saleAdmin: SaleAdminService,
     private val configStore: DeviceConfigStore,
+    private val cashlessCard: CashlessCardGateway,
 ) : ViewModel() {
     private val _state = MutableStateFlow(RefundUiState())
     val state: StateFlow<RefundUiState> = _state.asStateFlow()
+    private var managerJob: Job? = null
 
     init {
         refresh()
@@ -80,41 +85,75 @@ class RefundViewModel(
     }
 
     fun requestVoid(sale: LastSaleRecord) {
-        _state.update { it.copy(pendingVoid = sale, tokenInput = "", tokenError = null) }
-    }
-
-    fun onTokenChange(value: String) {
-        _state.update { it.copy(tokenInput = ProducerTokenValidator.normalize(value), tokenError = null) }
-    }
-
-    fun dismissConfirm() {
-        _state.update { it.copy(pendingVoid = null, tokenInput = "", tokenError = null) }
-    }
-
-    fun confirmVoid() {
-        val target = _state.value.pendingVoid ?: return
-        val expected = configStore.getProducerToken()
-        val entered = ProducerTokenValidator.normalize(_state.value.tokenInput)
-
+        if (_state.value.loading || _state.value.waitingManagerCard || sale.voided) return
+        val expected = configStore.getManagerCardUid()
         if (expected.isNullOrBlank()) {
-            _state.update { it.copy(tokenError = "Token de login não encontrado. Faça login novamente.") }
+            _state.update {
+                it.copy(
+                    error = "Cadastre o cartão do gerente em Configurações para liberar o estorno.",
+                    message = null,
+                )
+            }
             return
         }
-        if (entered != expected) {
-            _state.update { it.copy(tokenError = "Token incorreto. Use o token de login da maquininha.") }
-            return
+        _state.update {
+            it.copy(
+                pendingVoid = sale,
+                waitingManagerCard = true,
+                error = null,
+                message = null,
+            )
         }
+        managerJob?.cancel()
+        managerJob = viewModelScope.launch {
+            val snap = try {
+                cashlessCard.readCard()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        waitingManagerCard = false,
+                        pendingVoid = null,
+                        error = e.message ?: "Não foi possível ler o cartão do gerente.",
+                    )
+                }
+                return@launch
+            }
+            ensureActive()
+            if (!_state.value.waitingManagerCard) return@launch
+            val uid = snap.uidHex.trim()
+            if (!uid.equals(expected, ignoreCase = true)) {
+                _state.update {
+                    it.copy(
+                        waitingManagerCard = false,
+                        pendingVoid = null,
+                        error = "Cartão não autorizado. Aproxime o cartão do gerente cadastrado.",
+                    )
+                }
+                return@launch
+            }
+            performVoid(sale)
+        }
+    }
 
+    fun cancelManagerWait() {
+        if (!_state.value.waitingManagerCard) return
+        managerJob?.cancel()
+        managerJob = null
+        _state.update { it.copy(waitingManagerCard = false, pendingVoid = null) }
+    }
+
+    private fun performVoid(target: LastSaleRecord) {
         viewModelScope.launch {
             val isCashless = target.paymentMethod == PaymentMethodApi.CASHLESS.apiValue
             _state.update {
                 it.copy(
                     loading = true,
+                    waitingManagerCard = false,
                     waitingCashlessCard = isCashless,
                     waitingCashlessAmount = if (isCashless) target.total else 0.0,
                     pendingVoid = null,
-                    tokenInput = "",
-                    tokenError = null,
                     error = null,
                     message = null,
                 )
@@ -152,6 +191,11 @@ class RefundViewModel(
 
     fun clearFeedback() {
         _state.update { it.copy(message = null, error = null) }
+    }
+
+    override fun onCleared() {
+        managerJob?.cancel()
+        super.onCleared()
     }
 
     private fun isToday(timestamp: Long): Boolean {

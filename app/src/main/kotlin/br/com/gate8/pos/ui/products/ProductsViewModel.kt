@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.products
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.BuildConfig
@@ -515,12 +516,16 @@ class ProductsViewModel(
                             message = null,
                         )
                     }
-                    val orderNumber = kitchenRepository.submitFromSale(
-                        success.saleId,
-                        clientRef,
-                        cart,
-                        kitchenNote,
-                    )
+                    val orderNumber = runCatching {
+                        kitchenRepository.submitFromSale(
+                            success.saleId,
+                            clientRef,
+                            cart,
+                            kitchenNote,
+                        )
+                    }.onFailure { error ->
+                        Log.e("Gate8Kitchen", "Pedido da cozinha não foi para a fila", error)
+                    }.getOrNull()
                     beginReceiptPrint(
                         cart, total, method, pay, successUi, cashlessMeta, orderNumber,
                         paymentLabel = prepaid?.paymentLabel,
