@@ -132,13 +132,17 @@ class KitchenRepository(
         }
         val merged = (remote + localKeep)
             .distinctBy { it.id }
-            .filter { it.id !in printed && it.items.isNotEmpty() }
+            .distinctBy { if (it.orderNumber > 0) "n:${it.orderNumber}" else it.id }
+            .filter { it.id !in printed && printedNumber(it.orderNumber) !in printed && it.items.isNotEmpty() }
         KitchenPollResult(merged, apiAvailable)
     }
 
     suspend fun markPrinted(order: KitchenOrder) = queueLock.withLock {
         configStore.addKitchenPrintedId(order.id)
-        savePending(loadPending().filterNot { it.id == order.id })
+        if (order.orderNumber > 0) {
+            configStore.addKitchenPrintedId(printedNumber(order.orderNumber))
+        }
+        savePending(loadPending().filterNot { it.id == order.id || (order.orderNumber > 0 && it.orderNumber == order.orderNumber) })
         runCatching {
             val response = api.markKitchenOrderPrinted(order.id)
             if (!response.isSuccessful) {
@@ -259,6 +263,8 @@ class KitchenRepository(
 
     companion object {
         private const val TAG = "Gate8Kitchen"
+
+        private fun printedNumber(orderNumber: Int) = "n:$orderNumber"
         private const val NOTE_PREFIX = "OBS: "
 
         private fun noteLine(note: String) = NOTE_PREFIX + note

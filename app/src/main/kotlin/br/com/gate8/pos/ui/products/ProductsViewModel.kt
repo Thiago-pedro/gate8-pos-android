@@ -722,10 +722,9 @@ class ProductsViewModel(
     }
 
     /**
-     * Inicia a impressão na ordem certa.
-     * A Cielo já pergunta e imprime as vias do cartão. O Gate8 imprime
-     * comprovante e fichas, sem prompt duplicado.
-     * Em dinheiro: comprovante + fichas direto.
+     * Em dinheiro (e cashless, que não tem via da adquirente) sai o comprovante Gate8.
+     * Débito, crédito e Pix ficam só com o comprovante nativo da maquininha,
+     * nas duas vias, impresso no fluxo de pagamento. Fichas saem em qualquer forma.
      */
     private fun beginReceiptPrint(
         cart: List<CartLine>,
@@ -783,27 +782,29 @@ class ProductsViewModel(
         orderNumber: Int? = null,
         paymentLabel: String? = null,
     ) {
-        val label = paymentLabel ?: method.displayLabel()
-        val multi = label.contains('\n')
-        printer.printSaleSummary(
-            cart,
-            total,
-            label,
-            if (multi) null else pay.nsu,
-            if (multi) null else pay.authorization,
-            cashlessUid = cashless.uid,
-            cashlessCpfMasked = cashless.cpfMasked,
-            cashlessBalanceAfter = cashless.balanceAfter,
-            orderNumber = orderNumber,
-        )
+        if (printsGate8PaymentReceipt(method)) {
+            val label = paymentLabel ?: method.displayLabel()
+            val multi = label.contains('\n')
+            printer.printSaleSummary(
+                cart,
+                total,
+                label,
+                if (multi) null else pay.nsu,
+                if (multi) null else pay.authorization,
+                cashlessUid = cashless.uid,
+                cashlessCpfMasked = cashless.cpfMasked,
+                cashlessBalanceAfter = cashless.balanceAfter,
+                orderNumber = orderNumber,
+            )
+        }
         if (configStore.isConvenienceTicketMode()) {
             printer.printConvenienceTickets(cart, terminalName(), pay.authorization, orderNumber)
         }
     }
 
     /**
-     * Impressão completa sem prompt (usada nos caminhos de falha da API): comprovante
-     * único com vias de cartão e, em modo ficha, as fichas.
+     * Caminho sem prompt (falha da API): comprovante Gate8 só em dinheiro/cashless
+     * e, em modo ficha, as fichas.
      */
     private fun printSaleReceipt(
         cart: List<CartLine>,
@@ -814,26 +815,32 @@ class ProductsViewModel(
         orderNumber: Int? = null,
         paymentLabel: String? = null,
     ) {
-        val label = paymentLabel ?: method.displayLabel()
-        val multi = label.contains('\n')
-        printer.printReceipt(
-            cart,
-            total,
-            label,
-            if (multi) null else pay.nsu,
-            if (multi) null else pay.authorization,
-            acquirerTransactionId = pay.transactionId.takeIf {
-                method != PaymentMethodApi.CASH && method != PaymentMethodApi.CASHLESS
-            },
-            cashlessUid = cashless.uid,
-            cashlessCpfMasked = cashless.cpfMasked,
-            cashlessBalanceAfter = cashless.balanceAfter,
-            orderNumber = orderNumber,
-        )
+        if (printsGate8PaymentReceipt(method)) {
+            val label = paymentLabel ?: method.displayLabel()
+            val multi = label.contains('\n')
+            printer.printReceipt(
+                cart,
+                total,
+                label,
+                if (multi) null else pay.nsu,
+                if (multi) null else pay.authorization,
+                acquirerTransactionId = pay.transactionId.takeIf {
+                    method != PaymentMethodApi.CASH && method != PaymentMethodApi.CASHLESS
+                },
+                cashlessUid = cashless.uid,
+                cashlessCpfMasked = cashless.cpfMasked,
+                cashlessBalanceAfter = cashless.balanceAfter,
+                orderNumber = orderNumber,
+            )
+        }
         if (configStore.isConvenienceTicketMode()) {
             printer.printConvenienceTickets(cart, terminalName(), pay.authorization, orderNumber)
         }
     }
+
+    /** Comprovante textual da Gate8. Cartão e Pix usam o comprovante nativo da Cielo. */
+    private fun printsGate8PaymentReceipt(method: PaymentMethodApi): Boolean =
+        method == PaymentMethodApi.CASH || method == PaymentMethodApi.CASHLESS
 
     /** Nome do dispositivo usado como "terminal" nas fichas (ex.: "CX 9"). */
     private fun terminalName(): String =

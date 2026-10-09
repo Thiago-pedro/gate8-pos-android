@@ -26,6 +26,7 @@ internal object CieloPrintClient {
     /** Item + preço no mesmo bloco — evita espaço extra entre chamadas PRINT_TEXT. */
     private const val SIZE_ITEM_PRICE = 36
     private const val SIZE_ORDER = 48
+    private const val SIZE_KITCHEN = 28
 
     /** Enfileira impressão de texto simples (comprovantes, relatórios). */
     fun printLines(lines: List<String>, orderNumber: Int? = null) {
@@ -88,7 +89,9 @@ internal object CieloPrintClient {
     }
 
     /**
-     * Pedido da cozinha. Espera a impressora responder e devolve false se a ficha não saiu.
+     * Pedido da cozinha numa impressão só.
+     * Várias chamadas seguidas abriam um papel por linha e, se uma falhava,
+     * a próxima tentativa repetia só o cabeçalho.
      */
     suspend fun printKitchenFicha(
         logoPath: String?,
@@ -102,39 +105,37 @@ internal object CieloPrintClient {
         val task = worker.submit {
             val ok = try {
                 runBlocking {
-                    logoPath?.let { path -> printImageOrThrow(path) }
-                    val meta = buildString {
+                    if (!logoPath.isNullOrBlank()) {
+                        runCatching { printImageOrThrow(logoPath) }
+                            .onFailure { Log.w(TAG, "Logo da ficha ignorada", it) }
+                    }
+                    val ticket = buildString {
                         producerName?.takeIf { it.isNotBlank() }?.let {
-                            append(it.trim())
+                            append(it.trim().uppercase(brLocale))
                             append('\n')
                         }
                         append(dateTime)
                         append('\n')
                         append(terminalName)
-                        append('\n')
-                    }
-                    printTextOrThrow(meta, ALIGN_CENTER, SIZE_META)
-                    printTextOrThrow("PEDIDO $orderNumber\n", ALIGN_CENTER, SIZE_ORDER)
-                    note?.trim()?.takeIf { it.isNotBlank() }?.let { text ->
-                        printTextOrThrow(text.uppercase(brLocale) + "\n", ALIGN_CENTER, SIZE_ITEM_PRICE)
-                    }
-                    val itemBlock = buildString {
+                        append("\n\nPEDIDO ")
+                        append(orderNumber)
+                        append("\n\n")
+                        note?.trim()?.takeIf { it.isNotBlank() }?.let {
+                            append(it.uppercase(brLocale))
+                            append("\n\n")
+                        }
                         items.forEach { (qty, desc) ->
                             append(qty)
                             append("x ")
                             append(desc.trim().uppercase(brLocale))
                             append('\n')
                         }
+                        append('\n')
+                        append(".".repeat(32))
+                        // ~0,5 cm depois do item, para o corte não cair em cima do texto.
+                        append("\n\n\n")
                     }
-                    if (itemBlock.isNotBlank()) {
-                        printTextOrThrow(itemBlock, ALIGN_CENTER, SIZE_ITEM_PRICE)
-                    }
-                    printTextOrThrow(
-                        "\n" + ".".repeat(32) + "\n\n",
-                        ALIGN_CENTER,
-                        SIZE_META,
-                        formFeed = true,
-                    )
+                    printTextOrThrow(ticket, ALIGN_CENTER, SIZE_KITCHEN, formFeed = true)
                 }
                 true
             } catch (e: Exception) {

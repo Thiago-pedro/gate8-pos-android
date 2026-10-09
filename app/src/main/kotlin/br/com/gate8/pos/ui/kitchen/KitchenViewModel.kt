@@ -112,7 +112,9 @@ class KitchenViewModel(
             } else {
                 incoming.copy(orderNumber = stableOrderNumber(incoming.id))
             }
-            val printed = printMutex.withLock {
+            if (!configStore.isKitchenMode()) return
+            printMutex.withLock {
+                if (!configStore.isKitchenMode()) return@withLock
                 val ok = try {
                     printer.printKitchenOrder(toPayload(order))
                 } catch (e: CancellationException) {
@@ -121,24 +123,19 @@ class KitchenViewModel(
                     Log.e(TAG, "Impressão do pedido ${order.orderNumber} falhou", e)
                     false
                 }
-                if (!ok) return@withLock false
+                if (!ok) {
+                    Log.w(TAG, "Impressora não confirmou o pedido ${order.orderNumber}. Não vou repetir.")
+                }
                 runCatching { kitchenRepository.markPrinted(order) }
                     .onFailure { e -> Log.e(TAG, "Pedido impresso, mas a fila não foi atualizada", e) }
                 kitchenRepository.rememberPrinted(order)
-                true
             }
             _state.update {
-                if (printed) {
-                    it.copy(
-                        recentOrders = kitchenRepository.recentOrders(),
-                        status = "Pedido ${order.orderNumber} impresso",
-                        error = null,
-                    )
-                } else {
-                    it.copy(
-                        error = "Pedido ${order.orderNumber} não saiu na impressora. Tentando de novo.",
-                    )
-                }
+                it.copy(
+                    recentOrders = kitchenRepository.recentOrders(),
+                    status = "Pedido ${order.orderNumber} impresso",
+                    error = null,
+                )
             }
         }
     }
