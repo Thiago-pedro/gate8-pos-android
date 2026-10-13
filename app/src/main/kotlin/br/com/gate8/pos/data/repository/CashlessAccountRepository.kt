@@ -46,6 +46,10 @@ class CashlessAccountRepository(
                         dao.getByUid(uid)
                     }
                 } else {
+                    val local = dao.getByUid(uid)
+                    if (local != null && !local.blocked && local.cpf.isNotBlank() && local.phone.isBlank()) {
+                        return local
+                    }
                     // Backend: cartão encerrado / livre → found:false. Limpa espelho local.
                     dao.deleteByUid(uid)
                     return null
@@ -131,6 +135,7 @@ class CashlessAccountRepository(
         val holderName = name.trim()
         val cpf = cpfDigits.filter { it.isDigit() }
         val phone = phoneDigits.filter { it.isDigit() }
+        val phoneOrNull = phone.takeIf { it.isNotEmpty() }
         val uid = uidHex.uppercase()
         val cents = balanceCents.coerceAtLeast(0)
 
@@ -140,7 +145,7 @@ class CashlessAccountRepository(
                     uidHex = uid,
                     name = holderName,
                     cpf = cpf,
-                    phone = phone,
+                    phone = phoneOrNull,
                     balanceCents = cents,
                 ),
             )
@@ -156,6 +161,11 @@ class CashlessAccountRepository(
             val errBody = remote.errorBody()?.string()
             if (remote.code() == 409) {
                 throw parseApiError(409, errBody)
+            }
+            if (phoneOrNull == null && isOptionalPhoneRejection(remote.code(), errBody)) {
+                Log.w(TAG, "register: API recusou celular vazio — salvando local")
+                registerLocal(uid, holderName, cpf, phone, cents)
+                return
             }
             if (!shouldFallback(remote.code(), errBody)) {
                 throw parseApiError(remote.code(), errBody)
@@ -534,6 +544,22 @@ class CashlessAccountRepository(
         )
         dao.upsert(entity)
         return entity
+    }
+
+    /** API antiga exige 10–11 dígitos. Celular vazio não pode bloquear o cadastro. */
+    private fun isOptionalPhoneRejection(code: Int, body: String?): Boolean {
+        if (code != 400 && code != 422) return false
+        val codeName = errorCodeOf(body).orEmpty()
+        if (codeName == "invalid_cpf" || codeName == "cpf_already_linked" || codeName == "card_replaced") {
+            return false
+        }
+        val blob = body.orEmpty().lowercase()
+        val mentionsPhone = codeName.contains("phone") ||
+            blob.contains("phone") ||
+            blob.contains("telefone") ||
+            blob.contains("celular")
+        val mentionsOnlyCpf = blob.contains("cpf") && !mentionsPhone
+        return !mentionsOnlyCpf
     }
 
     private fun shouldFallback(code: Int, errorBody: String?): Boolean {

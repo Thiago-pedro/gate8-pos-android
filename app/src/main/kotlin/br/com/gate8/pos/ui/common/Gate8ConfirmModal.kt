@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ fun Gate8ConfirmModal(
     dismissLabel: String = "Cancelar",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    onDark: Boolean = false,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -47,17 +49,25 @@ fun Gate8ConfirmModal(
                 .padding(horizontal = 32.dp),
             contentAlignment = Alignment.Center,
         ) {
+            val shape = RoundedCornerShape(22.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .clip(shape)
+                    .background(if (onDark) Color(0xFF0C1E4A) else Color.White)
+                    .then(
+                        if (onDark) {
+                            Modifier.border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(horizontal = 24.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     title,
-                    color = Gate8Colors.TextPrimary,
+                    color = if (onDark) Color.White else Gate8Colors.TextPrimary,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -67,7 +77,7 @@ fun Gate8ConfirmModal(
 
                 Text(
                     message,
-                    color = Gate8Colors.TextSecondary,
+                    color = if (onDark) Color(0xFFD6E4FF) else Gate8Colors.TextSecondary,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                     textAlign = TextAlign.Center,
@@ -96,7 +106,7 @@ fun Gate8ConfirmModal(
 
                 Text(
                     dismissLabel,
-                    color = Gate8Colors.AccentBlue,
+                    color = if (onDark) Color.White else Gate8Colors.AccentBlue,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,

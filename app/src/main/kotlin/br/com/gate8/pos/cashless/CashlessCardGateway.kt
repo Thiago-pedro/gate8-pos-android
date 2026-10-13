@@ -4,7 +4,10 @@ package br.com.gate8.pos.cashless
  * Leitura/gravação de cartão Mifare cashless (Cielo Smart).
  */
 interface CashlessCardGateway {
-    /** Lê UID + saldo Gate8 (ou dump se o cartão ainda não for Gate8). */
+    /**
+     * Lê UID + saldo do bloco Gate8 (setor 1, bloco 0).
+     * Só retorna depois de confirmar a leitura. Falha em vez de devolver saldo zerado.
+     */
     suspend fun readCard(): CashlessCardSnapshot
 
     /**
@@ -38,6 +41,12 @@ interface CashlessCardGateway {
      * Recusa cartão bloqueado, sem formato Gate8 ou saldo insuficiente.
      */
     suspend fun debit(amountReais: Double): CashlessCardSnapshot
+
+    /**
+     * Interrompe a espera do cartão (ainda sem gravar saldo) e solta o leitor.
+     * Durante uma gravação em andamento não faz nada, para não cortar o saldo no meio.
+     */
+    fun cancel() {}
 }
 
 data class CashlessCardSnapshot(
@@ -49,6 +58,11 @@ data class CashlessCardSnapshot(
     val isGate8Format: Boolean,
     /** true se o cartão Gate8 está marcado como bloqueado. */
     val isBlocked: Boolean = false,
+    /**
+     * true só quando o bloco de saldo foi lido de forma estável
+     * (formato Gate8 ou cartão virgem 0x00/0xFF). Sem isso, [balanceReais] não pode virar R$ 0,00.
+     */
+    val balanceConfirmed: Boolean = false,
     /** Hex dos 16 bytes do bloco de saldo (diagnóstico). */
     val blockHex: String,
     /** ASCII legível do bloco (bytes imprimíveis). */

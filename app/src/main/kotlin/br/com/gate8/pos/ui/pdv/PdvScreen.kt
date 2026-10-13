@@ -18,17 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -43,11 +40,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import android.graphics.Typeface
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +60,7 @@ import br.com.gate8.pos.domain.model.CartLine
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8AlertDialog
 import br.com.gate8.pos.ui.common.PaymentFailedAlert
+import br.com.gate8.pos.ui.common.Gate8CartBar
 import br.com.gate8.pos.ui.common.Gate8CartLineUi
 import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
@@ -205,9 +206,10 @@ fun PdvScreen(
                     Column(Modifier.weight(1f)) {
                         Text(
                             if (selectedEvent != null) selectedEvent.name else "Ingressos",
-                            color = Gate8Colors.TextPrimary,
-                            fontSize = if (selectedEvent != null) 22.sp else 28.sp,
-                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = if (selectedEvent != null) 22.sp else 26.sp,
+                            fontWeight = FontWeight.Normal,
+                            fontFamily = FontFamily.SansSerif,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -217,14 +219,17 @@ fun PdvScreen(
                             } else {
                                 "Eventos publicados"
                             },
-                            color = Gate8Colors.TextSecondary,
+                            color = Color(0xFFD6E4FF),
                             fontSize = 14.sp,
+                            fontWeight = FontWeight.Light,
+                            fontFamily = FontFamily.SansSerif,
                         )
                     }
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Gate8Colors.CardSurface)
+                            .background(Color(0x66101840))
+                            .border(1.dp, Color(0xFF0000FE), RoundedCornerShape(20.dp))
                             .clickable { vm.refreshCatalog() }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     ) {
@@ -232,11 +237,16 @@ fun PdvScreen(
                             Icon(
                                 Icons.Outlined.Tune,
                                 contentDescription = "Atualizar",
-                                tint = Gate8Colors.TextPrimary,
+                                tint = Color.White,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(Modifier.size(6.dp))
-                            Text("Atualizar", color = Gate8Colors.TextPrimary, fontSize = 13.sp)
+                            Text(
+                                "Atualizar",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
@@ -284,63 +294,16 @@ fun PdvScreen(
             }
         }
 
-        if (cartItemCount > 0) {
-            FloatingActionButton(
-                onClick = { vm.openCart() },
+        if (cartItemCount > 0 && selectedEvent != null) {
+            Gate8CartBar(
+                itemCount = cartItemCount,
+                total = cartTotal,
+                itemSingular = "Ingresso",
+                onOpenCart = { vm.openCart() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .fillMaxWidth(0.9f)
-                    .height(56.dp),
-                containerColor = Gate8Colors.AccentBlue,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(28.dp),
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            Icons.Filled.ShoppingCart,
-                            contentDescription = "Carrinho",
-                            modifier = Modifier.size(22.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "Ver carrinho",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp,
-                            )
-                            Text(
-                                "R$ ${"%.2f".format(cartTotal)}",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.85f),
-                            )
-                        }
-                    }
-                    Box(
-                        Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            cartItemCount.toString(),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            }
+                    .padding(start = 12.dp, end = 12.dp, bottom = 16.dp),
+            )
         }
         },
         sheet = {
@@ -394,7 +357,7 @@ private fun PdvEventPicker(
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 "Nenhum evento publicado no catálogo.",
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 14.sp,
                 modifier = Modifier.padding(16.dp),
             )
@@ -404,7 +367,7 @@ private fun PdvEventPicker(
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 100.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(events, key = { it.id }) { event ->
@@ -422,9 +385,15 @@ private fun EventPickerCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .border(1.5.dp, Gate8Colors.AccentBlue, shape)
+            .shadow(
+                elevation = 4.dp,
+                shape = shape,
+                ambientColor = EventElectric.copy(alpha = 0.12f),
+                spotColor = EventElectric.copy(alpha = 0.18f),
+            )
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.32f))
+            .background(Color(0x33081428))
+            .border(1.dp, EventElectric.copy(alpha = 0.75f), shape)
             .clickable(onClick = onClick),
     ) {
         if (!event.bannerUrl.isNullOrBlank()) {
@@ -457,48 +426,58 @@ private fun EventPickerCard(
                 )
             }
         }
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
             Text(
-                event.name,
-                color = Gate8Colors.TextPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                event.name.uppercase(brLocale),
+                color = Color(0xFFF7FAFF),
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Normal,
+                fontFamily = EventLightFont,
+                letterSpacing = 1.5.sp,
+                lineHeight = 36.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             event.eventDate?.let {
-                EventMetaRow(
+                EventMetaBlock(
                     icon = Icons.Outlined.CalendarMonth,
-                    text = formatEventDate(it),
-                    modifier = Modifier.padding(top = 8.dp),
+                    value = formatEventDate(it),
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 10.dp),
                 )
             }
             event.location?.takeIf { it.isNotBlank() }?.let {
-                EventMetaRow(
+                EventMetaBlock(
                     icon = Icons.Outlined.LocationOn,
-                    text = it,
-                    modifier = Modifier.padding(top = 4.dp),
+                    value = it,
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
             HorizontalDivider(
-                modifier = Modifier.padding(top = 12.dp, bottom = 10.dp),
-                color = Gate8Colors.TextSecondary.copy(alpha = 0.18f),
+                modifier = Modifier.padding(top = 14.dp, bottom = 12.dp),
+                color = EventElectric.copy(alpha = 0.45f),
             )
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "${event.ticketBatches.size} opção(ões) de ingresso",
-                    color = Gate8Colors.AccentBlue,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    if (event.ticketBatches.size == 1) {
+                        "1 opção de ingresso"
+                    } else {
+                        "${event.ticketBatches.size} opções de ingresso"
+                    },
+                    color = EventElectricBright,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.SansSerif,
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
-                    tint = Gate8Colors.TextSecondary,
+                    tint = EventElectricBright,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -506,10 +485,17 @@ private fun EventPickerCard(
     }
 }
 
+private val EventElectric = Color(0xFF0000FE)
+private val EventElectricBright = Color(0xFF4C7DFF)
+
+/** Roboto Light do sistema. O peso Normal evita o tema recolocar negrito (700) por cima. */
+private val EventLightFont = FontFamily(Typeface.create("sans-serif-light", Typeface.NORMAL))
+
 @Composable
-private fun EventMetaRow(
+private fun EventMetaBlock(
     icon: ImageVector,
-    text: String,
+    value: String,
+    maxLines: Int,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -519,16 +505,19 @@ private fun EventMetaRow(
         Icon(
             icon,
             contentDescription = null,
-            tint = Gate8Colors.TextSecondary,
+            tint = EventElectricBright,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.width(6.dp))
         Text(
-            text,
-            color = Gate8Colors.TextSecondary,
+            value,
+            color = Color(0xFFF4F7FF),
             fontSize = 13.sp,
-            maxLines = 1,
+            fontWeight = FontWeight.Normal,
+            fontFamily = EventLightFont,
+            lineHeight = 17.sp,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 8.dp),
         )
     }
 }
@@ -545,7 +534,7 @@ private fun PdvTicketList(
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 "Nenhum lote disponível para este evento.",
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 14.sp,
             )
         }
@@ -554,7 +543,7 @@ private fun PdvTicketList(
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 100.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(event.ticketBatches, key = { it.id }) { batch ->
@@ -578,47 +567,63 @@ private fun TicketBatchCard(
 ) {
     val soldOut = batch.isSoldOut
     val canIncrement = batch.canAdd(quantity)
+    val shape = RoundedCornerShape(18.dp)
 
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = if (soldOut) 0.55f else 1f))
-            .border(1.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
+            .clip(shape)
+            .background(if (soldOut) Color(0x22081428) else Color(0x33081428))
+            .border(1.dp, EventElectric.copy(alpha = 0.85f), shape)
             .clickable(enabled = canIncrement, onClick = onIncrement)
-            .padding(12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(
-            batch.name,
-            color = Gate8Colors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
+            batch.name.uppercase(brLocale),
+            color = Color(0xFFF7FAFF),
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Normal,
+            fontFamily = EventLightFont,
+            letterSpacing = 1.2.sp,
+            lineHeight = 30.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         batch.sector?.let {
             Text(
                 it,
-                color = Gate8Colors.TextSecondary,
-                fontSize = 12.sp,
+                color = Color(0xFFD6E4FF),
+                fontSize = 13.sp,
+                fontFamily = EventLightFont,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp),
+                .padding(top = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text(
-                    "R$ ${"%.2f".format(batch.price)}",
-                    color = Gate8Colors.AccentBlue,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "R$",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 5.dp, end = 4.dp),
+                    )
+                    Text(
+                        String.format(brLocale, "%,.2f", batch.price),
+                        color = Color.White,
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 42.sp,
+                    )
+                }
                 if (soldOut) {
                     Text(
                         "Esgotado",
@@ -640,6 +645,9 @@ private fun TicketBatchCard(
                     compact = false,
                     onIncrement = onIncrement,
                     onDecrement = onDecrement,
+                    quantityColor = Color.White,
+                    enabledButtonColor = EventElectric,
+                    disabledButtonColor = Color.White.copy(alpha = 0.16f),
                 )
             }
         }

@@ -1,5 +1,6 @@
 package br.com.gate8.pos.ui.cashless
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,13 +16,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Contactless
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Print
@@ -41,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.gate8.pos.R
 import br.com.gate8.pos.cashless.CashlessCardSnapshot
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.ui.common.Gate8AlertDialog
@@ -122,6 +124,7 @@ fun CashlessScreen(
             reason = state.error,
             accent = Gate8Colors.Error,
             onDismiss = { vm.dismissFeedback() },
+            onDark = true,
         )
     } else if (
         !feedbackBlockedByOtherUi &&
@@ -135,15 +138,34 @@ fun CashlessScreen(
             detail = state.message,
             buttonLabel = "OK",
             onDismiss = { vm.dismissFeedback() },
+            onDark = true,
         )
     }
 
-    if (state.showConsultResult) {
+    val consultBalance = state.consultBalanceReais
+    val consultCard = state.card
+    if (state.showConsultResult && consultBalance != null && consultCard != null &&
+        (state.consultResultTitle == "Consulta de saldo" || state.consultResultTitle == "Cartão bloqueado")
+    ) {
+        CashlessBalanceConsultDialog(
+            title = state.consultResultTitle ?: "Consulta de saldo",
+            balanceReais = consultBalance,
+            uidHex = consultCard.uidHex,
+            status = state.consultStatus ?: "Pronto para usar",
+            name = state.accountName,
+            cpf = state.accountCpf,
+            phone = state.accountPhone,
+            note = state.consultNote,
+            success = !state.accountBlocked && state.consultStatus == "Pronto para usar",
+            onDismiss = { vm.dismissConsultResult() },
+        )
+    } else if (state.showConsultResult) {
         Gate8SuccessDialog(
             title = state.consultResultTitle ?: "Consulta",
             detail = state.consultResultDetail,
             buttonLabel = "OK",
             onDismiss = { vm.dismissConsultResult() },
+            onDark = true,
         )
     }
 
@@ -153,6 +175,7 @@ fun CashlessScreen(
             reason = "O tempo para pagar o Pix acabou.",
             detail = "Gere um novo QR Code para tentar novamente.",
             onDismiss = { vm.dismissPixExpired() },
+            onDark = true,
         )
     }
 
@@ -164,6 +187,7 @@ fun CashlessScreen(
             icon = Icons.Filled.Cancel,
             accent = Gate8Colors.AccentBlue,
             onDismiss = { vm.dismissPaymentCancelled() },
+            onDark = true,
         )
     }
 
@@ -171,6 +195,7 @@ fun CashlessScreen(
         PaymentFailedAlert(
             reason = state.paymentFailedReason,
             onDismiss = { vm.dismissPaymentFailed() },
+            onDark = true,
         )
     }
 
@@ -184,6 +209,7 @@ fun CashlessScreen(
             dismissLabel = "Cancelar",
             onConfirm = { vm.confirmBlockCard() },
             onDismiss = { vm.dismissConfirmBlock() },
+            onDark = true,
         )
     }
 
@@ -199,6 +225,7 @@ fun CashlessScreen(
             dismissLabel = "Agora não",
             onConfirm = { vm.acceptRecover() },
             onDismiss = { vm.declineRecover() },
+            onDark = true,
         )
     }
 
@@ -218,6 +245,7 @@ fun CashlessScreen(
             dismissLabel = "Cancelar",
             onConfirm = { vm.confirmZeroBalance() },
             onDismiss = { vm.dismissConfirmZero() },
+            onDark = true,
         )
     }
 
@@ -232,7 +260,7 @@ fun CashlessScreen(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Cashless",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
@@ -240,7 +268,7 @@ fun CashlessScreen(
                 )
                 Text(
                     "Cartão cashless · consulta e recarga",
-                    color = Gate8Colors.TextSecondary,
+                    color = Color(0xFFD6E4FF),
                     fontSize = 13.sp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -258,7 +286,7 @@ fun CashlessScreen(
                     }
                     Text(
                         "Saldo R$ ${"%.2f".format(balance)} · $status",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color.White,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -277,6 +305,7 @@ fun CashlessScreen(
                     prefix = "R$ ",
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    onDark = true,
                 )
 
                 state.pendingChipCredit?.let { pending ->
@@ -332,6 +361,7 @@ fun CashlessScreen(
                 onPayPix = { vm.checkout(PaymentMethodApi.PIX) },
                 onPayCash = { vm.checkout(PaymentMethodApi.CASH) },
                 cashEnabled = state.cashierOpen,
+                onDark = true,
             )
         }
     }
@@ -357,20 +387,22 @@ fun CashlessScreen(
         ) {
             Gate8ScreenBackgroundFillWidth {
                 Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
-                        .padding(bottom = 32.dp),
+                    cashlessModalModifier(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                            .padding(bottom = 32.dp),
+                    ),
                 ) {
                     Text(
                         "Cartão perdido",
-                        color = Gate8Colors.TextPrimary,
+                        color = Color.White,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         "Informe o CPF cadastrado na recarga. Vamos bloquear e oferecer a transferência.",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color(0xFFD6E4FF),
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
                     )
@@ -381,6 +413,7 @@ fun CashlessScreen(
                         placeholder = "00000000000",
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        onDark = true,
                     )
                     Spacer(Modifier.height(16.dp))
                     Gate8MenuButton(
@@ -419,20 +452,19 @@ private fun CashlessRegisterCardModal(
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .heightIn(max = maxHeight)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color.White)
+                cashlessModalModifier(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .heightIn(max = maxHeight),
+                )
                     .clickable(enabled = false, onClick = {})
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 22.dp, vertical = 26.dp),
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     "Cadastro do cartão",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -440,14 +472,15 @@ private fun CashlessRegisterCardModal(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "UID ${uidHex ?: "—"}",
-                    color = Gate8Colors.AccentBlue,
+                    color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Gate8Colors.AccentBlue.copy(alpha = 0.10f))
+                        .background(Color(0x33081428))
+                        .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.85f), RoundedCornerShape(10.dp))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
                 Spacer(Modifier.height(20.dp))
@@ -458,6 +491,7 @@ private fun CashlessRegisterCardModal(
                     placeholder = "Nome do cliente",
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    onDark = true,
                 )
                 Spacer(Modifier.height(12.dp))
                 Gate8OutlinedTextField(
@@ -468,6 +502,7 @@ private fun CashlessRegisterCardModal(
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     visualTransformation = CpfVisualTransformation,
+                    onDark = true,
                 )
                 Spacer(Modifier.height(12.dp))
                 Gate8OutlinedTextField(
@@ -478,6 +513,7 @@ private fun CashlessRegisterCardModal(
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     visualTransformation = PhoneVisualTransformation,
+                    onDark = true,
                 )
                 Spacer(Modifier.height(20.dp))
                 Gate8MenuButton(
@@ -489,7 +525,7 @@ private fun CashlessRegisterCardModal(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Cancelar",
-                    color = Gate8Colors.AccentBlue,
+                    color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
@@ -523,20 +559,19 @@ private fun CashlessCardOptionsModal(
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .heightIn(max = maxHeight)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color.White)
+                cashlessModalModifier(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .heightIn(max = maxHeight),
+                )
                     .clickable(enabled = false, onClick = {})
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     "Opções do cartão",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -544,7 +579,7 @@ private fun CashlessCardOptionsModal(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Escolha o que deseja fazer",
-                    color = Gate8Colors.TextSecondary,
+                    color = Color(0xFFD6E4FF),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                 )
@@ -586,7 +621,7 @@ private fun CashlessCardOptionsModal(
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "Cancelar",
-                    color = Gate8Colors.AccentBlue,
+                    color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
@@ -597,6 +632,15 @@ private fun CashlessCardOptionsModal(
         }
     }
 }
+
+private val CashlessModalShape = RoundedCornerShape(22.dp)
+
+private fun cashlessModalModifier(modifier: Modifier): Modifier =
+    modifier
+        .clip(CashlessModalShape)
+        .background(Color(0xFF0C1E4A))
+        .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), CashlessModalShape)
+        .padding(horizontal = 22.dp, vertical = 24.dp)
 
 private data class CashlessWaitModalUi(
     val title: String,
@@ -669,52 +713,45 @@ private fun CashlessWaitingCardModal(
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 28.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color.White)
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                cashlessModalModifier(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp),
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(
-                    Modifier
-                        .size(104.dp)
-                        .clip(CircleShape)
-                        .background(Gate8Colors.AccentBlue.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.Contactless,
-                        contentDescription = null,
-                        tint = Gate8Colors.AccentBlue,
-                        modifier = Modifier.size(56.dp),
-                    )
-                }
+                Image(
+                    painter = painterResource(R.drawable.ic_cashless_nfc),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(108.dp),
+                    contentScale = ContentScale.Fit,
+                )
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
                     ui.title,
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     ui.detail,
-                    color = Gate8Colors.TextSecondary,
+                    color = Color(0xFFD6E4FF),
                     fontSize = 15.sp,
                     lineHeight = 22.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 ui.uidHint?.takeIf { it.isNotBlank() }?.let { uid ->
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         "UID $uid",
-                        color = Gate8Colors.AccentBlue,
+                        color = Color(0xFF9AD4FF),
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Medium,
@@ -722,16 +759,16 @@ private fun CashlessWaitingCardModal(
                 }
 
                 if (ui.showProgress) {
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(18.dp))
                     CircularProgressIndicator(
-                        color = Gate8Colors.AccentBlue,
+                        color = Color(0xFF3D7CFF),
                         strokeWidth = 3.dp,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(36.dp),
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
                         "Aguardando cartão…",
-                        color = Gate8Colors.AccentBlue,
+                        color = Color(0xFF9AD4FF),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -750,7 +787,7 @@ private fun CashlessWaitingCardModal(
                     if (ui.showCancel) {
                         Text(
                             "Cancelar",
-                            color = Gate8Colors.TextSecondary,
+                            color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier
@@ -815,19 +852,10 @@ private fun CashlessTileButton(
     val highlighted = tile.highlighted && enabled
     val background = when {
         highlighted -> Gate8Colors.AccentBlue
-        enabled -> Color.White
-        else -> Gate8Colors.CardSurfaceElevated
+        enabled -> Color(0x33081428)
+        else -> Color(0x22081428)
     }
-    val content = when {
-        highlighted -> Color.White
-        enabled -> Gate8Colors.AccentBlue
-        else -> Gate8Colors.TextSecondary
-    }
-    val labelColor = when {
-        highlighted -> Color.White
-        enabled -> Gate8Colors.TextPrimary
-        else -> Gate8Colors.TextSecondary
-    }
+    val content = if (enabled) Color.White else Color.White.copy(alpha = 0.4f)
     Column(
         modifier
             .fillMaxSize()
@@ -837,7 +865,11 @@ private fun CashlessTileButton(
                 if (highlighted) {
                     Modifier
                 } else {
-                    Modifier.border(1.5.dp, Gate8Colors.AccentBlue.copy(alpha = if (enabled) 1f else 0.35f), shape)
+                    Modifier.border(
+                        1.5.dp,
+                        Color(0xFF0000FE).copy(alpha = if (enabled) 0.9f else 0.35f),
+                        shape,
+                    )
                 },
             )
             .clickable(enabled = enabled, onClick = tile.onClick),
@@ -853,7 +885,7 @@ private fun CashlessTileButton(
         Spacer(Modifier.height(8.dp))
         Text(
             tile.label,
-            color = labelColor,
+            color = content,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
@@ -888,22 +920,23 @@ private fun CardInfoCard(
         name?.takeIf { it.isNotBlank() }?.let { InfoRow("Nome", it) }
         cpf?.let { InfoRow("CPF", maskCpfDisplay(it)) }
         phone?.let { InfoRow("Telefone", it) }
+        val balance = card.balanceReais
         when {
+            !card.balanceConfirmed || balance == null -> {
+                InfoRow("Saldo", "—", highlight = true)
+                InfoRow("Status", "Leitura não confirmada")
+            }
             card.isBlocked || accountBlocked -> {
-                InfoRow(
-                    "Saldo",
-                    "R$ ${"%.2f".format(card.balanceReais ?: 0.0)}",
-                    highlight = true,
-                )
+                InfoRow("Saldo", "R$ ${"%.2f".format(balance)}", highlight = true)
                 InfoRow("Status", "Bloqueado · não liberado para uso")
             }
-            card.isGate8Format && card.balanceReais != null -> {
-                InfoRow("Saldo", "R$ ${"%.2f".format(card.balanceReais)}", highlight = true)
-                InfoRow("Status", "Pronto para usar")
+            !card.isGate8Format || balance <= 0.009 -> {
+                InfoRow("Saldo", "R$ ${"%.2f".format(balance)}", highlight = true)
+                InfoRow("Status", "Em branco · zerado")
             }
             else -> {
-                InfoRow("Saldo", "R$ 0,00", highlight = true)
-                InfoRow("Status", "Em branco · zerado")
+                InfoRow("Saldo", "R$ ${"%.2f".format(balance)}", highlight = true)
+                InfoRow("Status", "Pronto para usar")
             }
         }
         Spacer(Modifier.height(10.dp))

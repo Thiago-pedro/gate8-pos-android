@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +33,10 @@ fun Gate8PaymentMethodsSheet(
     onPayPix: () -> Unit,
     onPayCash: () -> Unit,
     cashEnabled: Boolean = true,
+    onDark: Boolean = false,
 ) {
+    val titleColor = if (onDark) Color.White else Gate8Colors.TextPrimary
+    val labelColor = if (onDark) Color(0xFFD6E4FF) else Gate8Colors.TextPrimary
     Gate8ScreenBackgroundFillWidth {
         Column(
             Modifier
@@ -42,20 +46,20 @@ fun Gate8PaymentMethodsSheet(
         ) {
             Text(
                 title,
-                color = Gate8Colors.TextPrimary,
+                color = titleColor,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 amountLabel,
-                color = Gate8Colors.TextPrimary,
+                color = titleColor,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
             )
             Text(
                 "Forma de pagamento",
-                color = Gate8Colors.TextPrimary,
+                color = labelColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 10.dp),

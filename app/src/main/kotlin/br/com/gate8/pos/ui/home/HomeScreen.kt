@@ -8,8 +8,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,11 +26,17 @@ import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.ConfirmationNumber
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.PointOfSale
+import androidx.compose.material.icons.outlined.HeadsetMic
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShoppingBasket
+import androidx.compose.material.icons.outlined.Store
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import java.util.Locale
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -46,9 +54,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,7 +113,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(horizontal = 24.dp),
         ) {
-            HomeTopBar(onSetup = onSetup)
+            HomeTopBar()
 
             Column(
                 Modifier
@@ -113,15 +122,28 @@ fun HomeScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(12.dp))
 
-                HomeIdentityBlock(
-                    establishment = setupState.merchantName ?: setupState.producerName,
-                    device = setupState.deviceName,
-                    operator = setupState.operatorName,
-                )
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    HomeIdentityBlock(
+                        establishment = setupState.merchantName ?: setupState.producerName,
+                        device = setupState.deviceName,
+                        operator = setupState.operatorName,
+                    )
+                    IconButton(
+                        onClick = onSetup,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = "Configuração",
+                            tint = HomeCyan,
+                            modifier = Modifier.size(26.dp),
+                        )
+                    }
+                }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(14.dp))
 
                 HomeMenuCard(
                     title = "Bilheteria",
@@ -130,14 +152,14 @@ fun HomeScreen(
                     onClick = onPdv,
                     highlighted = true,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 HomeMenuCard(
                     title = "Conveniência",
                     subtitle = "Vender bebidas, comidas e acessórios",
                     icon = Icons.Outlined.ShoppingBasket,
                     onClick = onProducts,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 HomeMenuCard(
                     title = "Caixa",
                     subtitle = "Abertura, fechamento e movimentações",
@@ -153,28 +175,26 @@ fun HomeScreen(
                         onClick = onCashless,
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 HomeMenuCard(
                     title = "Cancelamento / Estorno",
                     subtitle = "Estornar o pagamento da última venda",
                     icon = Icons.Outlined.Undo,
                     onClick = onRefund,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 HomeMenuCard(
                     title = "Relatórios",
                     subtitle = "Vendas por período, pagamento e bandeira",
                     icon = Icons.Outlined.Assessment,
                     onClick = onReports,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 HomeMenuCard(
                     title = "Reimprimir comprovante",
-                    subtitle = if (setupState.lastSale != null) {
-                        "Última venda · R$ ${"%.2f".format(setupState.lastSale?.total)}"
-                    } else {
-                        "Nenhuma venda registrada ainda"
-                    },
+                    subtitle = setupState.lastSale?.let { sale ->
+                        "Última venda · R$ ${"%.2f".format(Locale("pt", "BR"), sale.total)}"
+                    } ?: "Nenhuma venda registrada ainda",
                     icon = Icons.Outlined.Print,
                     onClick = vm::reprintLast,
                     enabled = setupState.lastSale != null,
@@ -213,7 +233,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Limpar fila de teste",
-                        color = Gate8Colors.AccentBlue,
+                        color = HomeCyan,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
@@ -238,15 +258,27 @@ fun HomeScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
-            Text(
-                stringResource(R.string.fale_conosco),
-            color = Gate8Colors.TextSecondary,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
+            Row(
+                Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-            )
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.HeadsetMic,
+                    contentDescription = null,
+                    tint = HomeCyan,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    stringResource(R.string.fale_conosco),
+                    color = Color(0xFFD7E8FF),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
         }
 
         if (setupState.showClearPendingConfirm) {
@@ -329,6 +361,10 @@ private fun OperatorRequiredDialog(
     }
 }
 
+private val HomeElectric = Color(0xFF0000FE)
+private val HomeCyan = Color(0xFF7EE7FF)
+private val HomeLabel = Color(0xFF9AD4FF)
+
 @Composable
 private fun HomeIdentityBlock(
     establishment: String?,
@@ -336,26 +372,53 @@ private fun HomeIdentityBlock(
     operator: String,
 ) {
     val operatorLabel = operator.takeIf { it.isNotBlank() }?.let { "POS - $it" } ?: "—"
-    val lineStyle = TextStyle(
-        color = Gate8Colors.TextSecondary,
-        fontSize = 14.sp,
-        lineHeight = 16.sp,
-        textAlign = TextAlign.Center,
-        platformStyle = PlatformTextStyle(includeFontPadding = false),
-    )
-    Column(
+    val shape = RoundedCornerShape(16.dp)
+    BoxWithConstraints(
         Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        if (!establishment.isNullOrBlank()) {
-            Text("Estabelecimento: $establishment", style = lineStyle)
+        Row(
+            Modifier
+                .widthIn(max = (maxWidth - 96.dp).coerceAtLeast(0.dp))
+                .shadow(6.dp, shape, ambientColor = HomeElectric.copy(alpha = 0.22f), spotColor = HomeElectric.copy(alpha = 0.32f))
+                .clip(shape)
+                .background(Color(0xCC071633))
+                .border(1.dp, HomeElectric.copy(alpha = 0.85f), shape)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.Store,
+                contentDescription = null,
+                tint = HomeCyan,
+                modifier = Modifier.size(18.dp),
+            )
+            Column(
+                Modifier.padding(start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                if (!establishment.isNullOrBlank()) {
+                    IdentityLine("Estabelecimento", establishment)
+                }
+                if (!device.isNullOrBlank()) {
+                    IdentityLine("Dispositivo", device)
+                }
+                IdentityLine("Operador", operatorLabel)
+            }
         }
-        if (!device.isNullOrBlank()) {
-            Text("Dispositivo: $device", style = lineStyle)
-        }
-        Text("Operador: $operatorLabel", style = lineStyle)
     }
+}
+
+@Composable
+private fun IdentityLine(label: String, value: String) {
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = HomeLabel)) { append("$label: ") }
+            withStyle(SpanStyle(color = Color.White)) { append(value) }
+        },
+        fontSize = 12.sp,
+        lineHeight = 15.sp,
+    )
 }
 
 @Composable
@@ -367,31 +430,40 @@ private fun HomeMenuCard(
     highlighted: Boolean = false,
     enabled: Boolean = true,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
     val alpha = if (enabled) 1f else 0.45f
-    val titleColor = if (highlighted) Color.White else Gate8Colors.TextPrimary
-    val subtitleColor = if (highlighted) Color.White.copy(alpha = 0.9f) else Gate8Colors.TextSecondary
-    val accent = if (highlighted) Color.White else Gate8Colors.AccentBlue
+    val iconTint = if (highlighted) Color.White else HomeCyan
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer { this.alpha = alpha }
+            .shadow(
+                elevation = if (highlighted) 16.dp else 8.dp,
+                shape = shape,
+                ambientColor = if (highlighted) HomeCyan.copy(alpha = 0.35f) else HomeElectric.copy(alpha = 0.25f),
+                spotColor = if (highlighted) HomeCyan.copy(alpha = 0.55f) else HomeElectric.copy(alpha = 0.4f),
+            )
             .clip(shape)
-            .background(if (highlighted) Gate8Colors.AccentBlue else Color.White)
-            .then(
+            .background(
                 if (highlighted) {
-                    Modifier
+                    Brush.verticalGradient(listOf(Color(0xFF3D63FF), HomeElectric))
                 } else {
-                    Modifier.border(1.5.dp, Gate8Colors.AccentBlue.copy(alpha = alpha), shape)
+                    Brush.verticalGradient(listOf(Color(0xB30B1E4A), Color(0x9906142E)))
                 },
             )
+            .border(
+                width = if (highlighted) 1.5.dp else 1.dp,
+                color = if (highlighted) HomeCyan else HomeElectric.copy(alpha = 0.9f),
+                shape = shape,
+            )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             icon,
             contentDescription = null,
-            tint = accent.copy(alpha = alpha),
+            tint = iconTint,
             modifier = Modifier.size(28.dp),
         )
         Column(
@@ -401,13 +473,13 @@ private fun HomeMenuCard(
         ) {
             Text(
                 title,
-                color = titleColor.copy(alpha = alpha),
+                color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 subtitle,
-                color = subtitleColor.copy(alpha = alpha),
+                color = if (highlighted) Color.White.copy(alpha = 0.9f) else Color(0xFFD3E4FF),
                 fontSize = 13.sp,
                 lineHeight = 17.sp,
             )
@@ -415,32 +487,20 @@ private fun HomeMenuCard(
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = accent.copy(alpha = alpha),
+            tint = if (highlighted) Color.White else HomeCyan,
             modifier = Modifier.size(22.dp),
         )
     }
 }
 
 @Composable
-private fun HomeTopBar(onSetup: () -> Unit) {
-    androidx.compose.foundation.layout.Box(
+private fun HomeTopBar() {
+    Box(
         Modifier
             .fillMaxWidth()
             .padding(top = 12.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Gate8HeaderLogo(
-            modifier = Modifier.align(Alignment.Center),
-        )
-        IconButton(
-            onClick = onSetup,
-            modifier = Modifier.align(Alignment.CenterEnd),
-        ) {
-            Icon(
-                Icons.Outlined.Settings,
-                contentDescription = "Configuração",
-                tint = Gate8Colors.TextPrimary,
-                modifier = Modifier.size(26.dp),
-            )
-        }
+        Gate8HeaderLogo()
     }
 }

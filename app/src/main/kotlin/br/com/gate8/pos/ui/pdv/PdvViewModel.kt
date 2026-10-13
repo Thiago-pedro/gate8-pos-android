@@ -387,7 +387,7 @@ class PdvViewModel(
                     val successMsg = if (success.duplicated) {
                         "Venda já registrada!"
                     } else {
-                        "Venda concluída com sucesso!"
+                        "Transação Aprovada!"
                     }
                     beginTicketPrint(cart, method, pay, success, successMsg)
                     schedulePendingSync()

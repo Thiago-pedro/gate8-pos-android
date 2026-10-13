@@ -79,13 +79,13 @@ fun RefundScreen(
 
                 Text(
                     "Cancelamento / Estorno",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
                     "Vendas de hoje neste terminal. Estornos de dias anteriores devem ser feitos pelo painel.",
-                    color = Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 6.dp),
                 )
@@ -97,16 +97,17 @@ fun RefundScreen(
                     onValueChange = vm::onQueryChange,
                     label = "Buscar por NSU, valor ou código",
                     modifier = Modifier.fillMaxWidth(),
+                    onDark = true,
                 )
 
                 Spacer(Modifier.height(16.dp))
 
                 state.message?.let {
-                    Text(it, color = Gate8Colors.Success, fontSize = 13.sp)
+                    Text(it, color = Color(0xFF86EFAC), fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                 }
                 state.error?.let {
-                    Text(it, color = Gate8Colors.Error, fontSize = 13.sp)
+                    Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                 }
 
@@ -133,7 +134,7 @@ fun RefundScreen(
                             } else {
                                 "Nenhuma venda encontrada para a busca."
                             },
-                            color = Gate8Colors.TextOnLight,
+                            color = Color.White,
                             fontSize = 14.sp,
                         )
                     } else {
@@ -184,7 +185,8 @@ private fun SaleCard(
     enabled: Boolean,
     onVoid: () -> Unit,
 ) {
-    val date = SimpleDateFormat("dd/MM HH:mm", Locale("pt", "BR")).format(Date(sale.createdAt))
+    val money = Locale("pt", "BR")
+    val date = SimpleDateFormat("dd/MM HH:mm", money).format(Date(sale.createdAt))
     val payment = sale.paymentLabel
         .replace('\n', ' ')
         .replace(Regex("\\s+"), " ")
@@ -194,13 +196,14 @@ private fun SaleCard(
         sale.cashlessUid?.takeIf { it.isNotBlank() }?.let { "UID $it" },
         sale.saleId?.takeIf { it.isNotBlank() }?.let { "ID $it" },
     ).joinToString(" · ")
+    val shape = RoundedCornerShape(16.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.5.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(shape)
+            .background(Color(0xFF0D2046))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -208,21 +211,21 @@ private fun SaleCard(
         ) {
             Text(
                 date,
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
             Text(
-                "R$ ${"%.2f".format(sale.total)}",
-                color = Gate8Colors.AccentBlue,
+                String.format(money, "R$ %,.2f", sale.total),
+                color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
             )
         }
         Text(
             payment,
-            color = Gate8Colors.TextPrimary,
+            color = Color.White,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
             maxLines = 1,
@@ -231,7 +234,7 @@ private fun SaleCard(
         if (meta.isNotBlank()) {
             Text(
                 meta,
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -239,10 +242,10 @@ private fun SaleCard(
         }
         sale.lines.forEach { line ->
             Text(
-                "${line.quantity}x ${line.description} — R$ ${"%.2f".format(line.lineTotal)}",
+                "${line.quantity}x ${line.description} — ${String.format(money, "R$ %,.2f", line.lineTotal)}",
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
-                color = Gate8Colors.TextSecondary,
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -251,7 +254,7 @@ private fun SaleCard(
         if (sale.voided) {
             Text(
                 "ESTORNADA",
-                color = Gate8Colors.Error,
+                color = Color(0xFFFF8A80),
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
             )

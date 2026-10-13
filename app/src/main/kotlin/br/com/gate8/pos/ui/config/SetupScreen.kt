@@ -86,13 +86,13 @@ fun SetupScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Configurações",
-                color = Gate8Colors.TextPrimary,
+                color = Color.White,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 "Como esta maquininha trabalha neste evento.",
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 2.dp),
             )
@@ -114,7 +114,7 @@ fun SetupScreen(
                         enabled = state.convenienceTicketMode,
                         onToggle = vm::setConvenienceTicketMode,
                     )
-                    HorizontalDivider(color = Gate8Colors.TextSecondary.copy(alpha = 0.12f))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.16f))
                     SettingToggle(
                         icon = Icons.Outlined.Restaurant,
                         title = "Modo cozinha",
@@ -138,7 +138,7 @@ fun SetupScreen(
                 SettingsCard {
                     Text(
                         "Nome impresso nos comprovantes",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color(0xFFD6E4FF),
                         fontSize = 12.sp,
                     )
                     Spacer(Modifier.height(8.dp))
@@ -149,6 +149,7 @@ fun SetupScreen(
                         prefix = "POS - ",
                         placeholder = "Tulio",
                         modifier = Modifier.fillMaxWidth(),
+                        onDark = true,
                     )
                     if (state.operatorMissing) {
                         Spacer(Modifier.height(6.dp))
@@ -177,7 +178,7 @@ fun SetupScreen(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 state.deviceName ?: "Este terminal",
-                                color = Gate8Colors.TextPrimary,
+                                color = Color.White,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -185,7 +186,7 @@ fun SetupScreen(
                             )
                             Text(
                                 terminalSummary(state),
-                                color = Gate8Colors.TextSecondary,
+                                color = Color(0xFFD6E4FF),
                                 fontSize = 12.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -194,12 +195,12 @@ fun SetupScreen(
                         Icon(
                             if (showTerminalDetails) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = if (showTerminalDetails) "Ocultar dados" else "Ver dados",
-                            tint = Gate8Colors.AccentBlue,
+                            tint = Color(0xFF7EE7FF),
                         )
                     }
                     if (showTerminalDetails) {
                         Spacer(Modifier.height(8.dp))
-                        HorizontalDivider(color = Gate8Colors.TextSecondary.copy(alpha = 0.12f))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.16f))
                         DetailRow("Versão", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                         state.producerName?.let { DetailRow("Produtor", it) }
                         state.deviceId?.let { DetailRow("ID", it) }
@@ -253,6 +254,8 @@ fun SetupScreen(
             detail = "Volte à tela inicial e abra \"Caixa\" para fazer o fechamento.",
             buttonLabel = "Entendi",
             onDismiss = { showCashierOpenWarning = false },
+            onDark = true,
+            showAlertClock = true,
         )
     }
 }
@@ -317,7 +320,7 @@ private fun IdentityChip(text: String) {
 private fun SectionLabel(text: String) {
     Text(
         text,
-        color = Gate8Colors.TextSecondary,
+        color = Color(0xFF9AD4FF),
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.4.sp,
@@ -330,7 +333,8 @@ private fun SettingsCard(content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Gate8Colors.CardSurface)
+            .background(Color(0x33081428))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.9f), RoundedCornerShape(16.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         content()
@@ -356,13 +360,13 @@ private fun SettingToggle(
         Column(Modifier.weight(1f)) {
             Text(
                 title,
-                color = Gate8Colors.TextPrimary,
+                color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 description,
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
             )
@@ -372,11 +376,11 @@ private fun SettingToggle(
             checked = enabled,
             onCheckedChange = onToggle,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = Gate8Colors.AccentBlue,
+                checkedTrackColor = Color(0xFF0000FE),
                 checkedThumbColor = Color.White,
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Gate8Colors.CardSurfaceElevated,
-                uncheckedBorderColor = Gate8Colors.TextSecondary.copy(alpha = 0.35f),
+                uncheckedTrackColor = Color.White.copy(alpha = 0.18f),
+                uncheckedBorderColor = Color.White.copy(alpha = 0.28f),
             ),
         )
     }
@@ -396,13 +400,13 @@ private fun ManagerCardBlock(
         Column(Modifier.weight(1f)) {
             Text(
                 "Cartão do gerente",
-                color = Gate8Colors.TextPrimary,
+                color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 if (enrolled) "Cadastrado · $uid" else "Pendente. Sem ele, o estorno não libera.",
-                color = if (enrolled) Gate8Colors.Success else Gate8Colors.TextSecondary,
+                color = if (enrolled) Gate8Colors.Success else Color(0xFFD6E4FF),
                 fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -441,13 +445,13 @@ private fun DetailRow(label: String, value: String) {
     ) {
         Text(
             label,
-            color = Gate8Colors.TextSecondary,
+            color = Color(0xFF9AD4FF),
             fontSize = 13.sp,
             modifier = Modifier.width(88.dp),
         )
         Text(
             value,
-            color = Gate8Colors.TextPrimary,
+            color = Color.White,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.End,
@@ -464,7 +468,8 @@ private fun LogoutRow(onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, Gate8Colors.Error.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+            .background(Color(0x66DC2626))
+            .border(1.dp, Color(0xFFEF4444), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -472,20 +477,20 @@ private fun LogoutRow(onClick: () -> Unit) {
         Icon(
             Icons.AutoMirrored.Outlined.Logout,
             contentDescription = null,
-            tint = Gate8Colors.Error,
+            tint = Color.White,
             modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 "Sair da sessão",
-                color = Gate8Colors.Error,
+                color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 "Encerra este terminal. Feche o caixa antes.",
-                color = Gate8Colors.TextSecondary,
+                color = Color.White.copy(alpha = 0.86f),
                 fontSize = 12.sp,
             )
         }

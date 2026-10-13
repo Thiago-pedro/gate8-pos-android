@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.BuildConfig
 import br.com.gate8.pos.R
 import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
 import java.util.Locale
 
@@ -110,10 +109,10 @@ fun Gate8CartSheet(
     cashEnabled: Boolean = true,
     showCashless: Boolean = false,
 ) {
+    Gate8ScreenBackground {
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
@@ -133,14 +132,14 @@ fun Gate8CartSheet(
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Voltar",
-                    tint = Gate8Colors.TextPrimary,
+                    tint = Color.White,
                 )
             }
             Text(
                 "Carrinho",
-                color = Gate8Colors.TextPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Normal,
                 modifier = Modifier.weight(1f),
             )
             Row(
@@ -153,13 +152,13 @@ fun Gate8CartSheet(
                 Icon(
                     Icons.Outlined.Delete,
                     contentDescription = "Limpar",
-                    tint = Gate8Colors.TextPrimary,
+                    tint = Color.White,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
                     "Limpar",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -172,21 +171,21 @@ fun Gate8CartSheet(
         ) {
             Text(
                 "$itemCount item(ns) · Total ",
-                color = Gate8Colors.TextPrimary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 16.sp,
             )
             Text(
                 brMoney(total),
-                color = Gate8Colors.AccentBlue,
+                color = Color.White,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Medium,
             )
         }
 
         if (lines.isEmpty()) {
             Text(
                 "Nenhum item no carrinho.",
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
             )
@@ -208,14 +207,14 @@ fun Gate8CartSheet(
 
         HorizontalDivider(
             Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-            color = Gate8Colors.CardSurfaceElevated,
+            color = Color(0xFF0000FE).copy(alpha = 0.45f),
         )
 
         Text(
             "Como o cliente vai pagar?",
-            color = Gate8Colors.TextPrimary,
+            color = Color.White,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(14.dp))
@@ -227,14 +226,14 @@ fun Gate8CartSheet(
                     .padding(vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                CircularProgressIndicator(color = Gate8Colors.AccentBlue)
+                CircularProgressIndicator(color = Color(0xFF7EE7FF))
                 if (!loadingMessage.isNullOrBlank()) {
                     Spacer(Modifier.height(18.dp))
                     Text(
                         loadingMessage,
-                        color = Gate8Colors.TextPrimary,
+                        color = Color.White,
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -256,6 +255,7 @@ fun Gate8CartSheet(
             )
         }
     }
+    }
 }
 
 @Composable
@@ -268,9 +268,9 @@ private fun CartLineCard(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, Gate8Colors.CardSurfaceElevated, RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0x33081428))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.85f), RoundedCornerShape(18.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -288,28 +288,28 @@ private fun CartLineCard(
                 Modifier
                     .size(72.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Gate8Colors.CardSurface),
+                    .background(Color.White.copy(alpha = 0.08f)),
             )
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 line.description,
-                color = Gate8Colors.TextPrimary,
+                color = Color.White,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 "${line.quantity}x ${brMoney(line.unitPrice)}",
-                color = Gate8Colors.TextSecondary,
+                color = Color(0xFFD6E4FF),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
                 "Subtotal ${brMoney(line.lineTotal)}",
-                color = Gate8Colors.AccentBlue,
+                color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 2.dp),
@@ -338,20 +338,20 @@ private fun CartQuantity(
             Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(Gate8Colors.CardSurfaceElevated)
+                .background(if (canDecrement) Color(0xFF0000FE) else Color.White.copy(alpha = 0.16f))
                 .clickable(enabled = canDecrement, onClick = onDecrement),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Filled.Remove,
                 contentDescription = "Diminuir",
-                tint = Gate8Colors.TextSecondary,
+                tint = if (canDecrement) Color.White else Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(18.dp),
             )
         }
         Text(
             quantity.toString(),
-            color = Gate8Colors.TextPrimary,
+            color = Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 10.dp),
@@ -360,14 +360,14 @@ private fun CartQuantity(
             Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(if (canIncrement) Gate8Colors.AccentBlue else Gate8Colors.CardSurfaceElevated)
+                .background(if (canIncrement) Color(0xFF0000FE) else Color.White.copy(alpha = 0.16f))
                 .clickable(enabled = canIncrement, onClick = onIncrement),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Filled.Add,
                 contentDescription = "Aumentar",
-                tint = if (canIncrement) Color.White else Gate8Colors.TextSecondary,
+                tint = if (canIncrement) Color.White else Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -423,13 +423,13 @@ private data class PayTile(
 private fun PayTileButton(tile: PayTile, modifier: Modifier) {
     val outlined = tile.kind == PayTileKind.Split
     val background = when {
-        !tile.enabled -> Gate8Colors.CardSurfaceElevated
-        outlined -> Color.White
-        else -> Gate8Colors.AccentBlue
+        !tile.enabled -> Color(0x22081428)
+        outlined -> Color(0x33081428)
+        else -> Color(0xFF0000FE)
     }
     val content = when {
-        !tile.enabled -> Gate8Colors.TextSecondary
-        outlined -> Gate8Colors.AccentBlue
+        !tile.enabled -> Color.White.copy(alpha = 0.4f)
+        outlined -> Color(0xFF7EE7FF)
         else -> Color.White
     }
     Column(
@@ -438,10 +438,14 @@ private fun PayTileButton(tile: PayTile, modifier: Modifier) {
             .clip(RoundedCornerShape(16.dp))
             .background(background)
             .then(
-                if (outlined && tile.enabled) {
-                    Modifier.border(1.5.dp, Gate8Colors.AccentBlue, RoundedCornerShape(16.dp))
+                if (tile.enabled) {
+                    Modifier.border(
+                        1.dp,
+                        if (outlined) Color(0xFF7EE7FF) else Color(0xFF7EE7FF).copy(alpha = 0.7f),
+                        RoundedCornerShape(16.dp),
+                    )
                 } else {
-                    Modifier
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
                 },
             )
             .clickable(enabled = tile.enabled, onClick = tile.onClick),

@@ -11,8 +11,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import br.com.gate8.pos.ui.theme.Gate8Colors
 
 @Composable
 fun Gate8ScreenTopBar(
@@ -30,7 +30,7 @@ fun Gate8ScreenTopBar(
             onClick = onMenu,
             modifier = Modifier.align(Alignment.CenterStart),
         ) {
-            Icon(Icons.Filled.Home, contentDescription = "Início", tint = Gate8Colors.TextPrimary)
+            Icon(Icons.Filled.Home, contentDescription = "Início", tint = Color.White)
         }
 
         Gate8HeaderLogo(
@@ -47,7 +47,7 @@ fun Gate8ScreenTopBar(
                 Icon(
                     Icons.Filled.Search,
                     contentDescription = actionContentDescription,
-                    tint = Gate8Colors.TextPrimary,
+                    tint = Color.White,
                 )
             }
         }

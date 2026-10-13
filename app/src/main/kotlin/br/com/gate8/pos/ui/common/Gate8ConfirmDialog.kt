@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,8 +31,10 @@ fun Gate8ConfirmDialog(
     dismissLabel: String = "Cancelar",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    onDark: Boolean = false,
     content: (@Composable () -> Unit)? = null,
 ) {
+    val shape = RoundedCornerShape(if (onDark) 22.dp else 16.dp)
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
@@ -43,20 +46,27 @@ fun Gate8ConfirmDialog(
             Modifier
                 .align(Alignment.Center)
                 .padding(horizontal = 28.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.96f))
+                .clip(shape)
+                .background(if (onDark) Color(0xFF0C1E4A) else Color.White.copy(alpha = 0.96f))
+                .then(
+                    if (onDark) {
+                        Modifier.border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(horizontal = 22.dp, vertical = 24.dp),
         ) {
             Text(
                 title,
-                color = Gate8Colors.TextOnLight,
+                color = if (onDark) Color.White else Gate8Colors.TextOnLight,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(12.dp))
             Text(
                 message,
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
+                color = if (onDark) Color(0xFFD6E4FF) else Gate8Colors.TextOnLight.copy(alpha = 0.75f),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
@@ -73,7 +83,7 @@ fun Gate8ConfirmDialog(
             Spacer(Modifier.height(10.dp))
             Text(
                 dismissLabel,
-                color = Gate8Colors.AccentBlue,
+                color = if (onDark) Color.White else Gate8Colors.AccentBlue,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,

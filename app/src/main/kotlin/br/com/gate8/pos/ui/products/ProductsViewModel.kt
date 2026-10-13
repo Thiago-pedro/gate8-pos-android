@@ -139,6 +139,7 @@ class ProductsViewModel(
 
     private val splitPay = SplitPaymentController(paymentGateway, splitStore, "products")
     private var splitFinished = false
+    @Volatile private var cashlessCancel = false
 
     private var catalogFetchGeneration = 0
 
@@ -294,9 +295,15 @@ class ProductsViewModel(
         _state.update { it.copy(saleSuccess = null) }
     }
 
-    /** Cancela o pagamento em andamento (cartão/Pix) na maquininha. */
+    /** Cancela o pagamento em andamento. No cashless, solta o leitor e fecha a espera. */
     fun cancelPayment() {
+        val waitingCashless = _state.value.loading &&
+            _state.value.payingMethod == PaymentMethodApi.CASHLESS
         paymentGateway.cancelCurrentPayment()
+        if (waitingCashless) {
+            cashlessCancel = true
+            cashlessCard.cancel()
+        }
     }
 
     fun dismissPixExpired() {
@@ -433,6 +440,12 @@ class ProductsViewModel(
             }
             if (payment.isFailure) {
                 val err = payment.exceptionOrNull()
+                val userStopped = cashlessCancel && method == PaymentMethodApi.CASHLESS
+                cashlessCancel = false
+                if (userStopped) {
+                    _state.update { it.copy(loading = false, payingMethod = null) }
+                    return@launch
+                }
                 _state.update {
                     when (err) {
                         is PaymentCancelledException ->
@@ -450,6 +463,7 @@ class ProductsViewModel(
                 }
                 return@launch
             }
+            cashlessCancel = false
             val pay = payment.getOrThrow()
 
             val request = SaleRequestFactory.create(
@@ -502,7 +516,7 @@ class ProductsViewModel(
                         title = if (success.duplicated) {
                             "Venda já registrada!"
                         } else {
-                            "Venda concluída com sucesso!"
+                            "Transação Aprovada!"
                         },
                         detail = cashlessDetail,
                     )
@@ -915,7 +929,7 @@ class ProductsViewModel(
                 error = apiHint,
                 message = null,
                 saleSuccess = SaleSuccessUi(
-                    title = "Venda concluída!",
+                    title = "Transação Aprovada!",
                     detail = successDetail
                         ?: if (e is ApiException && !e.isStockOrProductError()) {
                             "Pagamento OK. Venda na fila de sync."

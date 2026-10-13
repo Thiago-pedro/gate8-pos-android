@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.cashier
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,7 +73,7 @@ fun CashierScreen(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Caixa",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
@@ -81,7 +82,7 @@ fun CashierScreen(
                 Text(
                     if (state.open) "Aberto · operador ${state.operatorLabel.ifBlank { "—" }}"
                     else "Fechado — abra o caixa para vender em dinheiro",
-                    color = if (state.open) Gate8Colors.TextPrimary else Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 13.sp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -146,7 +147,7 @@ fun CashierScreen(
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 "Último fechamento",
-                                color = Gate8Colors.TextPrimary,
+                                color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 16.sp,
                             )
@@ -162,11 +163,11 @@ fun CashierScreen(
 
                     state.message?.let {
                         Spacer(Modifier.height(12.dp))
-                        Text(it, color = Color(0xFF1B7A3D), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(it, color = Color(0xFF86EFAC), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                     state.error?.let {
                         Spacer(Modifier.height(12.dp))
-                        Text(it, color = Color(0xFFB3261E), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                     Spacer(Modifier.height(24.dp))
                 }
@@ -261,6 +262,7 @@ fun CashierScreen(
                     dismissLabel = "Voltar e corrigir",
                     onConfirm = { if (!state.loading) vm.confirmCloseAnyway() },
                     onDismiss = vm::dismissCloseConfirm,
+                    onDark = true,
                 )
             }
 
@@ -275,17 +277,20 @@ fun CashierScreen(
     }
 }
 
+private val CashierCardShape = RoundedCornerShape(16.dp)
+
 @Composable
 private fun CashierTotalsCard(totals: CashierTotalsDto, openedAt: String?) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = 0.9f))
+            .clip(CashierCardShape)
+            .background(Color(0xFF0D2046))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), CashierCardShape)
             .padding(16.dp),
     ) {
         openedAt?.let {
-            Text("Desde ${formatTime(it)}", color = Gate8Colors.TextSecondary, fontSize = 12.sp)
+            Text("Desde ${formatTime(it)}", color = Color(0xFFD6E4FF), fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
         }
         TotalRow("Troco inicial", totals.openingBalance)
@@ -297,7 +302,7 @@ private fun CashierTotalsCard(totals: CashierTotalsDto, openedAt: String?) {
         Spacer(Modifier.height(8.dp))
         Text(
             "${totals.saleCount} vendas · total R$ ${"%.2f".format(totals.grandTotal)}",
-            color = Gate8Colors.TextSecondary,
+            color = Color.White,
             fontSize = 12.sp,
         )
     }
@@ -308,11 +313,12 @@ private fun MovementsCard(movements: List<CashierMovementDto>) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = 0.85f))
+            .clip(CashierCardShape)
+            .background(Color(0xFF0D2046))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), CashierCardShape)
             .padding(16.dp),
     ) {
-        Text("Movimentos", color = Gate8Colors.TextPrimary, fontWeight = FontWeight.SemiBold)
+        Text("Movimentos", color = Color.White, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         movements.forEach { m ->
             Row(
@@ -322,16 +328,16 @@ private fun MovementsCard(movements: List<CashierMovementDto>) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (m.type == "expense") "Despesa" else "Sangria",
-                        color = Gate8Colors.TextPrimary,
+                        color = Color.White,
                         fontSize = 14.sp,
                     )
                     m.description?.let {
-                        Text(it, color = Gate8Colors.TextSecondary, fontSize = 12.sp)
+                        Text(it, color = Color(0xFFD6E4FF), fontSize = 12.sp)
                     }
                 }
                 Text(
                     "R$ ${"%.2f".format(m.amount)}",
-                    color = Gate8Colors.AccentBlue,
+                    color = Color.White,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -345,10 +351,10 @@ private fun TotalRow(label: String, value: Double, negative: Boolean = false, hi
         Modifier.fillMaxWidth().padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(label, color = Gate8Colors.TextSecondary, fontSize = 14.sp)
+        Text(label, color = Color(0xFFD6E4FF), fontSize = 14.sp)
         Text(
             "${if (negative) "- " else ""}R$ ${"%.2f".format(value)}",
-            color = if (highlight) Gate8Colors.TextPrimary else Gate8Colors.TextSecondary,
+            color = Color.White,
             fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
             fontSize = if (highlight) 16.sp else 14.sp,
         )
@@ -383,6 +389,7 @@ private fun CashierAmountDialog(
         dismissLabel = "Cancelar",
         onConfirm = { if (!loading) onConfirm() },
         onDismiss = onDismiss,
+        onDark = true,
         content = {
             Column(Modifier.fillMaxWidth()) {
                 Gate8OutlinedTextField(
@@ -391,6 +398,7 @@ private fun CashierAmountDialog(
                     label = amountLabel,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    onDark = true,
                 )
                 if (showDescription) {
                     Spacer(Modifier.height(10.dp))
@@ -399,6 +407,7 @@ private fun CashierAmountDialog(
                         onValueChange = onDescriptionChange,
                         label = descriptionLabel,
                         singleLine = false,
+                        onDark = true,
                     )
                 }
                 if (showNotes) {
@@ -408,13 +417,14 @@ private fun CashierAmountDialog(
                         onValueChange = onNotesChange,
                         label = notesLabel,
                         singleLine = false,
+                        onDark = true,
                     )
                 }
                 error?.let {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         it,
-                        color = Color(0xFFB3261E),
+                        color = Color(0xFFFF8A80),
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),

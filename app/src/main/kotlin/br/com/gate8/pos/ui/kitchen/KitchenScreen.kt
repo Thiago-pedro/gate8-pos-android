@@ -90,7 +90,7 @@ fun KitchenScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "COZINHA",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
@@ -98,7 +98,7 @@ fun KitchenScreen(
                 )
                 Text(
                     state.status,
-                    color = Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
@@ -111,7 +111,7 @@ fun KitchenScreen(
                         false -> "Sem conexão com a fila"
                         null -> "Conectando…"
                     },
-                    color = Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -134,7 +134,7 @@ fun KitchenScreen(
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "Últimos pedidos",
-                    color = Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -142,7 +142,7 @@ fun KitchenScreen(
                 if (state.recentOrders.isEmpty()) {
                     Text(
                         "Nenhum pedido da cozinha ainda.",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color.White,
                         fontSize = 13.sp,
                     )
                 } else {
@@ -173,9 +173,9 @@ private fun RecentKitchenCard(order: KitchenOrder) {
     Column(
         Modifier
             .fillMaxWidth()
-            .border(1.dp, Gate8Colors.AccentBlue, shape)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.86f))
+            .background(Color(0xFF0D2046))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), shape)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Row(
@@ -184,7 +184,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
         ) {
             Text(
                 "Pedido ${order.orderNumber}",
-                color = Gate8Colors.AccentBlue,
+                color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -192,7 +192,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
             if (order.terminalName.isNotBlank()) {
                 Text(
                     " · ${order.terminalName}",
-                    color = Gate8Colors.TextSecondary,
+                    color = Color.White,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -203,7 +203,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
             }
             Text(
                 formatKitchenTime(order.soldAtMillis),
-                color = Gate8Colors.TextSecondary,
+                color = Color.White,
                 fontSize = 11.sp,
                 maxLines = 1,
             )
@@ -211,7 +211,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
         if (items.isNotBlank()) {
             Text(
                 items,
-                color = Gate8Colors.TextPrimary,
+                color = Color.White,
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
                 maxLines = 2,
@@ -221,7 +221,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
         order.note?.takeIf { it.isNotBlank() }?.let { note ->
             Text(
                 "Obs: $note",
-                color = Gate8Colors.TextSecondary,
+                color = Color.White,
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
                 maxLines = 1,
@@ -255,7 +255,7 @@ private fun KitchenTopBar(onSetup: () -> Unit) {
             Icon(
                 Icons.Outlined.Settings,
                 contentDescription = "Configuração",
-                tint = Gate8Colors.TextPrimary,
+                tint = Color.White,
                 modifier = Modifier.size(26.dp),
             )
         }

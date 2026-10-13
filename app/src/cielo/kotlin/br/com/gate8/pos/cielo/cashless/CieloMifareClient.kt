@@ -12,6 +12,7 @@ import br.com.gate8.pos.cashless.CashlessCardGateway
 import br.com.gate8.pos.cashless.CashlessCardSnapshot
 import br.com.gate8.pos.cashless.CashlessOperationException
 import br.com.gate8.pos.cashless.Gate8CashlessBalanceCodec
+import br.com.gate8.pos.payment.PaymentCancelledException
 import br.com.gate8.pos.cielo.deeplink.CieloActivityHolder
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CompletableDeferred
@@ -21,6 +22,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -34,28 +36,42 @@ class CieloMifareClient(
 ) : CashlessCardGateway {
 
     private val mutex = Mutex()
+    private val cancelRequested = AtomicBoolean(false)
+    private val writing = AtomicBoolean(false)
+    private val inFlight = AtomicReference<CompletableDeferred<MifareResult>?>(null)
+
+    override fun cancel() {
+        if (writing.get()) return
+        cancelRequested.set(true)
+        inFlight.getAndSet(null)?.completeExceptionally(PaymentCancelledException())
+        val host = CieloActivityHolder.get() ?: return
+        runCatching {
+            val intent = Intent("cielo.lio.cashless.mifare.DEACTIVATE").apply {
+                setPackage(CASHLESS_PACKAGE)
+                putExtra("cbType", 'B')
+                putExtra("cbPackage", app.packageName)
+                putExtra("cbAction", "DEACTIVATE_CALLBACK")
+            }
+            startCashlessService(host, intent)
+        }
+    }
+
+    private fun beginOperation() {
+        cancelRequested.set(false)
+        writing.set(false)
+    }
+
+    private fun ensureNotCancelled() {
+        if (cancelRequested.get()) throw PaymentCancelledException()
+    }
 
     override suspend fun readCard(): CashlessCardSnapshot = mutex.withLock {
+        beginOperation()
         withContext(Dispatchers.Main.immediate) {
             try {
                 val uid = detect()
-                val block = readBalanceBlockOrNull()
-                if (block != null) {
-                    snapshot(uid, block)
-                } else {
-                    CashlessCardSnapshot(
-                        uidHex = Gate8CashlessBalanceCodec.uidToHex(uid),
-                        balanceReais = null,
-                        isGate8Format = false,
-                        isBlocked = false,
-                        blockHex = "—",
-                        blockAscii = "—",
-                        message = "Cartão detectado (UID ${Gate8CashlessBalanceCodec.uidToHex(uid)}), " +
-                            "mas não autenticou com a chave padrão. " +
-                            "Use um cartão cashless Gate8 compatível. Outros tipos de cartão NFC " +
-                            "ou cartões com chave diferente não funcionam neste fluxo.",
-                    )
-                }
+                val block = readBalanceBlockConfirmed()
+                snapshot(uid, block)
             } finally {
                 runCatching { deactivate() }
             }
@@ -63,6 +79,7 @@ class CieloMifareClient(
     }
 
     override suspend fun topUp(amountReais: Double, requireUid: String?): CashlessCardSnapshot = mutex.withLock {
+        beginOperation()
         require(amountReais > 0.0) { "Informe um valor maior que zero" }
         val addCents = (amountReais * 100.0).roundToInt()
         require(addCents > 0) { "Informe um valor maior que zero" }
@@ -76,12 +93,7 @@ class CieloMifareClient(
                         "Cartão diferente do cadastrado ($requireUid). Aproxime o cartão certo.",
                     )
                 }
-                authenticateBestEffort(BALANCE_SECTOR)
-                    ?: throw CashlessOperationException(
-                        "AUTH",
-                        "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
-                    )
-                val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                val current = readBalanceBlockConfirmed()
                 if (Gate8CashlessBalanceCodec.isBlocked(current)) {
                     throw CashlessOperationException(
                         "BLOCKED",
@@ -91,8 +103,7 @@ class CieloMifareClient(
                 val currentCents = Gate8CashlessBalanceCodec.readCents(current) ?: 0
                 val nextCents = currentCents + addCents
                 val encoded = Gate8CashlessBalanceCodec.encode(nextCents, blocked = false)
-                writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
-                val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                val written = writeBalanceBlockConfirmed(encoded)
                 snapshot(
                     uid,
                     written,
@@ -111,6 +122,7 @@ class CieloMifareClient(
         requireUid: String?,
     ): CashlessCardSnapshot =
         mutex.withLock {
+            beginOperation()
             require(amountReais >= 0.0) { "Saldo inválido" }
             val cents = (amountReais * 100.0).roundToInt().coerceAtLeast(0)
             withContext(Dispatchers.Main.immediate) {
@@ -129,14 +141,8 @@ class CieloMifareClient(
                             "Cartão diferente do esperado ($requireUid). Aproxime o cartão certo.",
                         )
                     }
-                    authenticateBestEffort(BALANCE_SECTOR)
-                        ?: throw CashlessOperationException(
-                            "AUTH",
-                            "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
-                        )
                     val encoded = Gate8CashlessBalanceCodec.encode(cents, blocked = blocked)
-                    writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
-                    val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                    val written = writeBalanceBlockConfirmed(encoded)
                     snapshot(uid, written)
                 } finally {
                     runCatching { deactivate() }
@@ -146,6 +152,7 @@ class CieloMifareClient(
 
     override suspend fun wipeCard(requireUid: String?): CashlessCardSnapshot =
         mutex.withLock {
+            beginOperation()
             withContext(Dispatchers.Main.immediate) {
                 try {
                     val uid = detect()
@@ -156,14 +163,8 @@ class CieloMifareClient(
                             "Cartão diferente do esperado ($requireUid). Aproxime o cartão certo.",
                         )
                     }
-                    authenticateBestEffort(BALANCE_SECTOR)
-                        ?: throw CashlessOperationException(
-                            "AUTH",
-                            "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
-                        )
                     val blank = ByteArray(16) { 0 }
-                    writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, blank)
-                    val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                    val written = writeBalanceBlockConfirmed(blank)
                     snapshot(
                         uid,
                         written,
@@ -176,18 +177,14 @@ class CieloMifareClient(
         }
 
     override suspend fun debit(amountReais: Double): CashlessCardSnapshot = mutex.withLock {
+        beginOperation()
         require(amountReais > 0.0) { "Informe um valor maior que zero" }
         val debitCents = (amountReais * 100.0).roundToInt()
         require(debitCents > 0) { "Informe um valor maior que zero" }
         withContext(Dispatchers.Main.immediate) {
             try {
                 val uid = detect()
-                authenticateBestEffort(BALANCE_SECTOR)
-                    ?: throw CashlessOperationException(
-                        "AUTH",
-                        "Não autenticou o setor de saldo. Use um cartão cashless Gate8 compatível.",
-                    )
-                val current = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                val current = readBalanceBlockConfirmed()
                 if (!Gate8CashlessBalanceCodec.isGate8(current)) {
                     throw CashlessOperationException(
                         "EMPTY",
@@ -211,8 +208,7 @@ class CieloMifareClient(
                 }
                 val nextCents = currentCents - debitCents
                 val encoded = Gate8CashlessBalanceCodec.encode(nextCents, blocked = false)
-                writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, encoded)
-                val written = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                val written = writeBalanceBlockConfirmed(encoded)
                 snapshot(
                     uid,
                     written,
@@ -225,22 +221,140 @@ class CieloMifareClient(
         }
     }
 
-    /** Tenta setor 1 depois setor 0; key A depois key B. */
-    private suspend fun readBalanceBlockOrNull(): ByteArray? {
-        val attempts = listOf(
-            BALANCE_SECTOR to 'A',
-            BALANCE_SECTOR to 'B',
-            0.toByte() to 'A',
-            0.toByte() to 'B',
-        )
-        for ((sector, keyType) in attempts) {
-            val ok = authenticateBestEffort(sector, keyType)
-            if (ok == null) continue
-            return runCatching {
-                readBlock(sector, if (sector == BALANCE_SECTOR) BALANCE_BLOCK else 0)
-            }.getOrNull()
+    /**
+     * Lê só o bloco de saldo (setor 1, bloco 0). Nunca cai no setor 0:
+     * o bloco 0 do setor 0 é o UID de fábrica e aparecia como saldo R$ 0,00.
+     *
+     * Aceita o valor quando duas leituras seguidas são idênticas e o bloco é Gate8.
+     * Bloco virgem (0x00/0xFF) só vale depois de uma terceira leitura igual —
+     * uma resposta vazia da Cielo não pode zerar um cartão com saldo.
+     */
+    private suspend fun readBalanceBlockConfirmed(): ByteArray {
+        var lastError: Exception? = null
+        repeat(BALANCE_READ_ATTEMPTS) { attempt ->
+            ensureNotCancelled()
+            if (attempt > 0) kotlinx.coroutines.delay(RETRY_GAP_MS)
+            if (!authenticateBalanceSector()) {
+                lastError = CashlessOperationException(
+                    "AUTH",
+                    "Não autentiquei o setor de saldo. Mantenha o cartão encostado e tente de novo.",
+                )
+                return@repeat
+            }
+            val first = try {
+                readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+            } catch (e: CashlessOperationException) {
+                lastError = e
+                return@repeat
+            }
+            val second = try {
+                readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+            } catch (e: CashlessOperationException) {
+                lastError = e
+                return@repeat
+            }
+            if (!first.contentEquals(second)) {
+                Log.w(
+                    TAG,
+                    "leituras diferentes attempt=$attempt " +
+                        "${Gate8CashlessBalanceCodec.toHex(first)} vs " +
+                        Gate8CashlessBalanceCodec.toHex(second),
+                )
+                lastError = unstableRead()
+                return@repeat
+            }
+            if (Gate8CashlessBalanceCodec.isGate8(first)) {
+                Log.i(TAG, "saldo confirmado ${Gate8CashlessBalanceCodec.toHex(first)}")
+                return first
+            }
+            if (Gate8CashlessBalanceCodec.isVirgin(first)) {
+                if (!authenticateBalanceSector()) {
+                    lastError = CashlessOperationException(
+                        "AUTH",
+                        "Não autentiquei o setor de saldo. Mantenha o cartão encostado e tente de novo.",
+                    )
+                    return@repeat
+                }
+                val third = try {
+                    readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                } catch (e: CashlessOperationException) {
+                    lastError = e
+                    return@repeat
+                }
+                if (third.contentEquals(first)) {
+                    Log.i(TAG, "cartão virgem confirmado")
+                    return first
+                }
+                Log.w(TAG, "zero não confirmou attempt=$attempt")
+                lastError = unstableRead()
+                return@repeat
+            }
+            Log.w(TAG, "bloco ilegível attempt=$attempt ${Gate8CashlessBalanceCodec.toHex(first)}")
+            lastError = unstableRead()
         }
-        return null
+        throw lastError ?: unstableRead()
+    }
+
+    private fun unstableRead() = CashlessOperationException(
+        "UNSTABLE",
+        "Não confirmei o saldo do cartão. Mantenha ele encostado e tente de novo.",
+    )
+
+    /** Grava o bloco de saldo e só devolve quando a leitura de volta é idêntica. */
+    private suspend fun writeBalanceBlockConfirmed(data: ByteArray): ByteArray {
+        writing.set(true)
+        var lastError: Exception? = null
+        try {
+        repeat(WRITE_ATTEMPTS) { attempt ->
+            if (attempt > 0) {
+                kotlinx.coroutines.delay(RETRY_GAP_MS)
+                if (!authenticateBalanceSector()) {
+                    lastError = CashlessOperationException(
+                        "AUTH",
+                        "Não autentiquei o setor de saldo. Mantenha o cartão encostado e tente de novo.",
+                    )
+                    return@repeat
+                }
+            } else if (!authenticateBalanceSector()) {
+                lastError = CashlessOperationException(
+                    "AUTH",
+                    "Não autentiquei o setor de saldo. Mantenha o cartão encostado e tente de novo.",
+                )
+                return@repeat
+            }
+            try {
+                writeBlock(BALANCE_SECTOR, BALANCE_BLOCK, data)
+                val read = readBlock(BALANCE_SECTOR, BALANCE_BLOCK)
+                if (read.contentEquals(data)) {
+                    Log.i(TAG, "gravação confirmada ${Gate8CashlessBalanceCodec.toHex(read)}")
+                    return read
+                }
+                Log.w(
+                    TAG,
+                    "gravação não confirmou attempt=$attempt " +
+                        "esperado=${Gate8CashlessBalanceCodec.toHex(data)} " +
+                        "lido=${Gate8CashlessBalanceCodec.toHex(read)}",
+                )
+                lastError = CashlessOperationException(
+                    "VERIFY",
+                    "A gravação do saldo não confirmou. Mantenha o cartão encostado e tente de novo.",
+                )
+            } catch (e: CashlessOperationException) {
+                lastError = e
+            }
+        }
+        throw lastError ?: CashlessOperationException(
+            "VERIFY",
+            "A gravação do saldo não confirmou. Mantenha o cartão encostado e tente de novo.",
+        )
+        } finally {
+            writing.set(false)
+        }
+    }
+
+    private suspend fun authenticateBalanceSector(): Boolean {
+        if (authenticateBestEffort(BALANCE_SECTOR, 'A') != null) return true
+        return authenticateBestEffort(BALANCE_SECTOR, 'B') != null
     }
 
     private suspend fun authenticateBestEffort(
@@ -259,16 +373,25 @@ class CieloMifareClient(
     ): CashlessCardSnapshot {
         val cents = Gate8CashlessBalanceCodec.readCents(block)
         val isGate8 = Gate8CashlessBalanceCodec.isGate8(block)
+        val virgin = Gate8CashlessBalanceCodec.isVirgin(block)
         val blocked = Gate8CashlessBalanceCodec.isBlocked(block)
+        val confirmed = Gate8CashlessBalanceCodec.isTrustworthyBalanceBlock(block)
+        val balanceReais = when {
+            cents != null -> cents / 100.0
+            virgin -> 0.0
+            else -> null
+        }
         return CashlessCardSnapshot(
             uidHex = Gate8CashlessBalanceCodec.uidToHex(uid),
-            balanceReais = cents?.let { it / 100.0 },
+            balanceReais = balanceReais,
             isGate8Format = isGate8,
             isBlocked = blocked,
+            balanceConfirmed = confirmed,
             blockHex = Gate8CashlessBalanceCodec.toHex(block),
             blockAscii = Gate8CashlessBalanceCodec.toAscii(block),
             message = message ?: when {
-                blocked -> "Cartão bloqueado · saldo R$ ${"%.2f".format((cents ?: 0) / 100.0)}"
+                !confirmed -> null
+                blocked -> "Cartão bloqueado · saldo R$ ${"%.2f".format(balanceReais ?: 0.0)}"
                 isGate8 -> null
                 else -> "Cartão em branco · saldo zerado."
             },
@@ -314,8 +437,17 @@ class CieloMifareClient(
             putExtra("block", block)
         }
         val data = result.data
-            ?: throw CashlessOperationException(result.code, humanize(result.code, result.detail, "READ"))
-        return if (data.size >= 16) data.copyOf(16) else data.copyOf(16)
+            ?: throw CashlessOperationException(
+                "SHORT",
+                "Leitura sem dados. Mantenha o cartão encostado e tente de novo.",
+            )
+        if (data.size < 16) {
+            throw CashlessOperationException(
+                "SHORT",
+                "Leitura incompleta do cartão. Mantenha ele encostado e tente de novo.",
+            )
+        }
+        return data.copyOf(16)
     }
 
     private suspend fun writeBlock(sector: Byte, block: Byte, data: ByteArray) {
@@ -351,14 +483,25 @@ class CieloMifareClient(
         timeoutMs: Long,
         configure: Intent.() -> Unit,
     ): MifareResult {
+        ensureNotCancelled()
         val deferred = CompletableDeferred<MifareResult>()
         val pending = AtomicReference(deferred)
+        inFlight.set(deferred)
+        if (cancelRequested.get()) {
+            deferred.completeExceptionally(PaymentCancelledException())
+        }
+        // Broadcast antigo (sticky) chega no registerReceiver, antes do startService.
+        val acceptCallbacks = AtomicBoolean(false)
         // Actions oficiais da doc Cielo (sem UUID — alguns firmwares ignoram cbAction custom).
         val replyAction = cbAction
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent == null) return
+                if (!acceptCallbacks.get()) {
+                    Log.w(TAG, "callback antecipado ignorado action=${intent.action}")
+                    return
+                }
                 val code = intent.getStringExtra("result").orEmpty()
                 val detail = intent.getStringExtra("detail").orEmpty()
                 val data = intent.getByteArrayExtra("data")
@@ -392,10 +535,12 @@ class CieloMifareClient(
                 putExtra("cbAction", replyAction)
                 configure()
             }
+            acceptCallbacks.set(true)
             startCashlessService(host, intent)
             return try {
                 withTimeout(timeoutMs) { deferred.await() }
             } catch (e: TimeoutCancellationException) {
+                if (cancelRequested.get()) throw PaymentCancelledException()
                 throw CashlessOperationException(
                     "TIMEOUT",
                     "Tempo esgotado. Aproxime o cartão cashless e tente de novo.",
@@ -412,6 +557,7 @@ class CieloMifareClient(
             pending.getAndSet(null)?.cancel()
             throw e
         } finally {
+            inFlight.compareAndSet(deferred, null)
             runCatching { host.unregisterReceiver(receiver) }
         }
     }
@@ -428,8 +574,7 @@ class CieloMifareClient(
         }
         if (code.equals("R10", ignoreCase = true) || lower.contains("parameter error")) {
             return "Erro ao iniciar a $opLabel no leitor. " +
-                "Deixe o Gate8 aberto na tela, afaste o cartão e aproxime de novo. " +
-                "(código R10)"
+                "Deixe o Gate8 aberto na tela, afaste o cartão e aproxime de novo."
         }
         if (code.equals("R01", ignoreCase = true) || lower.contains("timeout") || lower.contains("time out")) {
             return "Tempo esgotado na $opLabel. Aproxime o cartão cashless e tente de novo."
@@ -494,5 +639,8 @@ class CieloMifareClient(
         private const val BALANCE_BLOCK: Byte = 0
         private const val DETECT_TIMEOUT_MS = 45_000L
         private const val OP_TIMEOUT_MS = 15_000L
+        private const val BALANCE_READ_ATTEMPTS = 3
+        private const val WRITE_ATTEMPTS = 2
+        private const val RETRY_GAP_MS = 60L
     }
 }

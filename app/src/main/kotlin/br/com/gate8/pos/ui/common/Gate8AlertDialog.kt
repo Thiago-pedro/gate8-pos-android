@@ -1,6 +1,8 @@
 package br.com.gate8.pos.ui.common
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.gate8.pos.R
 import br.com.gate8.pos.ui.theme.Gate8Colors
 
 /**
@@ -44,10 +49,17 @@ fun Gate8AlertDialog(
     accent: Color = Gate8Colors.Error,
     buttonLabel: String = "OK",
     onDismiss: () -> Unit,
+    onDark: Boolean = false,
+    /** Relógio neon vermelho, o mesmo do aviso de atenção. */
+    showAlertClock: Boolean = false,
 ) {
     val prominentText = reason?.takeIf { it.isNotBlank() }
     val secondaryText = detail?.takeIf { it.isNotBlank() }
     val legacyDetailOnly = prominentText == null && secondaryText != null
+    val neonAttention = title == "Atenção"
+    val showClock = neonAttention || showAlertClock
+    val dark = onDark || neonAttention
+    val buttonShape = RoundedCornerShape(16.dp)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -58,34 +70,53 @@ fun Gate8AlertDialog(
                 .padding(horizontal = 32.dp),
             contentAlignment = Alignment.Center,
         ) {
+            val shape = RoundedCornerShape(22.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .clip(shape)
+                    .background(if (dark) Color(0xFF0C1E4A) else Color.White)
+                    .then(
+                        if (dark) {
+                            Modifier.border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(horizontal = 24.dp, vertical = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(
-                    Modifier
-                        .size(92.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        icon,
+                if (showClock) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_alert_clock),
                         contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(58.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(108.dp),
+                        contentScale = ContentScale.Fit,
                     )
+                } else {
+                    Box(
+                        Modifier
+                            .size(92.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(58.dp),
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(if (showClock) 8.dp else 20.dp))
 
                 Text(
                     title,
-                    color = Gate8Colors.TextPrimary,
+                    color = if (dark) Color.White else Gate8Colors.TextPrimary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -95,9 +126,9 @@ fun Gate8AlertDialog(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         prominentText,
-                        color = Gate8Colors.TextPrimary,
+                        color = if (dark) Color.White else Gate8Colors.TextPrimary,
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (neonAttention) FontWeight.Normal else FontWeight.SemiBold,
                         lineHeight = 22.sp,
                         textAlign = TextAlign.Center,
                     )
@@ -107,7 +138,7 @@ fun Gate8AlertDialog(
                     Spacer(Modifier.height(if (prominentText != null) 8.dp else 10.dp))
                     Text(
                         secondaryText,
-                        color = Gate8Colors.TextSecondary,
+                        color = if (neonAttention) Color.White else if (dark) Color(0xFFD6E4FF) else Gate8Colors.TextSecondary,
                         fontSize = if (legacyDetailOnly) 14.sp else 13.sp,
                         lineHeight = 20.sp,
                         textAlign = TextAlign.Center,
@@ -119,8 +150,15 @@ fun Gate8AlertDialog(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(accent)
+                        .then(
+                            if (neonAttention) {
+                                Modifier.border(1.5.dp, Color(0xFF6EA8FF), buttonShape)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .clip(buttonShape)
+                        .background(if (neonAttention) Color(0xFF1A46FF) else accent)
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,

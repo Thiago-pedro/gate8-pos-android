@@ -288,7 +288,8 @@ data class CashlessCardDto(
     @SerialName("uid_hex") val uidHex: String,
     val name: String = "",
     val cpf: String,
-    val phone: String,
+    /** Vazio quando o titular não informou celular. */
+    val phone: String = "",
     val blocked: Boolean = false,
     @SerialName("balance_cents") val balanceCents: Int = 0,
     @SerialName("balance_reais") val balanceReais: Double? = null,
@@ -306,12 +307,15 @@ data class CashlessCardResponseDto(
     val card: CashlessCardDto,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class CashlessRegisterRequestDto(
     @SerialName("uid_hex") val uidHex: String,
     val name: String = "",
     val cpf: String,
-    val phone: String,
+    /** Omitido quando o operador não preencheu o celular. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val phone: String? = null,
     @SerialName("balance_cents") val balanceCents: Int = 0,
 )
 

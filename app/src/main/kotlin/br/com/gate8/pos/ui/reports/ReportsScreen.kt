@@ -1,6 +1,7 @@
 package br.com.gate8.pos.ui.reports
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,7 @@ import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
+import java.util.Locale
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -87,7 +89,7 @@ fun ReportsScreen(
 
         Text(
             "Relatórios",
-            color = Gate8Colors.TextPrimary,
+            color = Color.White,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.fillMaxWidth(),
@@ -95,7 +97,7 @@ fun ReportsScreen(
         )
         Text(
             state.periodLabel,
-            color = Gate8Colors.TextSecondary,
+            color = Color.White,
             fontSize = 12.sp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -142,13 +144,13 @@ fun ReportsScreen(
             )
         } else {
             state.error?.let {
-                Text(it, color = Color(0xFFB3261E), fontSize = 13.sp)
+                Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
             }
             if (state.isDemoData) {
                 Text(
                     "Dados de demonstração — aguardando endpoint na API",
-                    color = Color(0xFF8A6D00),
+                    color = Color(0xFFFDE68A),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
@@ -181,7 +183,7 @@ fun ReportsScreen(
             Spacer(Modifier.height(10.dp))
             Text(
                 it,
-                color = Color(0xFF1B7A3D),
+                color = Color(0xFF86EFAC),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
@@ -210,7 +212,7 @@ fun ReportsScreen(
 private fun SectionLabel(text: String, centered: Boolean = false) {
     Text(
         text,
-        color = Gate8Colors.TextSecondary,
+        color = Color.White,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         textAlign = if (centered) TextAlign.Center else TextAlign.Start,
@@ -232,7 +234,7 @@ private fun SegmentTabs(
             if (index > 0) {
                 Text(
                     "|",
-                    color = Gate8Colors.TextSecondary.copy(alpha = 0.4f),
+                    color = Color.White.copy(alpha = 0.35f),
                     fontSize = 15.sp,
                     modifier = Modifier.padding(horizontal = 10.dp),
                 )
@@ -247,7 +249,7 @@ private fun SegmentTabs(
             ) {
                 Text(
                     segment.label,
-                    color = if (isSelected) Gate8Colors.AccentBlue else Gate8Colors.TextSecondary,
+                    color = if (isSelected) Color(0xFF7EE7FF) else Color.White,
                     fontSize = 15.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 )
@@ -257,7 +259,7 @@ private fun SegmentTabs(
                         .height(2.5.dp)
                         .width(if (isSelected) 22.dp else 0.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(if (isSelected) Gate8Colors.AccentBlue else Color.Transparent),
+                        .background(if (isSelected) Color(0xFF7EE7FF) else Color.Transparent),
                 )
             }
         }
@@ -271,18 +273,19 @@ private fun PeriodChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bg = if (selected) Gate8Colors.AccentBlue else Gate8Colors.CardSurface
-    val textColor = if (selected) Color.White else Gate8Colors.TextPrimary
+    val shape = RoundedCornerShape(20.dp)
+    val bg = if (selected) Color(0xFF0000FE) else Color(0x660B1E42)
     Text(
         label,
-        color = textColor,
+        color = Color.White,
         fontSize = 12.sp,
         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
             .background(bg)
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = if (selected) 1f else 0.75f), shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
     )
@@ -307,7 +310,7 @@ private fun PaymentBreakdownCard(data: ReportsSummaryDto) {
         if (data.byPaymentMethod.isEmpty()) {
             Text(
                 "Nenhuma venda no período",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
             )
         } else {
@@ -332,12 +335,12 @@ private fun BrandBreakdownCard(data: ReportsSummaryDto) {
             hasCardSales -> Text(
                 "Há vendas em crédito/débito, mas a Cielo não enviou a bandeira (Visa, Mastercard…). " +
                     "Elas aparecem só em “Por forma de pagamento”.",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
             )
             else -> Text(
                 "Sem vendas em cartão no período",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
             )
         }
@@ -350,7 +353,7 @@ private fun TopItemsCard(data: ReportsSummaryDto) {
         if (data.topItems.isEmpty()) {
             Text(
                 "Nenhum item vendido no período",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 12.sp,
             )
         } else {
@@ -389,7 +392,7 @@ private fun CashierStatusCard(cashier: CashierStatusDto) {
             if (session == null && totals == null) {
                 Text(
                     "Nenhum caixa registrado",
-                    color = Gate8Colors.TextOnLight.copy(alpha = 0.6f),
+                    color = Color(0xFFD6E4FF),
                     fontSize = 12.sp,
                 )
             }
@@ -402,11 +405,12 @@ private fun ReportPanel(title: String, content: @Composable () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF0D2046))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), RoundedCornerShape(16.dp))
             .padding(16.dp),
     ) {
-        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Gate8Colors.TextOnLight)
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
         Spacer(Modifier.height(10.dp))
         content()
     }
@@ -420,10 +424,10 @@ private fun StatRow(label: String, value: String, highlight: Boolean = false) {
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(label, color = Gate8Colors.TextOnLight.copy(alpha = 0.75f), fontSize = 13.sp)
+        Text(label, color = Color(0xFFD6E4FF), fontSize = 13.sp)
         Text(
             value,
-            color = if (highlight) Gate8Colors.AccentBlue else Gate8Colors.TextOnLight,
+            color = if (highlight) Color(0xFF7EE7FF) else Color.White,
             fontSize = 13.sp,
             fontWeight = if (highlight) FontWeight.Bold else FontWeight.Medium,
         )
@@ -439,12 +443,12 @@ private fun BreakdownRow(label: String, count: Int, total: Double, unit: String 
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, color = Gate8Colors.TextOnLight, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text("$count $unit", color = Gate8Colors.TextOnLight.copy(alpha = 0.6f), fontSize = 11.sp)
+            Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text("$count $unit", color = Color(0xFFD6E4FF), fontSize = 11.sp)
         }
         Text(
             money(total),
-            color = Gate8Colors.AccentBlue,
+            color = Color.White,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -493,13 +497,14 @@ private fun CustomPeriodDialog(
             Modifier
                 .align(Alignment.Center)
                 .padding(horizontal = 28.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.96f))
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF0C1E4A))
+                .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), RoundedCornerShape(22.dp))
                 .padding(horizontal = 22.dp, vertical = 24.dp),
         ) {
             Text(
                 "Período personalizado",
-                color = Gate8Colors.TextOnLight,
+                color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -508,7 +513,7 @@ private fun CustomPeriodDialog(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Teclado numérico — máscara dd/MM/aaaa HH:mm\n(8 dígitos = só data · 12 = data + hora)",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
@@ -537,7 +542,7 @@ private fun CustomPeriodDialog(
                 Spacer(Modifier.height(10.dp))
                 Text(
                     it,
-                    color = Gate8Colors.Error,
+                    color = Color(0xFFFF8A80),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -553,7 +558,7 @@ private fun CustomPeriodDialog(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Cancelar",
-                color = Gate8Colors.AccentBlue,
+                color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -620,15 +625,17 @@ private fun DateTimeMaskedField(
             },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Gate8Colors.TextOnLight,
-            unfocusedTextColor = Gate8Colors.TextOnLight,
-            focusedBorderColor = Gate8Colors.AccentBlue,
-            unfocusedBorderColor = Gate8Colors.TextOnLight.copy(alpha = 0.5f),
-            focusedLabelColor = Gate8Colors.AccentBlue,
-            unfocusedLabelColor = Gate8Colors.TextOnLight,
-            cursorColor = Gate8Colors.AccentBlue,
-            focusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
-            unfocusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedBorderColor = Color(0xFF0000FE),
+            unfocusedBorderColor = Color(0xFF0000FE).copy(alpha = 0.7f),
+            focusedLabelColor = Color(0xFF9AD4FF),
+            unfocusedLabelColor = Color(0xFF9AD4FF),
+            cursorColor = Color.White,
+            focusedPlaceholderColor = Color.White.copy(alpha = 0.45f),
+            unfocusedPlaceholderColor = Color.White.copy(alpha = 0.45f),
+            focusedContainerColor = Color(0xFF132A58),
+            unfocusedContainerColor = Color(0xFF132A58),
         ),
         shape = RoundedCornerShape(12.dp),
     )
@@ -663,4 +670,5 @@ private fun parseMaskedDateTime(raw: String, endOfDayIfDateOnly: Boolean): Local
     }
 }
 
-private fun money(value: Double): String = "R$ ${"%.2f".format(value)}"
+private fun money(value: Double): String =
+    String.format(Locale("pt", "BR"), "R$ %,.2f", value)

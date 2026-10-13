@@ -3,6 +3,7 @@ package br.com.gate8.pos.ui.products
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,13 +27,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,8 +50,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +68,7 @@ import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.domain.model.canAddMore
 import br.com.gate8.pos.domain.model.isOutOfStock
 import br.com.gate8.pos.domain.model.tracksStock
+import br.com.gate8.pos.ui.common.Gate8CartBar
 import br.com.gate8.pos.ui.common.Gate8CartLineUi
 import br.com.gate8.pos.ui.common.Gate8CartScreenRoot
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
@@ -75,10 +81,10 @@ import br.com.gate8.pos.ui.common.Gate8SuccessDialog
 import br.com.gate8.pos.ui.common.PaymentWaitingOverlay
 import br.com.gate8.pos.ui.common.paymentLoadingMessage
 import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
-import br.com.gate8.pos.ui.common.Gate8QuantitySelector
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
+import java.util.Locale
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -233,41 +239,35 @@ fun ProductsScreen(
                 ) {
                     Text(
                         "Produtos",
-                        color = Gate8Colors.TextPrimary,
-                        fontSize = 28.sp,
+                        color = Color.White,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Gate8Colors.CardSurface)
+                            .background(Color(0xFF3D7CFF))
                             .clickable { vm.refreshCatalog() }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Outlined.Tune,
+                                Icons.Outlined.Refresh,
                                 contentDescription = "Atualizar",
-                                tint = Gate8Colors.TextPrimary,
+                                tint = Color.White,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(Modifier.size(6.dp))
-                            Text("Atualizar", color = Gate8Colors.TextPrimary, fontSize = 13.sp)
+                            Text("Atualizar", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Gate8OutlinedTextField(
+                ProductSearchField(
                     value = state.searchQuery,
                     onValueChange = vm::onSearchQueryChange,
-                    label = "Buscar produto",
-                    placeholder = "Buscar produto...",
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                    ),
                 )
                 if (categories.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
@@ -320,7 +320,7 @@ fun ProductsScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Nenhum produto no catálogo.\nCadastre itens no painel Gate8.",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color(0xFFD6E4FF),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                     )
@@ -333,7 +333,7 @@ fun ProductsScreen(
                         } else {
                             "Nenhum produto em ${state.selectedCategory}."
                         },
-                        color = Gate8Colors.TextSecondary,
+                        color = Color(0xFFD6E4FF),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 24.dp),
@@ -343,14 +343,14 @@ fun ProductsScreen(
                 Box(Modifier.weight(1f)) {
                     key(state.catalogVersion) {
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
+                            columns = GridCells.Fixed(2),
                             contentPadding = PaddingValues(
-                                start = 12.dp,
-                                end = 12.dp,
-                                bottom = if (cartItemCount > 0) 108.dp else 16.dp,
+                                start = 16.dp,
+                                end = 16.dp,
+                                bottom = if (cartItemCount > 0) 124.dp else 16.dp,
                             ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             items(
@@ -363,6 +363,7 @@ fun ProductsScreen(
                                     quantity = inCart,
                                     onIncrement = { vm.addProduct(product) },
                                     onDecrement = { vm.removeProduct(product.id) },
+                                    modifier = Modifier.fillMaxHeight(),
                                 )
                             }
                         }
@@ -382,62 +383,16 @@ fun ProductsScreen(
         }
 
         if (cartItemCount > 0) {
-            FloatingActionButton(
-                onClick = { vm.openCart() },
+            Gate8CartBar(
+                itemCount = cartItemCount,
+                total = cartTotal,
+                itemSingular = "Produto",
+                onOpenCart = { vm.openCart() },
+                solid = true,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .fillMaxWidth(0.9f)
-                    .height(56.dp),
-                containerColor = Gate8Colors.AccentBlue,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(28.dp),
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            Icons.Filled.ShoppingCart,
-                            contentDescription = "Carrinho",
-                            modifier = Modifier.size(22.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "Ver carrinho",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp,
-                            )
-                            Text(
-                                "R$ ${"%.2f".format(cartTotal)}",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.85f),
-                            )
-                        }
-                    }
-                    Box(
-                        Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            cartItemCount.toString(),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            }
+                    .padding(start = 12.dp, end = 12.dp, bottom = 16.dp),
+            )
         }
         },
         sheet = {
@@ -480,108 +435,232 @@ fun ProductsScreen(
     }
 }
 
+private val ProductCardShape = RoundedCornerShape(18.dp)
+private val ProductImageShape = RoundedCornerShape(14.dp)
+private val brLocale = Locale("pt", "BR")
+
 @Composable
 private fun ProductGridCard(
     product: ProductDto,
     quantity: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val outOfStock = product.isOutOfStock
     val canIncrement = !outOfStock && product.canAddMore(quantity)
 
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, Gate8Colors.AccentBlue, RoundedCornerShape(12.dp))
-            .background(Gate8Colors.CardSurface.copy(alpha = if (outOfStock) 0.5f else 1f))
-            .clickable(enabled = canIncrement, onClick = onIncrement),
+            .clip(ProductCardShape)
+            .background(Color(0xFF0D2046).copy(alpha = if (outOfStock) 0.62f else 1f))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.55f), ProductCardShape)
+            .clickable(enabled = canIncrement, onClick = onIncrement)
+            .padding(8.dp),
     ) {
-        Box {
-            if (!product.imageUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = product.imageUrl,
-                    contentDescription = product.name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                    contentScale = ContentScale.Crop,
+        if (!product.imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = product.name,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.35f)
+                    .clip(ProductImageShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.35f)
+                    .clip(ProductImageShape)
+                    .background(Color(0xFF132A58)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Image,
+                    contentDescription = null,
+                    tint = Color(0xFF7EE7FF),
+                    modifier = Modifier.size(36.dp),
                 )
-            } else {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .background(Gate8Colors.CardSurfaceElevated),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        product.name.take(2).uppercase(),
-                        color = Gate8Colors.AccentBlue,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                    )
-                }
             }
         }
 
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp)
-                .height(122.dp),
-        ) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            product.name,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 18.sp,
+            minLines = 2,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            product.category?.takeIf { it.isNotBlank() } ?: "Geral",
+            color = Color(0xFF9AD4FF),
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Text(
+            String.format(brLocale, "R$ %,.2f", product.price),
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        if (outOfStock) {
             Text(
-                product.name,
-                color = Gate8Colors.TextPrimary,
-                fontSize = 11.sp,
+                "Esgotado",
+                color = Gate8Colors.Error,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                textAlign = TextAlign.Center,
             )
-            Text(
-                product.category ?: "Geral",
-                color = Gate8Colors.TextSecondary,
-                fontSize = 9.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        } else {
+            ProductQuantityRow(
+                quantity = quantity,
+                canIncrement = canIncrement,
+                onIncrement = onIncrement,
+                onDecrement = onDecrement,
             )
-            Text(
-                "R$ ${"%.2f".format(product.price)}",
-                color = Gate8Colors.AccentBlue,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            if (product.tracksStock) {
-                Text(
-                    if (outOfStock) "Esgotado" else "est: ${product.stockQuantity ?: 0}",
-                    color = if (outOfStock) Gate8Colors.Error else Gate8Colors.TextSecondary,
-                    fontSize = 8.sp,
-                    maxLines = 1,
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            if (outOfStock) {
-                Text(
-                    "Indisponível",
-                    color = Gate8Colors.Error,
-                    fontSize = 9.sp,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                )
-            } else {
-                Gate8QuantitySelector(
-                    quantity = quantity,
-                    canIncrement = canIncrement,
-                    compact = true,
-                    onIncrement = onIncrement,
-                    onDecrement = onDecrement,
-                )
-            }
         }
+    }
+}
+
+@Composable
+private fun ProductQuantityRow(
+    quantity: Int,
+    canIncrement: Boolean,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProductQtyButton(
+            enabled = quantity > 0,
+            filled = false,
+            onClick = onDecrement,
+        ) {
+            Icon(
+                Icons.Filled.Remove,
+                contentDescription = "Remover",
+                modifier = Modifier.size(16.dp),
+                tint = if (quantity > 0) Color.White else Color.White.copy(alpha = 0.35f),
+            )
+        }
+        Text(
+            quantity.toString(),
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(36.dp),
+            textAlign = TextAlign.Center,
+        )
+        ProductQtyButton(
+            enabled = canIncrement,
+            filled = true,
+            onClick = onIncrement,
+        ) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = "Adicionar",
+                modifier = Modifier.size(16.dp),
+                tint = if (canIncrement) Color.White else Color.White.copy(alpha = 0.35f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProductQtyButton(
+    enabled: Boolean,
+    filled: Boolean,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val glow = filled && enabled
+    Box(
+        Modifier
+            .size(36.dp)
+            .drawBehind {
+                if (!glow) return@drawBehind
+                drawCircle(
+                    color = Color(0xFF0000FE).copy(alpha = 0.45f),
+                    radius = size.minDimension / 2f + 3.dp.toPx(),
+                )
+            }
+            .clip(CircleShape)
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.12f)
+                    filled -> Color(0xFF0000FE)
+                    else -> Color(0xFF1A3A78)
+                },
+            )
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ProductSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(shape)
+            .background(Color(0xCC0B1E42))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), shape)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Search,
+            contentDescription = null,
+            tint = Color(0xFF9AD4FF),
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            cursorBrush = SolidColor(Color.White),
+            modifier = Modifier.weight(1f),
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(
+                            "Buscar produto",
+                            color = Color(0xFF9AD4FF).copy(alpha = 0.85f),
+                            fontSize = 15.sp,
+                        )
+                    }
+                    inner()
+                }
+            },
+        )
     }
 }
 
@@ -591,16 +670,18 @@ private fun CategoryChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Box(
         Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) Gate8Colors.AccentBlue else Gate8Colors.CardSurface)
+            .clip(shape)
+            .background(if (selected) Color(0xFF0000FE) else Color(0x660B1E42))
+            .border(1.dp, Color(0xFF0000FE).copy(alpha = if (selected) 1f else 0.75f), shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Text(
             label,
-            color = if (selected) Color.White else Gate8Colors.TextPrimary,
+            color = Color.White,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
@@ -625,17 +706,20 @@ private fun KitchenNoteDialog(
                 .padding(horizontal = 28.dp),
             contentAlignment = Alignment.Center,
         ) {
+            val shape = RoundedCornerShape(22.dp)
+            val buttonShape = RoundedCornerShape(16.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .clip(shape)
+                    .background(Color(0xFF0C1E4A))
+                    .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
                     .padding(horizontal = 22.dp, vertical = 24.dp),
             ) {
                 Text(
                     "Pedido da cozinha",
-                    color = Gate8Colors.TextPrimary,
-                    fontSize = 21.sp,
+                    color = Color.White,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -643,9 +727,9 @@ private fun KitchenNoteDialog(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Mesa ou observação. Sai na ficha da cozinha, junto com o número do pedido.",
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -657,13 +741,15 @@ private fun KitchenNoteDialog(
                     placeholder = "Ex.: Mesa 12, sem cebola",
                     singleLine = false,
                     modifier = Modifier.fillMaxWidth(),
+                    onDark = true,
                 )
                 Spacer(Modifier.height(18.dp))
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Gate8Colors.AccentBlue)
+                        .border(1.5.dp, Color(0xFF6EA8FF), buttonShape)
+                        .clip(buttonShape)
+                        .background(Color(0xFF1A46FF))
                         .clickable(onClick = onConfirm)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
@@ -679,14 +765,14 @@ private fun KitchenNoteDialog(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(buttonShape)
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "Voltar",
-                        color = Gate8Colors.TextSecondary,
+                        color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     )

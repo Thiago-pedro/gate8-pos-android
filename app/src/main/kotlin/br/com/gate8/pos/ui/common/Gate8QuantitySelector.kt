@@ -33,6 +33,9 @@ fun Gate8QuantitySelector(
     compact: Boolean,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    quantityColor: Color = Gate8Colors.TextPrimary,
+    enabledButtonColor: Color = Gate8Colors.AccentBlue,
+    disabledButtonColor: Color = Gate8Colors.CardSurfaceElevated,
 ) {
     val buttonSize = if (compact) 26.dp else 32.dp
     val iconSize = if (compact) 14.dp else 18.dp
@@ -52,6 +55,8 @@ fun Gate8QuantitySelector(
         Gate8QuantityButton(
             enabled = quantity > 0,
             size = buttonSize,
+            enabledColor = enabledButtonColor,
+            disabledColor = disabledButtonColor,
             onClick = onDecrement,
         ) {
             Icon(
@@ -64,7 +69,7 @@ fun Gate8QuantitySelector(
 
         Text(
             quantity.toString(),
-            color = Gate8Colors.TextPrimary,
+            color = quantityColor,
             fontSize = qtyFontSize,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = if (compact) 8.dp else 12.dp),
@@ -74,6 +79,8 @@ fun Gate8QuantitySelector(
         Gate8QuantityButton(
             enabled = canIncrement,
             size = buttonSize,
+            enabledColor = enabledButtonColor,
+            disabledColor = disabledButtonColor,
             onClick = onIncrement,
         ) {
             Icon(
@@ -90,6 +97,8 @@ fun Gate8QuantitySelector(
 private fun Gate8QuantityButton(
     enabled: Boolean,
     size: Dp,
+    enabledColor: Color,
+    disabledColor: Color,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -97,9 +106,7 @@ private fun Gate8QuantityButton(
         Modifier
             .size(size)
             .clip(CircleShape)
-            .background(
-                if (enabled) Gate8Colors.AccentBlue else Gate8Colors.CardSurfaceElevated,
-            )
+            .background(if (enabled) enabledColor else disabledColor)
             .then(
                 if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
             ),

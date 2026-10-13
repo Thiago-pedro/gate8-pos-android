@@ -1,6 +1,8 @@
 package br.com.gate8.pos.ui.common
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +62,7 @@ fun SplitPaymentDialog(
             dismissLabel = "Continuar pagamento",
             onConfirm = onConfirmCancel,
             onDismiss = onDismissCancel,
+            onDark = true,
         )
         return
     }
@@ -69,6 +74,7 @@ fun SplitPaymentDialog(
             detail = ui.cancelReport,
             accent = Gate8Colors.AccentBlue,
             onDismiss = onDismissReport,
+            onDark = true,
         )
         return
     }
@@ -83,29 +89,31 @@ fun SplitPaymentDialog(
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
+            val shape = RoundedCornerShape(22.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .clip(shape)
+                    .background(Color(0xFF0C1E4A))
+                    .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 22.dp),
             ) {
                 Text(
                     "Dividir pagamento",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(14.dp))
-                AmountLine("Total", session.totalCents, bold = true)
-                AmountLine("Pago", paid, bold = true)
-                AmountLine("Restante", remaining, bold = true, highlight = remaining > 0L)
+                Spacer(Modifier.height(16.dp))
+                AmountLine("Total", session.totalCents)
+                AmountLine("Pago", paid)
+                AmountLine("Restante", remaining, highlight = remaining > 0L)
                 ui.error?.let {
                     Spacer(Modifier.height(10.dp))
-                    Text(it, color = Gate8Colors.Error, fontSize = 14.sp)
+                    Text(it, color = Color(0xFFFF8A80), fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(16.dp))
                 when (ui.step) {
@@ -118,7 +126,7 @@ fun SplitPaymentDialog(
                     SplitStep.PickMethod -> {
                         Text(
                             "Forma desta parte",
-                            color = Gate8Colors.TextPrimary,
+                            color = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp,
                         )
@@ -137,7 +145,7 @@ fun SplitPaymentDialog(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Voltar",
-                            color = Gate8Colors.TextSecondary,
+                            color = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -150,7 +158,7 @@ fun SplitPaymentDialog(
                         val method = ui.draftMethod?.displayLabel() ?: "Pagamento"
                         Text(
                             method,
-                            color = Gate8Colors.TextPrimary,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
                         )
@@ -162,6 +170,7 @@ fun SplitPaymentDialog(
                             placeholder = "0,00",
                             prefix = "R$",
                             modifier = Modifier.fillMaxWidth(),
+                            onDark = true,
                         )
                         Spacer(Modifier.height(14.dp))
                         PaymentMethodChoice(
@@ -175,7 +184,7 @@ fun SplitPaymentDialog(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Voltar",
-                            color = Gate8Colors.TextSecondary,
+                            color = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -200,7 +209,7 @@ private fun SplitSummary(
     if (ui.session.parts.isEmpty()) {
         Text(
             "Nenhuma parte adicionada.",
-            color = Gate8Colors.TextSecondary,
+            color = Color(0xFFD6E4FF),
             fontSize = 14.sp,
         )
     } else {
@@ -210,27 +219,28 @@ private fun SplitSummary(
                     .fillMaxWidth()
                     .padding(vertical = 6.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Gate8Colors.CardSurface)
+                    .background(Color(0xFF132A58))
+                    .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.7f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         PaymentMethodApi.fromApiValue(part.method).displayLabel(),
-                        color = Gate8Colors.TextPrimary,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                     )
                     Text(
                         SplitPayments.statusLabel(part),
-                        color = Gate8Colors.Success,
+                        color = Color(0xFF86EFAC),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
                 Text(
                     "R$ ${MoneyCents.format(part.amountCents)}",
-                    color = Gate8Colors.TextPrimary,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                 )
@@ -244,7 +254,7 @@ private fun SplitSummary(
     Spacer(Modifier.height(8.dp))
     Text(
         if (ui.session.parts.isEmpty()) "Voltar" else "Cancelar venda",
-        color = Gate8Colors.TextSecondary,
+        color = Color.White,
         fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center,
         modifier = Modifier
@@ -255,23 +265,36 @@ private fun SplitSummary(
 }
 
 @Composable
-private fun AmountLine(label: String, cents: Long, bold: Boolean, highlight: Boolean = false) {
+private fun AmountLine(label: String, cents: Long, highlight: Boolean = false) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             label,
-            color = Gate8Colors.TextSecondary,
+            color = Color(0xFFD6E4FF),
             fontSize = 15.sp,
-            modifier = Modifier.weight(1f),
         )
+        Canvas(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+                .height(2.dp),
+        ) {
+            drawLine(
+                color = Color(0xFF7EE7FF).copy(alpha = 0.55f),
+                start = Offset(0f, size.height / 2f),
+                end = Offset(size.width, size.height / 2f),
+                strokeWidth = 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 7f), 0f),
+            )
+        }
         Text(
             "R$ ${MoneyCents.format(cents)}",
-            color = if (highlight) Gate8Colors.AccentBlue else Gate8Colors.TextPrimary,
-            fontSize = if (bold) 20.sp else 16.sp,
+            color = if (highlight) Color(0xFF7EE7FF) else Color.White,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
         )
     }

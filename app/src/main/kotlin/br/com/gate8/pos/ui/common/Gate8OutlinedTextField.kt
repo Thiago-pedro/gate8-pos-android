@@ -22,7 +22,10 @@ fun Gate8OutlinedTextField(
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    onDark: Boolean = false,
 ) {
+    val textColor = if (onDark) androidx.compose.ui.graphics.Color.White else Gate8Colors.TextOnLight
+    val labelColor = if (onDark) androidx.compose.ui.graphics.Color(0xFF9AD4FF) else Gate8Colors.TextOnLight
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -34,15 +37,17 @@ fun Gate8OutlinedTextField(
         keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Gate8Colors.TextOnLight,
-            unfocusedTextColor = Gate8Colors.TextOnLight,
-            focusedBorderColor = Gate8Colors.AccentBlue,
-            unfocusedBorderColor = Gate8Colors.TextOnLight.copy(alpha = 0.5f),
-            focusedLabelColor = Gate8Colors.AccentBlue,
-            unfocusedLabelColor = Gate8Colors.TextOnLight,
-            cursorColor = Gate8Colors.AccentBlue,
-            focusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
-            unfocusedPlaceholderColor = Gate8Colors.TextOnLight.copy(alpha = 0.45f),
+            focusedTextColor = textColor,
+            unfocusedTextColor = textColor,
+            focusedBorderColor = if (onDark) androidx.compose.ui.graphics.Color(0xFF0000FE) else Gate8Colors.AccentBlue,
+            unfocusedBorderColor = if (onDark) androidx.compose.ui.graphics.Color(0xFF0000FE).copy(alpha = 0.7f) else Gate8Colors.TextOnLight.copy(alpha = 0.5f),
+            focusedLabelColor = labelColor,
+            unfocusedLabelColor = labelColor,
+            cursorColor = if (onDark) androidx.compose.ui.graphics.Color.White else Gate8Colors.AccentBlue,
+            focusedPlaceholderColor = textColor.copy(alpha = 0.45f),
+            unfocusedPlaceholderColor = textColor.copy(alpha = 0.45f),
+            focusedPrefixColor = textColor,
+            unfocusedPrefixColor = textColor,
         ),
         shape = RoundedCornerShape(12.dp),
     )

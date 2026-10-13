@@ -90,6 +90,10 @@ data class CashlessUiState(
     val showConsultResult: Boolean = false,
     val consultResultTitle: String? = null,
     val consultResultDetail: String? = null,
+    /** Preenchido só na consulta de saldo, para o modal estruturado. */
+    val consultBalanceReais: Double? = null,
+    val consultStatus: String? = null,
+    val consultNote: String? = null,
 )
 
 /** Crédito pendente no chip após pagamento já cobrado. */
@@ -206,6 +210,10 @@ class CashlessViewModel(
             }
             runCatching { cashless.readCard() }
                 .onSuccess { snap ->
+                    if (confirmedBalance(snap) == null) {
+                        failUnconfirmedRead()
+                        return@onSuccess
+                    }
                     val account = accounts.getByUid(snap.uidHex)
                     // Sem cadastro ativo (novo, encerrado ou liberado) → só cadastrar CPF/telefone.
                     // Não exige desbloqueio prévio: o POST cria o vínculo novo no mesmo UID.
@@ -225,7 +233,7 @@ class CashlessViewModel(
                                 registerNameInput = "",
                                 registerCpfInput = "",
                                 registerPhoneInput = "",
-                                message = "Cartão livre. Cadastre nome, CPF e telefone para continuar.",
+                                message = "Cartão livre. Informe o CPF para continuar. Nome e celular são opcionais.",
                                 error = null,
                             )
                         }
@@ -372,6 +380,9 @@ class CashlessViewModel(
                 showConsultResult = false,
                 consultResultTitle = null,
                 consultResultDetail = null,
+                consultBalanceReais = null,
+                consultStatus = null,
+                consultNote = null,
                 message = null,
             )
         }
@@ -395,6 +406,10 @@ class CashlessViewModel(
             }
             runCatching {
                 val snap = cashless.readCard()
+                val chipBalance = confirmedBalance(snap) ?: run {
+                    failUnconfirmedRead()
+                    return@runCatching
+                }
                 val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
                 val revoked = snap.isBlocked ||
                     account?.blocked == true ||
@@ -428,7 +443,7 @@ class CashlessViewModel(
                 val balanceReais = if (revoked) {
                     (account?.balanceCents ?: 0) / 100.0
                 } else {
-                    snap.balanceReais ?: (account?.balanceCents?.div(100.0) ?: 0.0)
+                    chipBalance
                 }
                 val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
                 val payload = CashlessStatementPayload(
@@ -471,6 +486,9 @@ class CashlessViewModel(
                             append("Saldo atual R$ ${"%.2f".format(balanceReais)}")
                             if (revoked) append("\nStatus: bloqueado / substituído")
                         },
+                        consultBalanceReais = null,
+                        consultStatus = null,
+                        consultNote = null,
                     )
                 }
             }.onFailure { e ->
@@ -500,11 +518,14 @@ class CashlessViewModel(
             }
             runCatching {
                 val snap = cashless.readCard()
+                val chipBalance = confirmedBalance(snap) ?: run {
+                    failUnconfirmedRead()
+                    return@runCatching
+                }
                 val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
                 val revoked = snap.isBlocked ||
                     account?.blocked == true ||
                     runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
-                val chipBalance = if (snap.isGate8Format) (snap.balanceReais ?: 0.0) else 0.0
                 val hasActiveCadastro = account != null || revoked
 
                 if (!snap.isGate8Format && !hasActiveCadastro) {
@@ -766,9 +787,13 @@ class CashlessViewModel(
             }
             runCatching { cashless.readCard() }
                 .onSuccess { snap ->
+                    val chipBalance = confirmedBalance(snap) ?: run {
+                        failUnconfirmedRead()
+                        return@onSuccess
+                    }
                     val account = accounts.getByUid(snap.uidHex)
                     val balance = when {
-                        (snap.balanceReais ?: 0.0) > 0 -> snap.balanceReais ?: 0.0
+                        chipBalance > 0.0 -> chipBalance
                         account != null && account.balanceCents > 0 -> account.balanceCents / 100.0
                         else -> 0.0
                     }
@@ -851,6 +876,10 @@ class CashlessViewModel(
             }
             runCatching { cashless.readCard() }
                 .onSuccess { snap ->
+                    val chipBalance = confirmedBalance(snap) ?: run {
+                        failUnconfirmedRead()
+                        return@onSuccess
+                    }
                     val account = accounts.getByUid(snap.uidHex)
                     val chipBlocked = snap.isBlocked
                     val dbBlocked = account?.blocked == true
@@ -868,9 +897,11 @@ class CashlessViewModel(
                         }
                         return@onSuccess
                     }
-                    val balance = snap.balanceReais
-                        ?: account?.balanceCents?.div(100.0)
-                        ?: 0.0
+                    val balance = when {
+                        snap.isGate8Format -> chipBalance
+                        account != null -> account.balanceCents / 100.0
+                        else -> chipBalance
+                    }
                     _state.update {
                         it.copy(
                             message = "Aproxime o mesmo cartão para confirmar o desbloqueio…",
@@ -943,6 +974,10 @@ class CashlessViewModel(
             }
             runCatching { cashless.readCard() }
                 .onSuccess { snap ->
+                    val chipBalance = confirmedBalance(snap) ?: run {
+                        failUnconfirmedRead()
+                        return@onSuccess
+                    }
                     val account = accounts.getByUid(snap.uidHex)
                     val chipBlocked = snap.isBlocked
                     val dbBlocked = account?.blocked == true
@@ -961,7 +996,7 @@ class CashlessViewModel(
                         return@onSuccess
                     }
                     val balance = when {
-                        (snap.balanceReais ?: 0.0) > 0 -> snap.balanceReais ?: 0.0
+                        chipBalance > 0.0 -> chipBalance
                         account != null && account.balanceCents > 0 -> account.balanceCents / 100.0
                         else -> 0.0
                     }
@@ -1573,7 +1608,37 @@ class CashlessViewModel(
         return saleId
     }
 
+    private fun confirmedBalance(snap: CashlessCardSnapshot): Double? {
+        if (!snap.balanceConfirmed) return null
+        return snap.balanceReais
+    }
+
+    /** Leitura instável não pode aparecer como saldo R$ 0,00. */
+    private fun failUnconfirmedRead() {
+        _state.update {
+            it.copy(
+                loading = false,
+                waitingCard = false,
+                showConfirmZero = false,
+                showConsultResult = false,
+                showConfirmBlock = false,
+                showAskRecover = false,
+                recoverStep = if (it.recoverStep == CashlessRecoverStep.ReadingOld) {
+                    CashlessRecoverStep.Idle
+                } else {
+                    it.recoverStep
+                },
+                error = "Não confirmei o saldo do cartão. Mantenha ele encostado e tente de novo.",
+                message = null,
+            )
+        }
+    }
+
     private suspend fun applyCardRead(snap: CashlessCardSnapshot, defaultMessage: String) {
+        val chipBalance = confirmedBalance(snap) ?: run {
+            failUnconfirmedRead()
+            return
+        }
         val account = runCatching { accounts.getByUid(snap.uidHex) }.getOrNull()
         val revoked = snap.isBlocked ||
             account?.blocked == true ||
@@ -1582,7 +1647,6 @@ class CashlessViewModel(
         if (!revoked) {
             runCatching { syncBalanceFromSnap(snap) }
         }
-        val chipBalance = snap.balanceReais ?: 0.0
         val systemBalance = if (revoked) {
             (account?.balanceCents ?: 0) / 100.0
         } else {
@@ -1592,7 +1656,7 @@ class CashlessViewModel(
             runCatching {
                 // Tem histórico de saída, mas já foi limpo (ZERAGEM/REUSO).
                 !accounts.isUidRevokedForUse(snap.uidHex) &&
-                    (snap.balanceReais ?: 0.0) <= 0.009
+                    chipBalance <= 0.009
             }.getOrDefault(false)
         val status = when {
             revoked -> "Bloqueado · não liberado para uso"
@@ -1645,13 +1709,24 @@ class CashlessViewModel(
                 showConsultResult = true,
                 consultResultTitle = if (revoked) "Cartão bloqueado" else "Consulta de saldo",
                 consultResultDetail = detail,
+                consultBalanceReais = if (revoked) systemBalance else chipBalance,
+                consultStatus = status,
+                consultNote = when {
+                    revoked && chipBalance > 0.009 ->
+                        "Residual no chip R$ ${"%.2f".format(chipBalance)} (não vale). " +
+                            "Saldo já transferido ou cartão bloqueado."
+                    revoked -> "Saldo já transferido ou cartão bloqueado."
+                    cpfDigits.length != 11 && defaultMessage.isNotBlank() -> defaultMessage
+                    else -> null
+                },
             )
         }
     }
 
     private suspend fun syncBalanceFromSnap(snap: CashlessCardSnapshot) {
-        if (!snap.isGate8Format) return
-        val cents = ((snap.balanceReais ?: 0.0) * 100).roundToInt().coerceAtLeast(0)
+        if (!snap.balanceConfirmed || !snap.isGate8Format) return
+        val balance = snap.balanceReais ?: return
+        val cents = (balance * 100).roundToInt().coerceAtLeast(0)
         accounts.updateBalance(snap.uidHex, cents)
     }
 

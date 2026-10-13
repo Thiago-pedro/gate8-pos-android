@@ -10,8 +10,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import br.com.gate8.pos.ui.theme.Gate8Colors
 
 @Composable
 fun Gate8BackTopBar(onBack: () -> Unit) {
@@ -27,7 +27,7 @@ fun Gate8BackTopBar(onBack: () -> Unit) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Voltar",
-                tint = Gate8Colors.TextPrimary,
+                tint = Color.White,
             )
         }
         Gate8HeaderLogo(

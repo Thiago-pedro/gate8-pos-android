@@ -1,21 +1,18 @@
 package br.com.gate8.pos.ui.common
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Contactless
 import androidx.compose.material.icons.filled.CreditCard
@@ -23,14 +20,14 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,13 +35,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.gate8.pos.BuildConfig
+import br.com.gate8.pos.R
 import br.com.gate8.pos.domain.model.PaymentMethodApi
-import br.com.gate8.pos.ui.theme.Gate8Colors
+import java.util.Locale
 
 /**
- * Overlay em tela cheia enquanto a maquininha aguarda o cartão (ou gera o Pix).
- * Não aparece para dinheiro. No flavor **cielo** fica desligado: a UI de cobrança
- * é o app nativo Cielo via Deep Link (antes/depois só Gate8).
+ * Card de espera enquanto a maquininha aguarda o cartão (ou gera o Pix).
+ * Não aparece para dinheiro. No flavor **cielo** fica desligado, exceto cashless
+ * (leitura no próprio Gate8).
  */
 @Composable
 fun PaymentWaitingOverlay(
@@ -58,13 +56,13 @@ fun PaymentWaitingOverlay(
     showAmount: Boolean = true,
 ) {
     if (!visible) return
-    // Cielo: UI nativa no deep link — exceto cashless (leitura no próprio Gate8).
     if (BuildConfig.FLAVOR.equals("cielo", ignoreCase = true) &&
         method != PaymentMethodApi.CASHLESS
     ) {
         return
     }
     val message = messageOverride ?: paymentLoadingMessage(method) ?: return
+    val cashless = method == PaymentMethodApi.CASHLESS
 
     val title: String
     val icon: ImageVector
@@ -91,17 +89,7 @@ fun PaymentWaitingOverlay(
         }
     }
 
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val scale by pulse.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 900),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "scale",
-    )
-
+    val shape = RoundedCornerShape(22.dp)
     Dialog(
         onDismissRequest = {},
         properties = DialogProperties(
@@ -110,92 +98,109 @@ fun PaymentWaitingOverlay(
             dismissOnClickOutside = false,
         ),
     ) {
-        Box(
+        Column(
             Modifier
-                .fillMaxSize()
-                .background(Gate8Colors.Background),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp)
+                .clip(shape)
+                .background(Color(0xFF0C1E4A))
+                .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), shape)
+                .padding(horizontal = 22.dp, vertical = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                if (showAmount) {
-                    Text(
-                        amountCaption,
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 16.sp,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "R$ ${"%.2f".format(amount)}",
-                        color = Gate8Colors.TextPrimary,
-                        fontSize = 44.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(48.dp))
-                }
+            if (showAmount) {
+                Text(
+                    amountCaption,
+                    color = Color(0xFFD6E4FF),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    String.format(Locale("pt", "BR"), "R$ %,.2f", amount),
+                    color = Color.White,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+            }
 
+            if (cashless) {
+                Image(
+                    painter = painterResource(R.drawable.ic_cashless_nfc),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(108.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
                 Box(
                     Modifier
-                        .size(200.dp)
-                        .scale(scale)
+                        .size(96.dp)
                         .clip(CircleShape)
-                        .background(Gate8Colors.AccentBlue.copy(alpha = 0.10f)),
+                        .background(Color(0xFF0000FE).copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         icon,
                         contentDescription = null,
-                        tint = Gate8Colors.AccentBlue,
-                        modifier = Modifier.size(110.dp),
+                        tint = Color(0xFF7EE7FF),
+                        modifier = Modifier.size(52.dp),
                     )
                 }
+            }
 
-                Spacer(Modifier.height(44.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(
+                title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (cashless && !message.endsWith("...")) "$message..." else message,
+                color = Color(0xFFD6E4FF),
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
+            Spacer(Modifier.height(18.dp))
+            CircularProgressIndicator(
+                color = Color(0xFF3D7CFF),
+                strokeWidth = 3.dp,
+                modifier = Modifier.size(36.dp),
+            )
+            if (cashless) {
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    title,
-                    color = Gate8Colors.TextPrimary,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
+                    "Aguardando cartão...",
+                    color = Color(0xFF9AD4FF),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    message,
-                    color = Gate8Colors.TextSecondary,
-                    fontSize = 19.sp,
-                    lineHeight = 27.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(48.dp))
-
-                CircularProgressIndicator(
-                    color = Gate8Colors.AccentBlue,
-                    strokeWidth = 4.dp,
-                    modifier = Modifier.size(52.dp),
                 )
             }
 
             if (onCancel != null) {
-                TextButton(
-                    onClick = onCancel,
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Cancelar",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp),
-                ) {
-                    Text(
-                        "Cancelar",
-                        color = Gate8Colors.TextSecondary,
-                        fontSize = 14.sp,
-                    )
-                }
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onCancel)
+                        .padding(vertical = 10.dp),
+                )
             }
         }
     }

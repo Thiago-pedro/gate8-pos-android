@@ -26,6 +26,26 @@ object Gate8CashlessBalanceCodec {
     fun isBlocked(block: ByteArray): Boolean =
         isGate8(block) && block.size > 9 && (block[9].toInt() and FLAG_BLOCKED) != 0
 
+    /** Bloco virgem: 16 bytes 0x00 ou 0xFF. Não é saldo Gate8. */
+    fun isVirgin(block: ByteArray): Boolean {
+        if (block.size < 16) return false
+        var allZero = true
+        var allFf = true
+        for (i in 0 until 16) {
+            val b = block[i]
+            if (b != 0.toByte()) allZero = false
+            if (b != 0xFF.toByte()) allFf = false
+        }
+        return allZero || allFf
+    }
+
+    /**
+     * Bloco que pode virar saldo na tela: Gate8 (inclusive R$ 0,00 gravado)
+     * ou cartão virgem. Qualquer outro conteúdo é leitura inválida.
+     */
+    fun isTrustworthyBalanceBlock(block: ByteArray): Boolean =
+        block.size >= 16 && (isGate8(block) || isVirgin(block))
+
     fun readCents(block: ByteArray): Int? {
         if (!isGate8(block)) return null
         return ByteBuffer.wrap(block, 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
