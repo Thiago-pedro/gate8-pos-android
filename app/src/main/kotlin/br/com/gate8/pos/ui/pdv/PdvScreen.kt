@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -45,11 +47,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import android.graphics.Typeface
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
@@ -578,25 +586,19 @@ private fun TicketBatchCard(
             .clickable(enabled = canIncrement, onClick = onIncrement)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Text(
-            batch.name.uppercase(brLocale),
+        FitWidthText(
+            text = batch.name.uppercase(brLocale),
             color = Color(0xFFF7FAFF),
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Normal,
+            maxFontSize = 26.sp,
             fontFamily = EventLightFont,
-            letterSpacing = 1.2.sp,
-            lineHeight = 30.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            letterSpacingAtMax = 1.2.sp,
         )
-        batch.sector?.let {
-            Text(
-                it,
+        batch.sector?.takeIf { it.isNotBlank() }?.let {
+            FitWidthText(
+                text = it,
                 color = Color(0xFFD6E4FF),
-                fontSize = 13.sp,
+                maxFontSize = 13.sp,
                 fontFamily = EventLightFont,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -652,6 +654,115 @@ private fun TicketBatchCard(
             }
         }
     }
+}
+
+private data class FittedLine(val fontSize: TextUnit, val letterSpacing: TextUnit)
+
+/** Uma linha só. Se não couber na largura do card, reduz a fonte até o texto inteiro caber. */
+@Composable
+private fun FitWidthText(
+    text: String,
+    color: Color,
+    maxFontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight = FontWeight.Normal,
+    fontFamily: FontFamily = EventLightFont,
+    letterSpacingAtMax: TextUnit = 0.sp,
+    minFontSize: TextUnit = 8.sp,
+) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val measurer = rememberTextMeasurer()
+        val maxWidthPx = constraints.maxWidth.toFloat()
+        val fitted = remember(text, maxWidthPx, maxFontSize, minFontSize, letterSpacingAtMax, fontWeight) {
+            fitSingleLine(
+                measurer = measurer,
+                text = text,
+                maxWidthPx = maxWidthPx,
+                maxFontSize = maxFontSize,
+                minFontSize = minFontSize,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily,
+                letterSpacingAtMax = letterSpacingAtMax,
+            )
+        }
+        Text(
+            text,
+            color = color,
+            fontSize = fitted.fontSize,
+            fontWeight = fontWeight,
+            fontFamily = fontFamily,
+            letterSpacing = fitted.letterSpacing,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+private fun fitSingleLine(
+    measurer: TextMeasurer,
+    text: String,
+    maxWidthPx: Float,
+    maxFontSize: TextUnit,
+    minFontSize: TextUnit,
+    fontWeight: FontWeight,
+    fontFamily: FontFamily,
+    letterSpacingAtMax: TextUnit,
+): FittedLine {
+    if (maxWidthPx <= 0f || text.isEmpty()) {
+        return FittedLine(maxFontSize, letterSpacingAtMax)
+    }
+    val spacingRatio = if (maxFontSize.value == 0f) 0f else letterSpacingAtMax.value / maxFontSize.value
+    fun widthAt(size: Float, spacing: Float): Float {
+        val layout = measurer.measure(
+            text = AnnotatedString(text),
+            style = TextStyle(
+                fontSize = size.sp,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily,
+                letterSpacing = spacing.sp,
+            ),
+            overflow = TextOverflow.Clip,
+            softWrap = false,
+            maxLines = 1,
+            constraints = Constraints(maxWidth = 100_000),
+        )
+        return layout.size.width.toFloat()
+    }
+    val limit = (maxWidthPx - 2f).coerceAtLeast(1f)
+    if (widthAt(maxFontSize.value, letterSpacingAtMax.value) <= limit) {
+        return FittedLine(maxFontSize, letterSpacingAtMax)
+    }
+    var low = minFontSize.value
+    var high = maxFontSize.value
+    var best = minFontSize.value
+    repeat(14) {
+        val mid = (low + high) / 2f
+        if (widthAt(mid, mid * spacingRatio) <= limit) {
+            best = mid
+            low = mid
+        } else {
+            high = mid
+        }
+    }
+    var spacing = best * spacingRatio
+    if (widthAt(best, spacing) > limit) {
+        var spaceLow = 0f
+        var spaceHigh = spacing
+        var spaceBest = 0f
+        repeat(10) {
+            val mid = (spaceLow + spaceHigh) / 2f
+            if (widthAt(best, mid) <= limit) {
+                spaceBest = mid
+                spaceLow = mid
+            } else {
+                spaceHigh = mid
+            }
+        }
+        spacing = spaceBest
+    }
+    return FittedLine(best.sp, spacing.sp)
 }
 
 /** Converte ISO da API (UTC com Z) para horário de Brasília — não usar o HH:mm cru do UTC. */

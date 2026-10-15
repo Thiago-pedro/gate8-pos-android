@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -43,17 +41,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import br.com.gate8.pos.R
 import br.com.gate8.pos.ui.common.Gate8HeaderLogo
 import br.com.gate8.pos.ui.common.Gate8MenuButton
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
@@ -77,10 +72,6 @@ fun LoginScreen(
 ) {
     val state by vm.state.collectAsState()
     val context = LocalContext.current
-    val artHeight = remember {
-        val metrics = context.resources.displayMetrics
-        (metrics.heightPixels / metrics.density).dp
-    }
 
     DisposableEffect(context) {
         val window = context.findActivity()?.window
@@ -107,16 +98,7 @@ fun LoginScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.login_token_bg),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .requiredHeight(artHeight),
-        )
+    Gate8ScreenBackground {
         Column(
             Modifier
                 .fillMaxSize()
@@ -127,21 +109,21 @@ fun LoginScreen(
         ) {
             Spacer(Modifier.height(40.dp))
             Gate8HeaderLogo(height = 52.dp)
-            Spacer(Modifier.height(63.dp))
+            Spacer(Modifier.height(94.5.dp))
 
-            val cardShape = RoundedCornerShape(16.dp)
+            val cardShape = RoundedCornerShape(22.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
-                    .background(Color.White.copy(alpha = 0.42f))
-                    .border(1.dp, Gate8Colors.AccentBlue.copy(alpha = 0.32f), cardShape)
+                    .background(Color(0xFF0C1E4A))
+                    .border(1.5.dp, Color(0xFF0000FE).copy(alpha = 0.9f), cardShape)
                     .padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     "Token",
-                    color = Gate8Colors.TextOnLight,
+                    color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
@@ -235,13 +217,13 @@ private fun ProducerTokenBoxes(
                                 modifier = Modifier
                                     .size(boxSize)
                                     .clip(shape)
-                                    .background(Color.White)
-                                    .border(2.dp, Gate8Colors.AccentBlue, shape),
+                                    .background(Color(0xFF132A58))
+                                    .border(1.5.dp, Color(0xFF0000FE), shape),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     text = value.getOrNull(index)?.toString().orEmpty(),
-                                    color = Gate8Colors.TextOnLight,
+                                    color = Color.White,
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,

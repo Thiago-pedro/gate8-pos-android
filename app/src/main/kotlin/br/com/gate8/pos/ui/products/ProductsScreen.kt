@@ -670,19 +670,19 @@ private fun CategoryChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
     Box(
         Modifier
             .clip(shape)
             .background(if (selected) Color(0xFF0000FE) else Color(0x660B1E42))
             .border(1.dp, Color(0xFF0000FE).copy(alpha = if (selected) 1f else 0.75f), shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
         Text(
             label,
             color = Color.White,
-            fontSize = 14.sp,
+            fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
         )
