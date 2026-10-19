@@ -103,6 +103,8 @@ fun CashlessScreen(
         onCancel = {
             if (state.recoverStep != CashlessRecoverStep.Idle) {
                 vm.cancelRecoverWizard()
+            } else {
+                vm.cancelConsultWait()
             }
         },
         onRetry = vm::retryZeroOldCard,
@@ -487,7 +489,7 @@ private fun CashlessRegisterCardModal(
                 Gate8OutlinedTextField(
                     value = name,
                     onValueChange = onNameChange,
-                    label = "Nome (opcional)",
+                    label = "Nome",
                     placeholder = "Nome do cliente",
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -508,7 +510,7 @@ private fun CashlessRegisterCardModal(
                 Gate8OutlinedTextField(
                     value = phone,
                     onValueChange = onPhoneChange,
-                    label = "Celular (opcional)",
+                    label = "Celular",
                     placeholder = "(00) 00000-0000",
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -671,7 +673,7 @@ private fun cashlessWaitModalUi(state: CashlessUiState): CashlessWaitModalUi? {
             detail = state.message
                 ?: "Aproxime o cartão na maquininha",
             showProgress = true,
-            showCancel = state.recoverStep != CashlessRecoverStep.Idle,
+            showCancel = state.recoverStep != CashlessRecoverStep.Idle || title == "Consultar saldo",
             uidHint = state.pendingUid ?: state.recoverOldUid,
         )
     }

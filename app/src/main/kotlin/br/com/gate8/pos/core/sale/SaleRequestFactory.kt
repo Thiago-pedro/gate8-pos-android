@@ -18,7 +18,11 @@ object SaleRequestFactory {
         total: Double,
         payment: PaymentResult,
         cart: List<CartLine>,
-        /** UID do chip — obrigatório em venda `cashless` (débito na conveniência). */
+        /**
+         * UID do chip. No débito da conveniência vem com `payment_method = cashless`.
+         * Na recarga também vem, mesmo com Pix/crédito/débito/dinheiro, para o Lovable
+         * registrar o cartão e o movimento sem um segundo crédito no chip.
+         */
         cardUid: String? = null,
         payments: List<SalePaymentPartDto>? = null,
     ): CreateSaleRequestDto {
@@ -60,7 +64,7 @@ object SaleRequestFactory {
                     category = line.category,
                 )
             },
-            cardUid = if (method == PaymentMethodApi.CASHLESS) uid else null,
+            cardUid = uid,
             payments = parts,
         )
     }

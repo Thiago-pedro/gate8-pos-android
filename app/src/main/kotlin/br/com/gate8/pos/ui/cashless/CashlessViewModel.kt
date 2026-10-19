@@ -129,6 +129,8 @@ class CashlessViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(CashlessUiState())
     val state: StateFlow<CashlessUiState> = _state.asStateFlow()
+    @Volatile
+    private var consultCancelled = false
 
     init {
         refreshCashierStatus()
@@ -160,6 +162,7 @@ class CashlessViewModel(
     }
 
     fun consultBalance() {
+        consultCancelled = false
         viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -171,8 +174,20 @@ class CashlessViewModel(
             }
             runCatching {
                 val snap = cashless.readCard()
+                if (consultCancelled) return@runCatching
                 applyCardRead(snap, defaultMessage = snap.message ?: "Leitura concluída")
             }.onFailure { e ->
+                if (consultCancelled || e is PaymentCancelledException) {
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            waitingCard = false,
+                            error = null,
+                            message = null,
+                        )
+                    }
+                    return@onFailure
+                }
                 _state.update {
                     it.copy(
                         loading = false,
@@ -182,6 +197,23 @@ class CashlessViewModel(
                     )
                 }
             }
+        }
+    }
+
+    /** Fecha a espera da consulta de saldo sem deixar o modal até o tempo estourar. */
+    fun cancelConsultWait() {
+        val current = _state.value
+        if (!current.loading || !current.waitingCard) return
+        if (current.message?.startsWith("Aproxime o cartão na maquininha") != true) return
+        consultCancelled = true
+        cashless.cancel()
+        _state.update {
+            it.copy(
+                loading = false,
+                waitingCard = false,
+                error = null,
+                message = null,
+            )
         }
     }
 
@@ -233,7 +265,7 @@ class CashlessViewModel(
                                 registerNameInput = "",
                                 registerCpfInput = "",
                                 registerPhoneInput = "",
-                                message = "Cartão livre. Informe o CPF para continuar. Nome e celular são opcionais.",
+                                message = "Cartão livre. Informe o nome, o CPF e o celular para continuar.",
                                 error = null,
                             )
                         }
@@ -301,7 +333,10 @@ class CashlessViewModel(
         val cpf = _state.value.registerCpfInput.filter { it.isDigit() }
         val phone = _state.value.registerPhoneInput.filter { it.isDigit() }
 
-        // CPF obrigatório; nome e celular opcionais (se preenchidos, validam).
+        if (name.isEmpty()) {
+            _state.update { it.copy(error = "Informe o nome para cadastrar o cartão.") }
+            return
+        }
         if (cpf.isEmpty()) {
             _state.update { it.copy(error = "Informe o CPF para cadastrar o cartão.") }
             return
@@ -314,19 +349,21 @@ class CashlessViewModel(
             _state.update { it.copy(error = "CPF inválido. Confira os números digitados.") }
             return
         }
-        if (phone.isNotEmpty()) {
-            if (phone.length != 11) {
-                _state.update {
-                    it.copy(error = "Telefone deve ter 11 dígitos (DDD + número com 9 dígitos).")
-                }
-                return
+        if (phone.isEmpty()) {
+            _state.update { it.copy(error = "Informe o celular para cadastrar o cartão.") }
+            return
+        }
+        if (phone.length != 11) {
+            _state.update {
+                it.copy(error = "Celular deve ter 11 dígitos (DDD + número com 9 dígitos).")
             }
-            if (!BrazilianDocumentValidator.isValidMobilePhone(phone)) {
-                _state.update {
-                    it.copy(error = "Telefone inválido. Use DDD + celular com 9 dígitos (ex.: 11987654321).")
-                }
-                return
+            return
+        }
+        if (!BrazilianDocumentValidator.isValidMobilePhone(phone)) {
+            _state.update {
+                it.copy(error = "Celular inválido. Use DDD + número com 9 dígitos (ex.: 11987654321).")
             }
+            return
         }
 
         val balanceCents = ((_state.value.card?.balanceReais ?: 0.0) * 100).roundToInt()
@@ -1429,6 +1466,7 @@ class CashlessViewModel(
             operatorName = operatorName,
             pay = pay,
             cart = baseCart,
+            cardUid = requireUid,
         )
         _state.update {
             it.copy(
@@ -1522,6 +1560,7 @@ class CashlessViewModel(
                 operatorName = operatorName,
                 pay = pay,
                 cart = cart,
+                cardUid = snap.uidHex,
             )
         } else {
             saleAdmin.loadLastSale()
@@ -1554,7 +1593,16 @@ class CashlessViewModel(
 
         val cents = ((snap.balanceReais ?: 0.0) * 100).roundToInt()
         val addCents = (amount * 100).roundToInt()
-        accounts.updateBalance(snap.uidHex, cents)
+        // Saldo absoluto do chip. Não soma de novo — o crédito no cartão já foi feito.
+        val cloudError = runCatching {
+            accounts.publishRecargaBalance(
+                uidHex = snap.uidHex,
+                balanceCents = cents,
+                holderName = _state.value.accountName,
+                cpfDigits = _state.value.accountCpf,
+                phoneDigits = _state.value.accountPhone,
+            )
+        }.exceptionOrNull()?.message
         accounts.recordMovement(
             uidHex = snap.uidHex,
             type = CashlessMovementType.RECARGA,
@@ -1573,9 +1621,14 @@ class CashlessViewModel(
                 pendingAmount = 0.0,
                 pendingUid = null,
                 pendingChipCredit = null,
-                message = snap.message
-                    ?: "Recarga de R$ ${"%.2f".format(amount)} concluída",
-                error = null,
+                message = if (cloudError == null) {
+                    snap.message ?: "Recarga de R$ ${"%.2f".format(amount)} concluída"
+                } else {
+                    null
+                },
+                error = cloudError?.let {
+                    "Recarga gravada no cartão, mas o sistema não atualizou a aba cashless: $it"
+                },
             )
         }
     }
@@ -1587,6 +1640,7 @@ class CashlessViewModel(
         operatorName: String,
         pay: PaymentResult,
         cart: List<CartLine>,
+        cardUid: String,
     ): String? {
         val request = SaleRequestFactory.create(
             clientReference = clientRef,
@@ -1595,6 +1649,7 @@ class CashlessViewModel(
             total = amount,
             payment = pay,
             cart = cart,
+            cardUid = cardUid,
         )
         val pending = PendingSaleEntity(
             clientReference = clientRef,
@@ -1644,8 +1699,10 @@ class CashlessViewModel(
             account?.blocked == true ||
             runCatching { accounts.isUidRevokedForUse(snap.uidHex) }.getOrDefault(false)
         // Nunca espelha saldo do chip de volta se o cartão está inválido no sistema.
-        if (!revoked) {
-            runCatching { syncBalanceFromSnap(snap) }
+        val cloudError = if (!revoked) {
+            runCatching { syncBalanceFromSnap(snap) }.exceptionOrNull()?.message
+        } else {
+            null
         }
         val systemBalance = if (revoked) {
             (account?.balanceCents ?: 0) / 100.0
@@ -1705,7 +1762,9 @@ class CashlessViewModel(
                 accountPhone = phoneDigits.takeIf { digits -> !revoked && digits.isNotBlank() },
                 accountBlocked = revoked,
                 message = null,
-                error = null,
+                error = cloudError?.let {
+                    "Saldo lido no cartão, mas o sistema não atualizou a aba cashless: $it"
+                },
                 showConsultResult = true,
                 consultResultTitle = if (revoked) "Cartão bloqueado" else "Consulta de saldo",
                 consultResultDetail = detail,
@@ -1727,7 +1786,13 @@ class CashlessViewModel(
         if (!snap.balanceConfirmed || !snap.isGate8Format) return
         val balance = snap.balanceReais ?: return
         val cents = (balance * 100).roundToInt().coerceAtLeast(0)
-        accounts.updateBalance(snap.uidHex, cents)
+        accounts.publishRecargaBalance(
+            uidHex = snap.uidHex,
+            balanceCents = cents,
+            holderName = null,
+            cpfDigits = null,
+            phoneDigits = null,
+        )
     }
 
     private fun refreshCashierStatus() {
@@ -1780,6 +1845,8 @@ class CashlessViewModel(
     private fun friendlyAccountError(e: Throwable): String = when (e) {
         is ApiException -> when (e.errorCode) {
             "invalid_cpf" -> "CPF inválido. Digite um CPF com 11 dígitos válidos."
+            "invalid_phone" ->
+                "Celular inválido. Informe DDD + número com 11 dígitos (ex.: 11987654321)."
             else -> e.message?.takeIf { it.isNotBlank() && it != e.errorCode }
                 ?: "Erro no cadastro cashless"
         }

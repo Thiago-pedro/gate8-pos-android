@@ -30,8 +30,8 @@ android {
         applicationId = "br.com.gate8.pos.terminal"
         minSdk = 23
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
         buildConfigField("String", "CIELO_CLIENT_ID", "\"\"")
         buildConfigField("String", "CIELO_ACCESS_TOKEN", "\"\"")
@@ -60,11 +60,8 @@ android {
             applicationIdSuffix = ".debug"
         }
         release {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

@@ -8,6 +8,7 @@ import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkResponse
 import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
 import br.com.gate8.pos.cielo.deeplink.CieloLioOp
+import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -153,6 +154,7 @@ internal object CieloPrintClient {
      */
     fun printGate8Ticket(
         logoPath: String?,
+        headerPath: String?,
         qrPath: String?,
         topText: String,
         manualText: String,
@@ -160,6 +162,16 @@ internal object CieloPrintClient {
     ) {
         enqueuePrint {
             logoPath?.let { path -> printImageAsync(path) }
+            if (!headerPath.isNullOrBlank()) {
+                printImageAsync(headerPath)
+            } else {
+                // Sem o bitmap, a razão social ainda sai numa fonte menor para caber na bobina.
+                printTextAsync(
+                    Gate8ReceiptTextBuilder.ticketIssuerHeaderLines().joinToString("\n") + "\n",
+                    ALIGN_CENTER,
+                    14,
+                )
+            }
             printTextAsync(topText, ALIGN_CENTER, 20)
             qrPath?.let { path -> printImageAsync(path) }
             printTextAsync(manualText, ALIGN_CENTER, 26)

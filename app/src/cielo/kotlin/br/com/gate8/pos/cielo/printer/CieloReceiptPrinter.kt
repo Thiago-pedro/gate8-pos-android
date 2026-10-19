@@ -78,6 +78,7 @@ class CieloReceiptPrinter(
     override fun printTicket(payload: TicketPrintPayload) {
         runCatching {
             val logoPath = CieloLogoBitmap.prepareTicketLogoPath(appContext)
+            val headerPath = CieloTicketHeaderBitmap.preparePath(appContext)
             val qrPath = ThermalQrBitmap.prepareQrPath(appContext, payload.qrPayload)
             val topText = Gate8ReceiptTextBuilder.ticketTopLines(payload).joinToString("\n")
             val bottomText = buildString {
@@ -85,11 +86,12 @@ class CieloReceiptPrinter(
                 appendLine(Gate8ReceiptTextBuilder.ticketStatusLine(payload))
                 Gate8ReceiptTextBuilder.ticketIssuedLines(payload).forEach { appendLine(it) }
                 Gate8ReceiptTextBuilder.ticketDisclaimerLines().forEach { appendLine(it) }
-                // Avanço de papel no mesmo bloco — evita corte na guilhotina
-                repeat(10) { appendLine() }
+                // Sobra depois do texto, antes do corte. 6 linhas ≈ 1 cm a menos que as 10 anteriores.
+                repeat(6) { appendLine() }
             }
             CieloPrintClient.printGate8Ticket(
                 logoPath = logoPath,
+                headerPath = headerPath,
                 qrPath = qrPath,
                 topText = topText,
                 manualText = Gate8ReceiptTextBuilder.ticketManualLine(payload),

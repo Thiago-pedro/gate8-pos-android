@@ -135,7 +135,6 @@ class CashlessAccountRepository(
         val holderName = name.trim()
         val cpf = cpfDigits.filter { it.isDigit() }
         val phone = phoneDigits.filter { it.isDigit() }
-        val phoneOrNull = phone.takeIf { it.isNotEmpty() }
         val uid = uidHex.uppercase()
         val cents = balanceCents.coerceAtLeast(0)
 
@@ -145,7 +144,7 @@ class CashlessAccountRepository(
                     uidHex = uid,
                     name = holderName,
                     cpf = cpf,
-                    phone = phoneOrNull,
+                    phone = phone.takeIf { it.isNotEmpty() },
                     balanceCents = cents,
                 ),
             )
@@ -162,11 +161,7 @@ class CashlessAccountRepository(
             if (remote.code() == 409) {
                 throw parseApiError(409, errBody)
             }
-            if (phoneOrNull == null && isOptionalPhoneRejection(remote.code(), errBody)) {
-                Log.w(TAG, "register: API recusou celular vazio — salvando local")
-                registerLocal(uid, holderName, cpf, phone, cents)
-                return
-            }
+            // O sistema respondeu e recusou. Não tratar como cadastro feito: a aba cashless ficaria vazia.
             if (!shouldFallback(remote.code(), errBody)) {
                 throw parseApiError(remote.code(), errBody)
             }
@@ -181,18 +176,67 @@ class CashlessAccountRepository(
     suspend fun updateBalance(uidHex: String, balanceCents: Int) {
         val uid = uidHex.uppercase()
         val cents = balanceCents.coerceAtLeast(0)
-        val current = dao.getByUid(uid) ?: return
+        val current = dao.getByUid(uid)
         // Não ressuscita saldo de cartão bloqueado a partir do chip.
-        if (current.blocked) return
+        if (current?.blocked == true) return
         when (val patch = patchRemoteResult(uid, CashlessPatchRequestDto(balanceCents = cents))) {
             PatchRemoteResult.CardReplaced -> {
                 // Cadastro encerrado na nuvem — próximo passo é POST de cadastro novo.
                 dao.deleteByUid(uid)
                 return
             }
-            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+            PatchRemoteResult.Ok, PatchRemoteResult.NotFound, PatchRemoteResult.Skipped -> Unit
         }
-        dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+        if (current != null) {
+            dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    /**
+     * Recarga já gravada no chip: envia o saldo absoluto ao Lovable.
+     * Se o cartão não existir na nuvem, cadastra com esse saldo — não soma de novo.
+     */
+    suspend fun publishRecargaBalance(
+        uidHex: String,
+        balanceCents: Int,
+        holderName: String?,
+        cpfDigits: String?,
+        phoneDigits: String?,
+    ) {
+        val uid = uidHex.uppercase()
+        val cents = balanceCents.coerceAtLeast(0)
+        val current = dao.getByUid(uid)
+        if (current?.blocked == true) return
+        val cpf = cpfDigits?.filter { it.isDigit() }.orEmpty().ifBlank { current?.cpf.orEmpty() }
+        val name = holderName?.trim().orEmpty().ifBlank { current?.name.orEmpty() }
+        val phone = phoneDigits?.filter { it.isDigit() }.orEmpty().ifBlank { current?.phone.orEmpty() }
+        when (val patch = patchRemoteResult(uid, CashlessPatchRequestDto(balanceCents = cents))) {
+            PatchRemoteResult.CardReplaced -> {
+                dao.deleteByUid(uid)
+                return
+            }
+            PatchRemoteResult.NotFound -> {
+                if (cpf.length == 11) {
+                    register(
+                        uidHex = uid,
+                        name = name,
+                        cpfDigits = cpf,
+                        phoneDigits = phone,
+                        balanceCents = cents,
+                    )
+                } else {
+                    throw ApiException(
+                        404,
+                        "Cartão sem cadastro no sistema. Informe o CPF na maquininha para ele aparecer na aba cashless.",
+                    )
+                }
+            }
+            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> {
+                if (current != null) {
+                    dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
+                }
+            }
+        }
     }
 
     /** Atualiza saldo só no Room (após débito no chip + POST /sales cashless). */
@@ -231,7 +275,7 @@ class CashlessAccountRepository(
                 dao.deleteByUid(uid)
                 return
             }
-            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+            PatchRemoteResult.Ok, PatchRemoteResult.NotFound, PatchRemoteResult.Skipped -> Unit
         }
         if (current != null && !current.blocked) {
             dao.upsert(current.copy(balanceCents = cents, updatedAt = System.currentTimeMillis()))
@@ -253,7 +297,7 @@ class CashlessAccountRepository(
                 dao.deleteByUid(uid)
                 return
             }
-            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+            PatchRemoteResult.Ok, PatchRemoteResult.NotFound, PatchRemoteResult.Skipped -> Unit
         }
         val current = dao.getByUid(uid) ?: return
         dao.upsert(
@@ -422,7 +466,7 @@ class CashlessAccountRepository(
                     "Este cartão foi encerrado/substituído. Faça um novo cadastro (CPF/telefone).",
                     "card_replaced",
                 )
-            PatchRemoteResult.Ok, PatchRemoteResult.Skipped -> Unit
+            PatchRemoteResult.Ok, PatchRemoteResult.NotFound, PatchRemoteResult.Skipped -> Unit
         }
     }
 
@@ -438,12 +482,15 @@ class CashlessAccountRepository(
             Log.w(TAG, "patch: card_replaced em $uid — cadastro encerrado")
             return PatchRemoteResult.CardReplaced
         }
+        if (remote.code() == 404 && looksLikeJson(errBody)) {
+            return PatchRemoteResult.NotFound
+        }
         // 404 JSON = UID não na nuvem; segue local. 404 HTML = rota inexistente.
         if (shouldFallback(remote.code(), errBody)) return PatchRemoteResult.Skipped
         throw parseApiError(remote.code(), errBody)
     }
 
-    private enum class PatchRemoteResult { Ok, Skipped, CardReplaced }
+    private enum class PatchRemoteResult { Ok, Skipped, NotFound, CardReplaced }
 
     private suspend fun hasTransferOut(uid: String): Boolean =
         movementDao.listByUid(uid).any { it.type == CashlessMovementType.TRANSF_SAIDA }
@@ -546,22 +593,6 @@ class CashlessAccountRepository(
         return entity
     }
 
-    /** API antiga exige 10–11 dígitos. Celular vazio não pode bloquear o cadastro. */
-    private fun isOptionalPhoneRejection(code: Int, body: String?): Boolean {
-        if (code != 400 && code != 422) return false
-        val codeName = errorCodeOf(body).orEmpty()
-        if (codeName == "invalid_cpf" || codeName == "cpf_already_linked" || codeName == "card_replaced") {
-            return false
-        }
-        val blob = body.orEmpty().lowercase()
-        val mentionsPhone = codeName.contains("phone") ||
-            blob.contains("phone") ||
-            blob.contains("telefone") ||
-            blob.contains("celular")
-        val mentionsOnlyCpf = blob.contains("cpf") && !mentionsPhone
-        return !mentionsOnlyCpf
-    }
-
     private fun shouldFallback(code: Int, errorBody: String?): Boolean {
         if (code == 404 || code == 405 || code == 501 || code == 502 || code == 503) return true
         if (errorBody?.contains("<html", ignoreCase = true) == true) return true
@@ -592,6 +623,8 @@ class CashlessAccountRepository(
                 val message = when (errorCode) {
                     "invalid_cpf" ->
                         "CPF inválido. Digite um CPF com 11 dígitos válidos."
+                    "invalid_phone" ->
+                        "Celular inválido. Informe DDD + número com 11 dígitos (ex.: 11987654321)."
                     "cpf_already_linked" -> {
                         val linkedUid = root["uid_hex"]?.jsonPrimitive?.content
                         if (linkedUid != null) {

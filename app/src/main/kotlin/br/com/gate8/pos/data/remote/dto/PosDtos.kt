@@ -313,7 +313,7 @@ data class CashlessRegisterRequestDto(
     @SerialName("uid_hex") val uidHex: String,
     val name: String = "",
     val cpf: String,
-    /** Omitido quando o operador não preencheu o celular. */
+    /** Sem celular, o campo não vai no JSON. String vazia o sistema trata como número inválido. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val phone: String? = null,
     @SerialName("balance_cents") val balanceCents: Int = 0,

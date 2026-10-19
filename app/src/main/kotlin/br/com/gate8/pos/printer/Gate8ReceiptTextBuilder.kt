@@ -20,6 +20,11 @@ object Gate8ReceiptTextBuilder {
     private const val UNIT_BUDGET = 56
     private const val MERCHANT_NAME = "GATE8"
 
+    /** Cabeçalho do ingresso, logo abaixo da logo. A razão social cabe numa linha só. */
+    const val TICKET_ISSUER_BRAND = "GATE8 TICKETS"
+    const val TICKET_ISSUER_LEGAL = "GATE8 INTERMEDIACAO E TECNOLOGIA LTDA"
+    const val TICKET_ISSUER_CNPJ = "CNPJ: 69.615.207/0001-77"
+
     // Altura (em linhas) do corpo de cada ficha, para centralizar o conteúdo na vertical.
     private const val FICHA_BODY_LINES = 11
 
@@ -281,6 +286,13 @@ object Gate8ReceiptTextBuilder {
         return lines
     }
 
+    /** Três linhas do emissor, impressas abaixo da logo e acima do evento. */
+    fun ticketIssuerHeaderLines(): List<String> = listOf(
+        TICKET_ISSUER_BRAND,
+        TICKET_ISSUER_LEGAL,
+        TICKET_ISSUER_CNPJ,
+    )
+
     /**
      * Bloco superior do ingresso (acima do QR) — compacto como o PDF/site Gate8.
      * Sem linhas em branco extras; a Cielo centraliza via `ALIGN_CENTER`.
@@ -289,7 +301,7 @@ object Gate8ReceiptTextBuilder {
         ticketEventNameLines(p) + ticketBatchDateLines(p) + ticketHolderLines(p) + ticketPriceLines(p)
 
     fun ticketEventNameLines(p: TicketPrintPayload): List<String> =
-        listOf(p.eventName)
+        listOf(ticketDotLine(), p.eventName)
 
     fun ticketBatchDateLines(p: TicketPrintPayload): List<String> = buildList {
         add(ticketDotLine())
