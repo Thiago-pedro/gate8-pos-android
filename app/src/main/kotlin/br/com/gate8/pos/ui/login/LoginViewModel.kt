@@ -25,6 +25,10 @@ import java.net.UnknownHostException
 
 data class LoginUiState(
     val loading: Boolean = false,
+    /** API aceitou o token: a tela anima o sucesso e só então abre a home. */
+    val confirmed: Boolean = false,
+    /** Sobe a cada falha para a animação de erro tocar de novo. */
+    val errorTick: Int = 0,
     val producerToken: String = "",
     val error: String? = null,
     val pendingDeviceName: String? = null,
@@ -49,6 +53,7 @@ class LoginViewModel(
 
     private val _navigation = MutableSharedFlow<LoginNavigation>(extraBufferCapacity = 1)
     val navigation: SharedFlow<LoginNavigation> = _navigation.asSharedFlow()
+    private var loginInFlight = false
 
     init {
         configStore.ensureDefaultBaseUrl()
@@ -59,13 +64,31 @@ class LoginViewModel(
     }
 
     fun onProducerTokenChange(value: String) {
-        _state.update { it.copy(producerToken = ProducerTokenValidator.normalize(value), error = null) }
+        if (loginInFlight || _state.value.confirmed) return
+        val normalized = ProducerTokenValidator.normalize(value)
+        val previous = _state.value.producerToken
+        _state.update { it.copy(producerToken = normalized, error = null) }
+        if (ProducerTokenValidator.isValid(normalized) && normalized != previous) {
+            performLogin(normalized)
+        }
+    }
+
+    /** Depois da animação de erro, esvazia as casas para o mesmo token poder ser digitado de novo. */
+    fun dismissFailedToken() {
+        val current = _state.value
+        if (current.loading || current.confirmed || current.error == null) return
+        _state.update { it.copy(producerToken = "") }
     }
 
     fun login() {
         val token = _state.value.producerToken
         if (!ProducerTokenValidator.isValid(token)) {
-            _state.update { it.copy(error = "Token inválido — use 6 caracteres (A-Z, 2-9)") }
+            _state.update {
+                it.copy(
+                    error = "Token inválido — use 6 caracteres (A-Z, 2-9)",
+                    errorTick = it.errorTick + 1,
+                )
+            }
             return
         }
         performLogin(token)
@@ -81,22 +104,36 @@ class LoginViewModel(
     }
 
     private fun performLogin(token: String) {
+        if (loginInFlight || _state.value.confirmed) return
+        loginInFlight = true
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, pendingDeviceName = null, disabledDeviceName = null) }
-            val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore, hardwareInfo)
-            configStore.setProducerToken(token)
-            catalogRepository.clear()
+            try {
+                _state.update {
+                    it.copy(loading = true, error = null, pendingDeviceName = null, disabledDeviceName = null)
+                }
+                val fingerprint = DeviceFingerprint.getOrCreate(getApplication(), configStore, hardwareInfo)
+                configStore.setProducerToken(token)
+                catalogRepository.clear()
 
-            runCatching {
-                loginRepository.login(
-                    producerToken = token,
-                    fingerprint = fingerprint,
-                    label = null,
-                )
-            }.onSuccess { result ->
-                handleLoginResult(result, token)
-            }.onFailure { e ->
-                _state.update { it.copy(loading = false, error = friendlyConnectionError(e)) }
+                runCatching {
+                    loginRepository.login(
+                        producerToken = token,
+                        fingerprint = fingerprint,
+                        label = null,
+                    )
+                }.onSuccess { result ->
+                    handleLoginResult(result, token)
+                }.onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            error = friendlyConnectionError(e),
+                            errorTick = it.errorTick + 1,
+                        )
+                    }
+                }
+            } finally {
+                if (!_state.value.confirmed) loginInFlight = false
             }
         }
     }
@@ -110,7 +147,7 @@ class LoginViewModel(
                 configStore.setProducerName(result.producerName)
                 configStore.setMerchantName(result.merchantName)
                 configStore.setProducerToken(token)
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, confirmed = true, error = null) }
                 _navigation.tryEmit(LoginNavigation.Home)
             }
             is LoginResult.Pending -> {
@@ -131,14 +168,19 @@ class LoginViewModel(
                         producerToken = token,
                         disabledDeviceName = result.deviceName,
                         error = "Cadastro desta maquininha estava bloqueado no servidor. " +
-                            "Toque em Entrar de novo para tentar com identidade nova. " +
-                            "Se repetir, o painel/API (Lovable) ainda está devolvendo disabled.",
+                            "Digite o token outra vez para tentar com identidade nova. " +
+                            "Se repetir, o painel ainda está devolvendo disabled.",
+                        errorTick = it.errorTick + 1,
                     )
                 }
             }
             is LoginResult.Error -> {
                 _state.update {
-                    it.copy(loading = false, error = errorMessage(result.code))
+                    it.copy(
+                        loading = false,
+                        error = errorMessage(result.code),
+                        errorTick = it.errorTick + 1,
+                    )
                 }
             }
         }

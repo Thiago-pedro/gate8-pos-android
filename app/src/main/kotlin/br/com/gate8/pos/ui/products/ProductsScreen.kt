@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,7 +40,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.lifecycle.Lifecycle
@@ -54,6 +52,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,6 +83,7 @@ import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenTopBar
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import java.util.Locale
 import org.koin.androidx.compose.koinViewModel
 
@@ -341,41 +341,25 @@ fun ProductsScreen(
                 }
             } else {
                 Box(Modifier.weight(1f)) {
-                    key(state.catalogVersion) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            contentPadding = PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
-                                bottom = if (cartItemCount > 0) 124.dp else 16.dp,
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(
-                                products,
-                                key = { "${it.id}-${it.tracksStock}-${it.stockQuantity}-${it.price}" },
-                            ) { product ->
-                                val inCart = state.cart.firstOrNull { it.productId == product.id }?.quantity ?: 0
-                                ProductGridCard(
-                                    product = product,
-                                    quantity = inCart,
-                                    onIncrement = { vm.addProduct(product) },
-                                    onDecrement = { vm.removeProduct(product.id) },
-                                    modifier = Modifier.fillMaxHeight(),
-                                )
-                            }
-                        }
-                    }
-                    if (state.loading && (state.payingMethod != null || state.split != null)) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.25f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(color = Gate8Colors.AccentBlue)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = if (cartItemCount > 0) 124.dp else 16.dp,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(products, key = { it.id }) { product ->
+                            val inCart = state.cart.firstOrNull { it.productId == product.id }?.quantity ?: 0
+                            ProductGridCard(
+                                product = product,
+                                quantity = inCart,
+                                onIncrement = { vm.addProduct(product) },
+                                onDecrement = { vm.removeProduct(product.id) },
+                            )
                         }
                     }
                 }
@@ -460,8 +444,20 @@ private fun ProductGridCard(
             .padding(8.dp),
     ) {
         if (!product.imageUrl.isNullOrBlank()) {
+            val context = LocalContext.current
+            val url = product.imageUrl
+            val model = remember(product.id, url) {
+                ImageRequest.Builder(context)
+                    .data(url)
+                    .size(640)
+                    .memoryCacheKey(product.id)
+                    .diskCacheKey(product.id)
+                    .placeholderMemoryCacheKey(product.id)
+                    .crossfade(false)
+                    .build()
+            }
             AsyncImage(
-                model = product.imageUrl,
+                model = model,
                 contentDescription = product.name,
                 modifier = Modifier
                     .fillMaxWidth()

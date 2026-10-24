@@ -320,23 +320,26 @@ private fun OperatorRequiredDialog(
             ) { },
         contentAlignment = Alignment.Center,
     ) {
+        val shape = RoundedCornerShape(22.dp)
         Column(
             Modifier
                 .padding(horizontal = 28.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.97f))
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Color(0xFF0C1E4A))
+                .border(1.5.dp, HomeElectric.copy(alpha = 0.9f), shape)
                 .padding(horizontal = 22.dp, vertical = 24.dp),
         ) {
             Text(
                 "Operador obrigatório",
-                color = Gate8Colors.TextOnLight,
+                color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(12.dp))
             Text(
                 "Informe o nome do operador para começar a operar. Ele aparece nos comprovantes e nos relatórios desta sessão.",
-                color = Gate8Colors.TextOnLight.copy(alpha = 0.75f),
+                color = Color(0xFFD6E4FF),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
@@ -346,8 +349,9 @@ private fun OperatorRequiredDialog(
                 onValueChange = onValueChange,
                 label = "Nome do operador",
                 prefix = "POS - ",
-                placeholder = "Tulio",
+                placeholder = "nome",
                 modifier = Modifier.fillMaxWidth(),
+                onDark = true,
             )
             Spacer(Modifier.height(20.dp))
             Gate8MenuButton(
@@ -398,7 +402,7 @@ private fun HomeIdentityBlock(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 if (!establishment.isNullOrBlank()) {
-                    IdentityLine("Estabelecimento", establishment)
+                    IdentityLine("Local", establishment)
                 }
                 if (!device.isNullOrBlank()) {
                     IdentityLine("Dispositivo", device)

@@ -149,7 +149,7 @@ fun SetupScreen(
                         onValueChange = vm::updateOperator,
                         label = "Operador",
                         prefix = "POS - ",
-                        placeholder = "Tulio",
+                        placeholder = "nome",
                         modifier = Modifier.fillMaxWidth(),
                         onDark = true,
                     )

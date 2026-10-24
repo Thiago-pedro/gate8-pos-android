@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -126,7 +125,7 @@ fun Gate8CartSheet(
                 Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onBack),
+                    .clickable(enabled = !loading, onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -219,39 +218,29 @@ fun Gate8CartSheet(
         )
         Spacer(Modifier.height(14.dp))
 
-        if (loading) {
-            Column(
-                Modifier
+        PaymentGrid(
+            cashEnabled = cashEnabled,
+            interactionsEnabled = !loading,
+            showCashless = showCashless && onPayCashless != null,
+            showSplit = onSplitPay != null,
+            onPayDebit = onPayDebit,
+            onPayCredit = onPayCredit,
+            onPayPix = onPayPix,
+            onPayCash = onPayCash,
+            onPayCashless = { onPayCashless?.invoke() },
+            onSplitPay = { onSplitPay?.invoke() },
+        )
+        if (loading && !loadingMessage.isNullOrBlank()) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                loadingMessage,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                CircularProgressIndicator(color = Color(0xFF7EE7FF))
-                if (!loadingMessage.isNullOrBlank()) {
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        loadingMessage,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp),
-                    )
-                }
-            }
-        } else {
-            PaymentGrid(
-                cashEnabled = cashEnabled,
-                showCashless = showCashless && onPayCashless != null,
-                showSplit = onSplitPay != null,
-                onPayDebit = onPayDebit,
-                onPayCredit = onPayCredit,
-                onPayPix = onPayPix,
-                onPayCash = onPayCash,
-                onPayCashless = { onPayCashless?.invoke() },
-                onSplitPay = { onSplitPay?.invoke() },
+                    .padding(horizontal = 24.dp),
             )
         }
     }
@@ -377,6 +366,7 @@ private fun CartQuantity(
 @Composable
 private fun PaymentGrid(
     cashEnabled: Boolean,
+    interactionsEnabled: Boolean,
     showCashless: Boolean,
     showSplit: Boolean,
     onPayDebit: () -> Unit,
@@ -404,7 +394,7 @@ private fun PaymentGrid(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 row.forEach { tile ->
-                    PayTileButton(tile, Modifier.weight(1f))
+                    PayTileButton(tile, Modifier.weight(1f), clicksEnabled = interactionsEnabled)
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -420,7 +410,11 @@ private data class PayTile(
 )
 
 @Composable
-private fun PayTileButton(tile: PayTile, modifier: Modifier) {
+private fun PayTileButton(
+    tile: PayTile,
+    modifier: Modifier,
+    clicksEnabled: Boolean,
+) {
     val outlined = tile.kind == PayTileKind.Split
     val background = when {
         !tile.enabled -> Color(0x22081428)
@@ -448,7 +442,7 @@ private fun PayTileButton(tile: PayTile, modifier: Modifier) {
                     Modifier.border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
                 },
             )
-            .clickable(enabled = tile.enabled, onClick = tile.onClick),
+            .clickable(enabled = tile.enabled && clicksEnabled, onClick = tile.onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

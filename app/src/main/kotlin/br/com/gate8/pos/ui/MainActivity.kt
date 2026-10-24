@@ -10,6 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -92,7 +98,13 @@ class MainActivity : ComponentActivity() {
                                 .background(Gate8Colors.Background),
                         ) {
                             NavHost(navController = nav, startDestination = start) {
-                                composable(Routes.Login) {
+                                composable(
+                                    Routes.Login,
+                                    exitTransition = {
+                                        fadeOut(tween(420)) +
+                                            slideOutVertically(tween(420)) { height -> -height / 12 }
+                                    },
+                                ) {
                                     LoginScreen(
                                         onHome = {
                                             nav.navigate(Routes.Home) {
@@ -102,7 +114,16 @@ class MainActivity : ComponentActivity() {
                                         onPending = { nav.navigate(Routes.LoginPending) },
                                     )
                                 }
-                                composable(Routes.LoginPending) {
+                                composable(
+                                    Routes.LoginPending,
+                                    enterTransition = {
+                                        if (initialState.destination.route == Routes.Login) {
+                                            fadeIn(tween(380))
+                                        } else {
+                                            EnterTransition.None
+                                        }
+                                    },
+                                ) {
                                     LoginPendingScreen(
                                         onBackToLogin = { nav.popBackStack() },
                                         onHome = {
@@ -112,7 +133,19 @@ class MainActivity : ComponentActivity() {
                                         },
                                     )
                                 }
-                                composable(Routes.Home) {
+                                composable(
+                                    Routes.Home,
+                                    enterTransition = {
+                                        val fromLogin = initialState.destination.route == Routes.Login ||
+                                            initialState.destination.route == Routes.LoginPending
+                                        if (fromLogin) {
+                                            fadeIn(tween(460)) +
+                                                slideInVertically(tween(460)) { height -> height / 14 }
+                                        } else {
+                                            EnterTransition.None
+                                        }
+                                    },
+                                ) {
                                     HomeScreen(
                                         onPdv = { nav.navigate(Routes.Pdv) },
                                         onProducts = { nav.navigate(Routes.Products) },
