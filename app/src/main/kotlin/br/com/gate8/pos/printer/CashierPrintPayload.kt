@@ -22,6 +22,10 @@ data class CashierPrintPayload(
     val difference: Double?,
     val saleCount: Int,
     val grandTotal: Double,
+    val voidCount: Int = 0,
+    val voidTotal: Double = 0.0,
+    val voidCash: Double = 0.0,
     val byPaymentMethod: List<ReportPrintRow>,
+    val voidByPaymentMethod: List<ReportPrintRow> = emptyList(),
     val movements: List<CashierPrintMovement>,
 )

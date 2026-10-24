@@ -10,8 +10,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import br.com.gate8.pos.R
-import java.io.File
-import java.io.FileOutputStream
+import br.com.gate8.pos.printer.PrintImageFiles
 
 /** Prepara a logo Gate8 como PNG monocromático para `lio://print` (PRINT_IMAGE). */
 internal object CieloLogoBitmap {
@@ -20,7 +19,6 @@ internal object CieloLogoBitmap {
     private const val FICHA_WIDTH_PX = 168
     /** Logo do ingresso — um pouco menor que antes para não “esticar” o topo. */
     private const val TICKET_WIDTH_PX = 200
-    private const val CIELO_IMAGE_DIR = "/storage/emulated/0/saved_images"
 
     fun prepareLogoPath(context: Context): String? =
         prepareLogoPath(context, FICHA_WIDTH_PX, "gate8_ficha_logo.png")
@@ -30,20 +28,12 @@ internal object CieloLogoBitmap {
 
     private fun prepareLogoPath(context: Context, targetWidthPx: Int, fileName: String): String? {
         return runCatching {
-            val dir = File(CIELO_IMAGE_DIR)
-            if (!dir.exists() && !dir.mkdirs()) {
-                Log.w(TAG, "Não foi possível criar $CIELO_IMAGE_DIR")
-                return null
-            }
-            val outFile = File(dir, fileName)
             val drawable = ContextCompat.getDrawable(context, R.drawable.logo_gate8_header)
                 ?: return null
             val bitmap = renderMonochromeBitmap(drawable, targetWidthPx)
-            FileOutputStream(outFile).use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            }
-            if (!outFile.exists() || outFile.length() == 0L) return null
-            outFile.absolutePath
+            val path = PrintImageFiles.writePng(fileName, bitmap)
+            bitmap.recycle()
+            path
         }.onFailure { Log.w(TAG, "Logo Gate8 não preparada", it) }
             .getOrNull()
     }

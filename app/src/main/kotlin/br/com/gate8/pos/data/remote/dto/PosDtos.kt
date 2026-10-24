@@ -29,6 +29,15 @@ data class CatalogResponseDto(
     @SerialName("server_time") val serverTime: String,
 )
 
+/** Prateleira igual, ignorando o relógio do servidor que muda a cada resposta. */
+internal fun CatalogResponseDto.sameShelf(other: CatalogResponseDto): Boolean =
+    device == other.device &&
+        merchantName == other.merchantName &&
+        event == other.event &&
+        events == other.events &&
+        products == other.products &&
+        ticketBatches == other.ticketBatches
+
 @Serializable
 data class DeviceDto(
     val id: String,
@@ -261,6 +270,19 @@ data class ApiErrorDto(
     @SerialName("product_id") val productId: String? = null,
     val available: Int? = null,
     val details: JsonElement? = null,
+)
+
+@Serializable
+data class ManagerCardResponseDto(
+    val enrolled: Boolean = false,
+    val uid: String? = null,
+    @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("device_name") val deviceName: String? = null,
+)
+
+@Serializable
+data class ManagerCardRequestDto(
+    val uid: String,
 )
 
 @Serializable

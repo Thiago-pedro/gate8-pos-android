@@ -15,6 +15,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.prefs.SplitPaymentStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
+import br.com.gate8.pos.data.remote.dto.sameShelf
 import br.com.gate8.pos.data.remote.dto.EventCatalogDto
 import br.com.gate8.pos.data.remote.dto.TicketBatchDto
 import br.com.gate8.pos.data.remote.dto.canAdd
@@ -50,6 +51,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -119,7 +121,8 @@ class PdvViewModel(
     private val splitPay = SplitPaymentController(paymentGateway, splitStore, "pdv")
     private var splitFinished = false
 
-    private var catalogFetchGeneration = 0
+    private var catalogJob: Job? = null
+    private var cashierStatusJob: Job? = null
 
     init {
         refreshCatalog()
@@ -141,7 +144,8 @@ class PdvViewModel(
     }
 
     private fun refreshCashierStatus() {
-        viewModelScope.launch {
+        if (cashierStatusJob?.isActive == true) return
+        cashierStatusJob = viewModelScope.launch {
             runCatching { cashierRepository.fetchStatus() }
                 .onSuccess { status ->
                     _state.update { it.copy(cashierOpen = status.open) }
@@ -163,40 +167,58 @@ class PdvViewModel(
     }
 
     fun refreshCatalog() {
-        val generation = ++catalogFetchGeneration
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            val result = runCatching { catalogRepository.fetchAndCache() }
-            if (generation != catalogFetchGeneration) return@launch
-
-            result
-                .onSuccess { catalog ->
-                    _state.update { s ->
-                        val keepSelection = s.selectedEventId?.let { id ->
-                            catalog.events.any { it.id == id }
-                        } ?: false
-                        s.copy(
-                            loading = false,
-                            catalog = catalog,
-                            catalogVersion = s.catalogVersion + 1,
-                            selectedEventId = if (keepSelection) s.selectedEventId else null,
-                            cart = trimCart(s.cart, catalog.events),
-                        )
-                    }
-                }
+        if (catalogJob?.isActive == true) return
+        catalogJob = viewModelScope.launch {
+            if (_state.value.catalog == null) {
+                catalogRepository.getCached()?.let { cached -> applyCatalog(cached) }
+            }
+            val showSpinner = _state.value.catalog == null && !paymentInProgress()
+            if (showSpinner) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
+            runCatching { catalogRepository.fetchAndCache() }
+                .onSuccess { catalog -> applyCatalog(catalog) }
                 .onFailure { e ->
-                    val cached = catalogRepository.getCached()
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            catalog = cached,
-                            error = CatalogUserMessages.fromThrowable(
-                                e,
-                                "Falha ao carregar catálogo",
-                            ),
+                    if (_state.value.catalog == null) {
+                        catalogRepository.getCached()?.let { cached -> applyCatalog(cached) }
+                    }
+                    _state.update { s ->
+                        s.copy(
+                            loading = if (paymentInProgress(s)) s.loading else false,
+                            error = if (paymentInProgress(s)) {
+                                s.error
+                            } else {
+                                CatalogUserMessages.fromThrowable(e, "Falha ao carregar catálogo")
+                            },
                         )
                     }
                 }
+        }
+    }
+
+    /** Pagamento ou divisão em andamento: o catálogo não pode apagar esse estado. */
+    private fun paymentInProgress(s: PdvUiState = _state.value): Boolean =
+        s.payingMethod != null || s.split != null
+
+    private fun applyCatalog(catalog: CatalogResponseDto) {
+        _state.update { s ->
+            val sameShelf = s.catalog?.sameShelf(catalog) == true
+            if (sameShelf) {
+                s.copy(loading = if (paymentInProgress(s)) s.loading else false)
+            } else {
+                val keepSelection = s.selectedEventId?.let { id ->
+                    catalog.events.any { it.id == id }
+                } ?: false
+                val paying = paymentInProgress(s)
+                s.copy(
+                    loading = if (paying) s.loading else false,
+                    catalog = catalog,
+                    catalogVersion = if (paying) s.catalogVersion else s.catalogVersion + 1,
+                    selectedEventId = if (keepSelection) s.selectedEventId else null,
+                    cart = if (paying) s.cart else trimCart(s.cart, catalog.events),
+                    error = if (paying) s.error else null,
+                )
+            }
         }
     }
 

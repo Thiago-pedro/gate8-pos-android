@@ -16,6 +16,7 @@ import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.core.session.SessionEvents
 import br.com.gate8.pos.core.time.ServerClock
 import br.com.gate8.pos.data.repository.LoginRepository
+import br.com.gate8.pos.data.repository.ManagerCardRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.KitchenRepository
@@ -23,7 +24,6 @@ import br.com.gate8.pos.data.repository.KitchenUploadRetry
 import br.com.gate8.pos.data.repository.ReportsRepository
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
@@ -85,13 +85,8 @@ val appModule = module {
     single { get<Gate8Database>().cashlessMovementDao() }
 
     single {
-        val logging = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
-            else HttpLoggingInterceptor.Level.NONE
-        }
         OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor(get(), get(), get()))
-            .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -118,14 +113,15 @@ val appModule = module {
     single { LoginRepository(get(), get()) }
     single { ReportsRepository(get()) }
     single { CashierRepository(get(), get()) }
+    single { ManagerCardRepository(get(), get()) }
     single { CashlessAccountRepository(get(), get(), get(), get()) }
     single { KitchenRepository(get(), get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { RefundViewModel(get(), get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { RefundViewModel(get(), get(), get(), get()) }
     viewModel { ReportsViewModel(get(), get(), get(), get(), get()) }
-    viewModel { CashierViewModel(get(), get(), get()) }
+    viewModel { CashierViewModel(get(), get(), get(), get()) }
     viewModel {
         CashlessViewModel(
             get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), BuildConfig.DEBUG,

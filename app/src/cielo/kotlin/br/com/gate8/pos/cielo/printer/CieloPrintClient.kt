@@ -29,6 +29,22 @@ internal object CieloPrintClient {
     private const val SIZE_ORDER = 48
     private const val SIZE_KITCHEN = 28
 
+    /**
+     * Relatório e resumo de caixa: imagem com rótulo à esquerda, valor à direita
+     * e pontos no meio. Se a imagem não puder ser gravada, imprime o texto.
+     */
+    fun printAlignedLines(lines: List<String>, fileName: String) {
+        if (lines.isEmpty()) return
+        val imagePath = CieloAlignedReceiptBitmap.preparePath(lines, fileName)
+        if (imagePath == null) {
+            printLines(lines)
+            return
+        }
+        enqueuePrint {
+            printImageAsync(imagePath, formFeed = true)
+        }
+    }
+
     /** Enfileira impressão de texto simples (comprovantes, relatórios). */
     fun printLines(lines: List<String>, orderNumber: Int? = null) {
         if (lines.isEmpty() && orderNumber == null) return
@@ -214,7 +230,7 @@ internal object CieloPrintClient {
         dispatch(body)
     }
 
-    private suspend fun printImageAsync(imagePath: String) {
+    private suspend fun printImageAsync(imagePath: String, formFeed: Boolean = false) {
         val body = baseBody().apply {
             put("operation", "PRINT_IMAGE")
             put(
@@ -222,7 +238,7 @@ internal object CieloPrintClient {
                 JSONArray().put(
                     JSONObject().apply {
                         put("key_attributes_align", ALIGN_CENTER)
-                        put("form_feed", 0)
+                        put("form_feed", if (formFeed) 1 else 0)
                     },
                 ),
             )

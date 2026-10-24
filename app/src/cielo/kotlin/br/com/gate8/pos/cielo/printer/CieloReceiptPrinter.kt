@@ -102,13 +102,19 @@ class CieloReceiptPrinter(
 
     override fun printReportSummary(payload: ReportPrintPayload) {
         runCatching {
-            CieloPrintClient.printLines(Gate8ReceiptTextBuilder.reportSummary(payload))
+            CieloPrintClient.printAlignedLines(
+                Gate8ReceiptTextBuilder.reportSummary(payload),
+                "gate8_report.png",
+            )
         }.onFailure { Log.e(TAG, "printReportSummary falhou", it) }
     }
 
     override fun printCashierSummary(payload: CashierPrintPayload) {
         runCatching {
-            CieloPrintClient.printLines(Gate8ReceiptTextBuilder.cashierSummary(payload))
+            CieloPrintClient.printAlignedLines(
+                Gate8ReceiptTextBuilder.cashierSummary(payload),
+                "gate8_cashier.png",
+            )
         }.onFailure { Log.e(TAG, "printCashierSummary falhou", it) }
     }
 

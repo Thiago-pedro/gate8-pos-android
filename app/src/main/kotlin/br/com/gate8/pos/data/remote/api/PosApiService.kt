@@ -22,12 +22,15 @@ import br.com.gate8.pos.data.remote.dto.CashlessPatchRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessReassignRequestDto
 import br.com.gate8.pos.data.remote.dto.CashlessCloseResponseDto
 import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
+import br.com.gate8.pos.data.remote.dto.ManagerCardRequestDto
+import br.com.gate8.pos.data.remote.dto.ManagerCardResponseDto
 import br.com.gate8.pos.data.remote.dto.KitchenOrdersResponseDto
 import br.com.gate8.pos.data.remote.dto.KitchenPrintedResponseDto
 import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderResponseDto
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Headers
 import retrofit2.http.PATCH
@@ -93,6 +96,16 @@ interface PosApiService {
 
     @PATCH("api/public/pos/cashier/operator")
     suspend fun updateCashierOperator(@Body body: CashierOperatorRequestDto): Response<CashierStatusDto>
+
+    /** Um cartão de gerente por conveniência, visível em todas as maquininhas dela. */
+    @GET("api/public/pos/manager-card")
+    suspend fun getManagerCard(): Response<ManagerCardResponseDto>
+
+    @POST("api/public/pos/manager-card")
+    suspend fun saveManagerCard(@Body body: ManagerCardRequestDto): Response<ManagerCardResponseDto>
+
+    @DELETE("api/public/pos/manager-card")
+    suspend fun clearManagerCard(): Response<ManagerCardResponseDto>
 
     // --- Cashless ---
 

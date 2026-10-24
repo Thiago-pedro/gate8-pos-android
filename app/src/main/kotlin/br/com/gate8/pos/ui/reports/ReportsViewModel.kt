@@ -13,7 +13,10 @@ import br.com.gate8.pos.printer.ReportPrintItem
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.ReportPrintRow
 import br.com.gate8.pos.printer.ReceiptPrinter
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -50,6 +53,10 @@ data class ReportsUiState(
     val error: String? = null,
     val periodLabel: String = "",
     val printMessage: String? = null,
+    val loadedPeriod: ReportPeriod? = null,
+    val loadedSegment: ReportSegment? = null,
+    val loadedFrom: Instant? = null,
+    val loadedTo: Instant? = null,
 )
 
 class ReportsViewModel(
@@ -61,6 +68,7 @@ class ReportsViewModel(
 ) : ViewModel() {
     private val zone = ZoneId.of("America/Sao_Paulo")
     private val _state = MutableStateFlow(ReportsUiState())
+    private var loadJob: Job? = null
     val state: StateFlow<ReportsUiState> = _state.asStateFlow()
 
     init {
@@ -156,19 +164,47 @@ class ReportsViewModel(
 
     private fun load() {
         val (from, to, label) = resolveRange()
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, printMessage = null, periodLabel = label) }
-            val cashier = runCatching { cashierRepository.fetchStatus() }.getOrNull()
-            runCatching { reportsRepository.fetchSummary(from, to, _state.value.segment.apiValue) }
+        val requestPeriod = _state.value.period
+        val requestSegment = _state.value.segment
+        val sameQuery = _state.value.data != null &&
+            _state.value.loadedPeriod == requestPeriod &&
+            _state.value.loadedSegment == requestSegment &&
+            _state.value.loadedFrom == from &&
+            _state.value.loadedTo == to
+        if (loadJob?.isActive == true && sameQuery) return
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    loading = true,
+                    error = null,
+                    printMessage = null,
+                    periodLabel = if (sameQuery) it.periodLabel else label,
+                    data = if (sameQuery) it.data else null,
+                    isDemoData = if (sameQuery) it.isDemoData else false,
+                    cashier = if (sameQuery) it.cashier else null,
+                )
+            }
+            val cashierDeferred = async { runCatching { cashierRepository.fetchStatus() }.getOrNull() }
+            val summaryResult = runCatching {
+                reportsRepository.fetchSummary(from, to, requestSegment.apiValue)
+            }
+            val cashier = cashierDeferred.await()
+            if (!isActive) return@launch
+            summaryResult
                 .onSuccess { summary ->
-                    val isDemo = summary.device?.id == "demo"
                     _state.update {
                         it.copy(
                             loading = false,
                             data = summary,
-                            isDemoData = isDemo,
+                            isDemoData = summary.device?.id == "demo",
                             cashier = cashier,
                             periodLabel = label,
+                            loadedPeriod = requestPeriod,
+                            loadedSegment = requestSegment,
+                            loadedFrom = from,
+                            loadedTo = to,
+                            error = null,
                         )
                     }
                 }
@@ -176,7 +212,7 @@ class ReportsViewModel(
                     _state.update {
                         it.copy(
                             loading = false,
-                            cashier = cashier,
+                            cashier = cashier ?: it.cashier,
                             error = e.message ?: "Não foi possível carregar o relatório",
                         )
                     }

@@ -135,7 +135,7 @@ fun ReportsScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        if (state.loading) {
+        if (state.loading && state.data == null) {
             CircularProgressIndicator(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)

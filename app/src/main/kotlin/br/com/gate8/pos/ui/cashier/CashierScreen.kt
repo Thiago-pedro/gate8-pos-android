@@ -102,7 +102,10 @@ fun CashierScreen(
                         }
                     } else if (state.open) {
                         state.totals?.let { totals ->
-                            CashierTotalsCard(totals, state.session?.openedAt)
+                            CashierTotalsCard(
+                                vm.withSessionVoids(totals, state.session?.openedAt),
+                                state.session?.openedAt,
+                            )
                             Spacer(Modifier.height(12.dp))
                         }
                         if (state.movements.isNotEmpty()) {
@@ -295,6 +298,9 @@ private fun CashierTotalsCard(totals: CashierTotalsDto, openedAt: String?) {
         }
         TotalRow("Troco inicial", totals.openingBalance)
         TotalRow("Vendas em dinheiro", totals.cashSales)
+        if (totals.voidCash > 0.0) {
+            TotalRow("Estornos em dinheiro", totals.voidCash, negative = true)
+        }
         TotalRow("Sangrias", totals.withdrawals, negative = true)
         TotalRow("Despesas", totals.expenses, negative = true)
         Spacer(Modifier.height(8.dp))
@@ -305,6 +311,14 @@ private fun CashierTotalsCard(totals: CashierTotalsDto, openedAt: String?) {
             color = Color.White,
             fontSize = 12.sp,
         )
+        if (totals.voidCount > 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${totals.voidCount} estornos · R$ ${"%.2f".format(totals.voidTotal)} · líquido R$ ${"%.2f".format(totals.grandTotal - totals.voidTotal)}",
+                color = Color(0xFFD6E4FF),
+                fontSize = 12.sp,
+            )
+        }
     }
 }
 

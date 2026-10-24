@@ -20,6 +20,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.prefs.SplitPaymentStore
 import br.com.gate8.pos.data.remote.dto.CatalogResponseDto
+import br.com.gate8.pos.data.remote.dto.sameShelf
 import br.com.gate8.pos.data.remote.dto.CreateSaleRequestDto
 import br.com.gate8.pos.data.remote.dto.ProductDto
 import br.com.gate8.pos.data.repository.CashierRepository
@@ -48,6 +49,7 @@ import br.com.gate8.pos.payment.SplitStep
 import br.com.gate8.pos.payment.toCartLine
 import br.com.gate8.pos.printer.ReceiptPrinter
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -141,7 +143,8 @@ class ProductsViewModel(
     private var splitFinished = false
     @Volatile private var cashlessCancel = false
 
-    private var catalogFetchGeneration = 0
+    private var catalogJob: Job? = null
+    private var cashierStatusJob: Job? = null
 
     init {
         refreshCatalog()
@@ -171,7 +174,8 @@ class ProductsViewModel(
     }
 
     private fun refreshCashierStatus() {
-        viewModelScope.launch {
+        if (cashierStatusJob?.isActive == true) return
+        cashierStatusJob = viewModelScope.launch {
             runCatching { cashierRepository.fetchStatus() }
                 .onSuccess { status ->
                     _state.update { it.copy(cashierOpen = status.open) }
@@ -187,37 +191,54 @@ class ProductsViewModel(
         _state.value.cart.firstOrNull { it.productId == productId }?.quantity ?: 0
 
     fun refreshCatalog() {
-        val generation = ++catalogFetchGeneration
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            val result = runCatching { catalogRepository.fetchAndCache() }
-            if (generation != catalogFetchGeneration) return@launch
-
-            result
-                .onSuccess { catalog ->
-                    _state.update { s ->
-                        val trimmedCart = trimCart(s.cart, catalog.products)
-                        s.copy(
-                            loading = false,
-                            catalog = catalog,
-                            catalogVersion = s.catalogVersion + 1,
-                            cart = trimmedCart,
-                        )
-                    }
-                }
+        if (catalogJob?.isActive == true) return
+        catalogJob = viewModelScope.launch {
+            if (_state.value.catalog == null) {
+                catalogRepository.getCached()?.let { cached -> applyCatalog(cached) }
+            }
+            val showSpinner = _state.value.catalog == null && !paymentInProgress()
+            if (showSpinner) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
+            runCatching { catalogRepository.fetchAndCache() }
+                .onSuccess { catalog -> applyCatalog(catalog) }
                 .onFailure { e ->
-                    val cached = catalogRepository.getCached()
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            catalog = cached,
-                            error = CatalogUserMessages.fromThrowable(
-                                e,
-                                "Falha ao carregar produtos",
-                            ),
+                    if (_state.value.catalog == null) {
+                        catalogRepository.getCached()?.let { cached -> applyCatalog(cached) }
+                    }
+                    _state.update { s ->
+                        s.copy(
+                            loading = if (paymentInProgress(s)) s.loading else false,
+                            error = if (paymentInProgress(s)) {
+                                s.error
+                            } else {
+                                CatalogUserMessages.fromThrowable(e, "Falha ao carregar produtos")
+                            },
                         )
                     }
                 }
+        }
+    }
+
+    /** Pagamento ou divisão em andamento: o catálogo não pode apagar esse estado. */
+    private fun paymentInProgress(s: ProductsUiState = _state.value): Boolean =
+        s.payingMethod != null || s.split != null
+
+    private fun applyCatalog(catalog: CatalogResponseDto) {
+        _state.update { s ->
+            val sameShelf = s.catalog?.sameShelf(catalog) == true
+            if (sameShelf) {
+                s.copy(loading = if (paymentInProgress(s)) s.loading else false)
+            } else {
+                val paying = paymentInProgress(s)
+                s.copy(
+                    loading = if (paying) s.loading else false,
+                    catalog = catalog,
+                    catalogVersion = if (paying) s.catalogVersion else s.catalogVersion + 1,
+                    cart = if (paying) s.cart else trimCart(s.cart, catalog.products),
+                    error = if (paying) s.error else null,
+                )
+            }
         }
     }
 

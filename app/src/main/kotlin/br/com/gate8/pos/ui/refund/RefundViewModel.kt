@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.cashless.CashlessCardGateway
 import br.com.gate8.pos.core.sale.SaleAdminService
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.repository.ManagerCardRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.domain.model.PaymentMethodApi
 import kotlinx.coroutines.CancellationException
@@ -57,6 +58,7 @@ class RefundViewModel(
     private val saleAdmin: SaleAdminService,
     private val configStore: DeviceConfigStore,
     private val cashlessCard: CashlessCardGateway,
+    private val managerCardRepository: ManagerCardRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(RefundUiState())
     val state: StateFlow<RefundUiState> = _state.asStateFlow()
@@ -86,6 +88,13 @@ class RefundViewModel(
 
     fun requestVoid(sale: LastSaleRecord) {
         if (_state.value.loading || _state.value.waitingManagerCard || sale.voided) return
+        viewModelScope.launch {
+            runCatching { managerCardRepository.sync(configStore) }
+            startVoid(sale)
+        }
+    }
+
+    private fun startVoid(sale: LastSaleRecord) {
         val expected = configStore.getManagerCardUid()
         if (expected.isNullOrBlank()) {
             _state.update {

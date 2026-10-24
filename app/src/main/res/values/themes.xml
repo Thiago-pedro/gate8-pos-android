@@ -4,13 +4,17 @@
 
     <style name="Theme.Gate8POS" parent="android:Theme.Material.Light.NoActionBar">
 
-        <item name="android:statusBarColor">@color/gate8_background</item>
+        <item name="android:statusBarColor">@color/gate8_navigation_bar</item>
 
-        <item name="android:navigationBarColor">@color/gate8_background</item>
+        <item name="android:navigationBarColor">@color/gate8_navigation_bar</item>
 
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
 
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <item name="android:enforceStatusBarContrast">false</item>
+
+        <item name="android:enforceNavigationBarContrast">false</item>
 
     </style>
 
@@ -20,13 +24,17 @@
 
         <item name="android:windowBackground">@drawable/splash_window_bg</item>
 
-        <item name="android:statusBarColor">@color/gate8_background</item>
+        <item name="android:statusBarColor">@color/gate8_navigation_bar</item>
 
-        <item name="android:navigationBarColor">@color/gate8_background</item>
+        <item name="android:navigationBarColor">@color/gate8_navigation_bar</item>
 
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
 
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <item name="android:enforceStatusBarContrast">false</item>
+
+        <item name="android:enforceNavigationBarContrast">false</item>
 
     </style>
 

@@ -37,7 +37,11 @@ data class CashierTotalsDto(
     @SerialName("expected_drawer") val expectedDrawer: Double = 0.0,
     @SerialName("sale_count") val saleCount: Int = 0,
     @SerialName("grand_total") val grandTotal: Double = 0.0,
+    @SerialName("void_count") val voidCount: Int = 0,
+    @SerialName("void_total") val voidTotal: Double = 0.0,
+    @SerialName("void_cash") val voidCash: Double = 0.0,
     @SerialName("by_payment_method") val byPaymentMethod: List<CashierPaymentRowDto> = emptyList(),
+    @SerialName("void_by_payment_method") val voidByPaymentMethod: List<CashierPaymentRowDto> = emptyList(),
 )
 
 @Serializable

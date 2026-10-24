@@ -113,16 +113,37 @@ class DeviceConfigStore(context: Context) {
         prefs.edit().putBoolean(KEY_KITCHEN_MODE, enabled).apply()
     }
 
-    /** UID do cartão cashless que libera estorno neste terminal. */
+    /** UID do cartão cashless que libera estorno nesta conveniência. */
     fun getManagerCardUid(): String? =
         prefs.getString(KEY_MANAGER_CARD_UID, null)?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun setManagerCardUid(uid: String) {
-        prefs.edit().putString(KEY_MANAGER_CARD_UID, uid.trim().uppercase()).apply()
+    fun getManagerCardDeviceId(): String? =
+        prefs.getString(KEY_MANAGER_CARD_DEVICE_ID, null)?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun getManagerCardDeviceName(): String? =
+        prefs.getString(KEY_MANAGER_CARD_DEVICE_NAME, null)?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** Sem dono gravado, o cartão local antigo continua editável nesta maquininha. */
+    fun isManagerCardOwnedHere(): Boolean {
+        val owner = getManagerCardDeviceId() ?: return true
+        val mine = getDeviceId() ?: return true
+        return owner.equals(mine, ignoreCase = true)
+    }
+
+    fun setManagerCard(uid: String, deviceId: String?, deviceName: String?) {
+        prefs.edit()
+            .putString(KEY_MANAGER_CARD_UID, uid.trim().uppercase())
+            .putString(KEY_MANAGER_CARD_DEVICE_ID, deviceId?.trim().orEmpty())
+            .putString(KEY_MANAGER_CARD_DEVICE_NAME, deviceName?.trim().orEmpty())
+            .apply()
     }
 
     fun clearManagerCardUid() {
-        prefs.edit().remove(KEY_MANAGER_CARD_UID).apply()
+        prefs.edit()
+            .remove(KEY_MANAGER_CARD_UID)
+            .remove(KEY_MANAGER_CARD_DEVICE_ID)
+            .remove(KEY_MANAGER_CARD_DEVICE_NAME)
+            .apply()
     }
 
     @Synchronized
@@ -201,6 +222,8 @@ class DeviceConfigStore(context: Context) {
             .remove(KEY_KITCHEN_SEQ)
             .remove(KEY_KITCHEN_RECENT)
             .remove(KEY_MANAGER_CARD_UID)
+            .remove(KEY_MANAGER_CARD_DEVICE_ID)
+            .remove(KEY_MANAGER_CARD_DEVICE_NAME)
             .apply()
     }
 
@@ -222,5 +245,7 @@ class DeviceConfigStore(context: Context) {
         private const val KEY_KITCHEN_PRINTED = "kitchen_printed_ids"
         private const val KEY_KITCHEN_RECENT = "kitchen_recent_json"
         private const val KEY_MANAGER_CARD_UID = "manager_card_uid"
+        private const val KEY_MANAGER_CARD_DEVICE_ID = "manager_card_device_id"
+        private const val KEY_MANAGER_CARD_DEVICE_NAME = "manager_card_device_name"
     }
 }

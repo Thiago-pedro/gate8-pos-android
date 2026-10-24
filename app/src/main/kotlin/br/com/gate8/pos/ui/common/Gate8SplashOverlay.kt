@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
 
-private const val SPLASH_MIN_MS = 2_000L
+private const val SPLASH_MIN_MS = 2_500L
 
 @Composable
 fun Gate8SplashHost(

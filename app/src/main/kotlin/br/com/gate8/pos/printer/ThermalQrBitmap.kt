@@ -7,29 +7,23 @@ import android.util.Log
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import java.io.File
-import java.io.FileOutputStream
 
 /** Gera PNG monocromático do QR para impressão térmica (Cielo `PRINT_IMAGE`). */
 object ThermalQrBitmap {
     private const val TAG = "ThermalQrBitmap"
     private const val SIZE_PX = 260
-    private const val CIELO_IMAGE_DIR = "/storage/emulated/0/saved_images"
 
     fun prepareQrPath(context: Context, payload: String): String? {
         val content = payload.trim()
         if (content.isEmpty()) return null
         return runCatching {
-            val dir = File(CIELO_IMAGE_DIR).takeIf { it.exists() || it.mkdirs() }
-                ?: context.cacheDir
-            val outFile = File(dir, "gate8_ticket_qr_${content.hashCode().toUInt()}.png")
             val bitmap = encodeQr(content, SIZE_PX) ?: return null
-            FileOutputStream(outFile).use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            }
+            val path = PrintImageFiles.writePng(
+                "gate8_ticket_qr_${content.hashCode().toUInt()}.png",
+                bitmap,
+            )
             bitmap.recycle()
-            if (!outFile.exists() || outFile.length() == 0L) return null
-            outFile.absolutePath
+            path
         }.onFailure { Log.w(TAG, "QR não gerado", it) }.getOrNull()
     }
 

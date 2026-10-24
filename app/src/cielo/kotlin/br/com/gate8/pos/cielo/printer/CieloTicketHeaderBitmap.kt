@@ -8,8 +8,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.Log
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
-import java.io.File
-import java.io.FileOutputStream
+import br.com.gate8.pos.printer.PrintImageFiles
 
 /**
  * Cabeçalho do ingresso desenhado na largura da bobina (384 px).
@@ -19,24 +18,14 @@ internal object CieloTicketHeaderBitmap {
     private const val TAG = "CieloTicketHeader"
     private const val PAPER_PX = 384
     private const val PAD_X = 4
-    private const val CIELO_IMAGE_DIR = "/storage/emulated/0/saved_images"
     private const val FILE_NAME = "gate8_ticket_header.png"
 
     fun preparePath(context: Context): String? {
         return runCatching {
-            val dir = File(CIELO_IMAGE_DIR)
-            if (!dir.exists() && !dir.mkdirs()) {
-                Log.w(TAG, "Não foi possível criar $CIELO_IMAGE_DIR")
-                return null
-            }
-            val outFile = File(dir, FILE_NAME)
             val bitmap = render()
-            FileOutputStream(outFile).use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            }
+            val path = PrintImageFiles.writePng(FILE_NAME, bitmap)
             bitmap.recycle()
-            if (!outFile.exists() || outFile.length() == 0L) return null
-            outFile.absolutePath
+            path
         }.onFailure { Log.w(TAG, "Cabeçalho do ingresso não preparado", it) }
             .getOrNull()
     }

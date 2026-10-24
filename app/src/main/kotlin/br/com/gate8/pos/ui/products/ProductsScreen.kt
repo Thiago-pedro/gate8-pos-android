@@ -368,7 +368,7 @@ fun ProductsScreen(
                             }
                         }
                     }
-                    if (state.loading) {
+                    if (state.loading && (state.payingMethod != null || state.split != null)) {
                         Box(
                             Modifier
                                 .fillMaxSize()

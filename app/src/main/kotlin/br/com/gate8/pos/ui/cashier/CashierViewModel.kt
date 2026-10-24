@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
+import br.com.gate8.pos.data.prefs.LastSaleStore
+import br.com.gate8.pos.domain.model.LastSaleRecord
+import br.com.gate8.pos.domain.model.PaymentMethodApi
 import br.com.gate8.pos.data.remote.dto.CashierCloseSummaryDto
 import br.com.gate8.pos.data.remote.dto.CashierMovementDto
 import br.com.gate8.pos.data.remote.dto.CashierSessionDto
@@ -14,6 +17,7 @@ import br.com.gate8.pos.printer.CashierPrintMovement
 import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.ReportPrintRow
 import br.com.gate8.pos.printer.ReceiptPrinter
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,9 +77,12 @@ class CashierViewModel(
     private val cashierRepository: CashierRepository,
     private val printer: ReceiptPrinter,
     private val configStore: DeviceConfigStore,
+    private val lastSaleStore: LastSaleStore,
 ) : ViewModel() {
     private val zone = ZoneId.of("America/Sao_Paulo")
     private val _state = MutableStateFlow(CashierUiState())
+    private var statusJob: Job? = null
+    private var mutatingCashier = false
     val state: StateFlow<CashierUiState> = _state.asStateFlow()
 
     init {
@@ -93,11 +100,20 @@ class CashierViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+        if (statusJob?.isActive == true) return
+        statusJob = viewModelScope.launch {
+            val showSpinner = !mutatingCashier &&
+                _state.value.session == null &&
+                !_state.value.open
+            if (showSpinner) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
             runCatching { cashierRepository.fetchStatus() }
-                .onSuccess { status -> applyStatus(status) }
+                .onSuccess { status ->
+                    if (!mutatingCashier) applyStatus(status)
+                }
                 .onFailure { e ->
+                    if (mutatingCashier) return@onFailure
                     _state.update {
                         it.copy(
                             loading = false,
@@ -147,7 +163,9 @@ class CashierViewModel(
             _state.update { it.copy(error = "Informe o troco inicial (ex.: 200,00)") }
             return
         }
+        mutatingCashier = true
         viewModelScope.launch {
+            try {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
                 cashierRepository.open(amount, configStore.getOperatorName(), _state.value.notesInput)
@@ -170,6 +188,9 @@ class CashierViewModel(
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }
                 }
+            } finally {
+                mutatingCashier = false
+            }
         }
     }
 
@@ -192,7 +213,9 @@ class CashierViewModel(
             _state.update { it.copy(error = "Informe o motivo/descrição") }
             return
         }
+        mutatingCashier = true
         viewModelScope.launch {
+            try {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
                 if (isExpense) {
@@ -213,6 +236,9 @@ class CashierViewModel(
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }
                 }
+            } finally {
+                mutatingCashier = false
+            }
         }
     }
 
@@ -256,7 +282,9 @@ class CashierViewModel(
         val preSession = _state.value.session
         val preTotals = _state.value.totals
         val preMovements = _state.value.movements
+        mutatingCashier = true
         viewModelScope.launch {
+            try {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
                 cashierRepository.close(counted, _state.value.notesInput)
@@ -292,6 +320,9 @@ class CashierViewModel(
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }
                 }
+            } finally {
+                mutatingCashier = false
+            }
         }
     }
 
@@ -375,6 +406,7 @@ class CashierViewModel(
         val difference = summary?.difference
             ?: status.session?.difference
             ?: (counted - totals.expectedDrawer)
+        val shown = withSessionVoids(totals, session?.openedAt)
         val closedLabel = session?.closedAt?.let { formatInstantLabel(it) }
             ?: formatInstantLabel(Instant.now().toString())
         return CashierPrintPayload(
@@ -383,16 +415,20 @@ class CashierViewModel(
             operatorName = configStore.getOperatorName().ifBlank { session?.operatorName ?: "" },
             openedAtLabel = formatInstantLabel(session?.openedAt),
             closedAtLabel = closedLabel,
-            openingBalance = totals.openingBalance,
-            cashSales = totals.cashSales,
-            withdrawals = totals.withdrawals,
-            expenses = totals.expenses,
-            expectedDrawer = totals.expectedDrawer,
+            openingBalance = shown.openingBalance,
+            cashSales = shown.cashSales,
+            withdrawals = shown.withdrawals,
+            expenses = shown.expenses,
+            expectedDrawer = shown.expectedDrawer,
             countedBalance = summary?.countedBalance ?: counted,
             difference = difference,
-            saleCount = totals.saleCount,
-            grandTotal = totals.grandTotal,
-            byPaymentMethod = totals.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
+            saleCount = shown.saleCount,
+            grandTotal = shown.grandTotal,
+            voidCount = shown.voidCount,
+            voidTotal = shown.voidTotal,
+            voidCash = shown.voidCash,
+            byPaymentMethod = shown.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
+            voidByPaymentMethod = shown.voidByPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
             movements = movements.map {
                 CashierPrintMovement(
                     typeLabel = if (it.type == "expense") "Despesa" else "Sangria",
@@ -411,22 +447,27 @@ class CashierViewModel(
         difference: Double?,
         countedBalance: Double? = session.countedBalance,
     ): CashierPrintPayload {
+        val shown = withSessionVoids(totals, session.openedAt)
         return CashierPrintPayload(
             deviceName = configStore.getDeviceName(),
             producerName = configStore.getEstablishmentName(),
             operatorName = configStore.getOperatorName().ifBlank { session.operatorName },
             openedAtLabel = formatInstantLabel(session.openedAt),
             closedAtLabel = session.closedAt?.let { formatInstantLabel(it) },
-            openingBalance = totals.openingBalance,
-            cashSales = totals.cashSales,
-            withdrawals = totals.withdrawals,
-            expenses = totals.expenses,
-            expectedDrawer = totals.expectedDrawer,
+            openingBalance = shown.openingBalance,
+            cashSales = shown.cashSales,
+            withdrawals = shown.withdrawals,
+            expenses = shown.expenses,
+            expectedDrawer = shown.expectedDrawer,
             countedBalance = countedBalance,
             difference = difference ?: session.difference,
-            saleCount = totals.saleCount,
-            grandTotal = totals.grandTotal,
-            byPaymentMethod = totals.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
+            saleCount = shown.saleCount,
+            grandTotal = shown.grandTotal,
+            voidCount = shown.voidCount,
+            voidTotal = shown.voidTotal,
+            voidCash = shown.voidCash,
+            byPaymentMethod = shown.byPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
+            voidByPaymentMethod = shown.voidByPaymentMethod.map { ReportPrintRow(it.label, it.count, it.total) },
             movements = movements.map {
                 CashierPrintMovement(
                     typeLabel = if (it.type == "expense") "Despesa" else "Sangria",
@@ -449,6 +490,68 @@ class CashierViewModel(
                 closeSummary = status.summary ?: it.closeSummary,
             )
         }
+    }
+
+    /**
+     * O painel tira a venda estornada dos totais. O resumo do caixa mostra a venda
+     * e o estorno. O esperado da gaveta continua no líquido.
+     */
+    fun withSessionVoids(totals: CashierTotalsDto, openedAt: String?): CashierTotalsDto {
+        if (totals.voidCount > 0 || totals.voidTotal > 0.0) return totals
+        val since = openedAt?.let { parseInstant(it)?.toEpochMilli() } ?: return totals
+        val voided = lastSaleStore.list().filter { it.voided && it.createdAt >= since }
+        if (voided.isEmpty()) return totals
+
+        val grossByLabel = totals.byPaymentMethod
+            .associate { it.label to (it.count to it.total) }
+            .toMutableMap()
+        val voidByLabel = linkedMapOf<String, Pair<Int, Double>>()
+        var voidCash = 0.0
+        voided.forEach { sale ->
+            salePortions(sale).forEach { (label, amount, isCash) ->
+                if (isCash) voidCash += amount
+                val (voidCount, voidAmount) = voidByLabel[label] ?: (0 to 0.0)
+                voidByLabel[label] = (voidCount + 1) to (voidAmount + amount)
+                val (grossCount, grossAmount) = grossByLabel[label] ?: (0 to 0.0)
+                grossByLabel[label] = (grossCount + 1) to (grossAmount + amount)
+            }
+        }
+        val voidTotal = voided.sumOf { it.total }
+        return totals.copy(
+            cashSales = totals.cashSales + voidCash,
+            saleCount = totals.saleCount + voided.size,
+            grandTotal = totals.grandTotal + voidTotal,
+            voidCount = voided.size,
+            voidTotal = voidTotal,
+            voidCash = voidCash,
+            byPaymentMethod = grossByLabel.map { (label, row) ->
+                br.com.gate8.pos.data.remote.dto.CashierPaymentRowDto(
+                    method = label.lowercase(),
+                    label = label,
+                    count = row.first,
+                    total = row.second,
+                )
+            },
+            voidByPaymentMethod = voidByLabel.map { (label, row) ->
+                br.com.gate8.pos.data.remote.dto.CashierPaymentRowDto(
+                    method = label.lowercase(),
+                    label = label,
+                    count = row.first,
+                    total = row.second,
+                )
+            },
+        )
+    }
+
+    private fun salePortions(sale: LastSaleRecord): List<Triple<String, Double, Boolean>> {
+        if (sale.payments.isNotEmpty()) {
+            return sale.payments.map { part ->
+                val method = PaymentMethodApi.fromApiValue(part.method.lowercase())
+                Triple(method.displayLabel(), part.amountCents / 100.0, method == PaymentMethodApi.CASH)
+            }
+        }
+        val method = PaymentMethodApi.fromApiValue(sale.paymentMethod.lowercase())
+        return listOf(Triple(method.displayLabel(), sale.total, method == PaymentMethodApi.CASH))
     }
 
     private fun parseAmount(raw: String): Double? {

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="cielo.lio.permission.CASHLESS" />
 
     <!-- Android 11+ : UriApp (pagamento/print) + Cashless Mifare -->
@@ -11,7 +11,9 @@
         <package android:name="cielo.lio.cashless" />
     </queries>
 
-    <application android:requestLegacyExternalStorage="true">
+    <application
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
         <meta-data
             android:name="cs_integration_type"
             android:value="uri" />

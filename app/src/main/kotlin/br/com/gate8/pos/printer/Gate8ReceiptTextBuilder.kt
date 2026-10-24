@@ -474,6 +474,9 @@ object Gate8ReceiptTextBuilder {
         add(divider())
         add(dotLeaderRow("TROCO INICIAL:", money(payload.openingBalance)))
         add(dotLeaderRow("VENDAS CASH:", money(payload.cashSales)))
+        if (payload.voidCash > 0.0) {
+            add(dotLeaderRow("ESTORNO CASH:", money(payload.voidCash)))
+        }
         add(dotLeaderRow("SANGRIAS:", money(payload.withdrawals)))
         add(dotLeaderRow("DESPESAS:", money(payload.expenses)))
         add(dotLeaderRow("ESPERADO:", money(payload.expectedDrawer)))
@@ -482,6 +485,25 @@ object Gate8ReceiptTextBuilder {
         add(divider())
         add(dotLeaderRow("VENDAS:", payload.saleCount.toString()))
         add(dotLeaderRow("TOTAL:", money(payload.grandTotal)))
+        if (payload.voidCount > 0) {
+            add(dotLeaderRow("ESTORNOS:", payload.voidCount.toString()))
+            add(dotLeaderRow("ESTORNOS R$:", money(payload.voidTotal)))
+            add(dotLeaderRow("LIQUIDO:", money(payload.grandTotal - payload.voidTotal)))
+        }
+        if (payload.byPaymentMethod.isNotEmpty()) {
+            add(divider())
+            add(center("POR PAGAMENTO"))
+            payload.byPaymentMethod.forEach { row ->
+                add(dotLeaderRow("${row.label.uppercase(brLocale)}:", "${row.count}  ${money(row.total)}"))
+            }
+        }
+        if (payload.voidByPaymentMethod.isNotEmpty()) {
+            add(divider())
+            add(center("ESTORNOS"))
+            payload.voidByPaymentMethod.forEach { row ->
+                add(dotLeaderRow("${row.label.uppercase(brLocale)}:", "${row.count}  ${money(row.total)}"))
+            }
+        }
         addAll(footer())
     }
 

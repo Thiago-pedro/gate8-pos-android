@@ -128,6 +128,8 @@ fun SetupScreen(
                 SettingsCard {
                     ManagerCardBlock(
                         uid = state.managerCardUid,
+                        ownerLabel = state.managerCardOwnerLabel,
+                        canEdit = state.managerCardCanEdit,
                         busy = state.waitingManagerCard,
                         onEnroll = vm::enrollManagerCard,
                         onClear = vm::clearManagerCard,
@@ -389,11 +391,18 @@ private fun SettingToggle(
 @Composable
 private fun ManagerCardBlock(
     uid: String?,
+    ownerLabel: String?,
+    canEdit: Boolean,
     busy: Boolean,
     onEnroll: () -> Unit,
     onClear: () -> Unit,
 ) {
     val enrolled = !uid.isNullOrBlank()
+    val status = when {
+        !ownerLabel.isNullOrBlank() -> ownerLabel
+        enrolled -> "Cadastrado nesta maquininha"
+        else -> "Pendente. Sem ele, o estorno não libera."
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconBadge(Icons.Filled.Contactless, tint = if (enrolled) Gate8Colors.Success else Gate8Colors.AccentBlue)
         Spacer(Modifier.width(12.dp))
@@ -405,7 +414,7 @@ private fun ManagerCardBlock(
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                if (enrolled) "Cadastrado · $uid" else "Pendente. Sem ele, o estorno não libera.",
+                status,
                 color = if (enrolled) Gate8Colors.Success else Color(0xFFD6E4FF),
                 fontSize = 12.sp,
                 maxLines = 2,
@@ -413,6 +422,7 @@ private fun ManagerCardBlock(
             )
         }
     }
+    if (!canEdit) return
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         CompactButton(

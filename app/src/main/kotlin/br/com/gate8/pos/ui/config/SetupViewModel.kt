@@ -13,6 +13,7 @@ import br.com.gate8.pos.data.local.entity.PendingSaleStatus
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.CashierRepository
+import br.com.gate8.pos.data.repository.ManagerCardRepository
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.device.PosHardwareInfo
@@ -58,6 +59,10 @@ data class SetupUiState(
     val openKitchenOnDismiss: Boolean = false,
     /** UID do cartão cashless que libera estorno. */
     val managerCardUid: String? = null,
+    /** Preenchido quando o cartão foi criado em outro PDV da mesma conveniência. */
+    val managerCardOwnerLabel: String? = null,
+    /** Esta maquininha pode gravar ou remover o cartão. */
+    val managerCardCanEdit: Boolean = true,
     val waitingManagerCard: Boolean = false,
 )
 
@@ -71,10 +76,13 @@ class SetupViewModel(
     private val hardwareInfo: PosHardwareInfo,
     private val catalogRepository: CatalogRepository,
     private val cashlessCard: CashlessCardGateway,
+    private val managerCardRepository: ManagerCardRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
     private var managerJob: Job? = null
+    private var managerSyncJob: Job? = null
+    private var cashierStatusJob: Job? = null
 
     init {
         refresh()
@@ -100,9 +108,10 @@ class SetupViewModel(
                 pendingSyncCount = 0,
                 convenienceTicketMode = configStore.isConvenienceTicketMode(),
                 kitchenMode = configStore.isKitchenMode(),
-                managerCardUid = configStore.getManagerCardUid(),
             )
         }
+        publishManagerCard()
+        refreshManagerCard()
         viewModelScope.launch {
             _state.update { it.copy(pendingSyncCount = countPendingSync()) }
         }
@@ -110,7 +119,8 @@ class SetupViewModel(
     }
 
     private fun refreshCashierStatus() {
-        viewModelScope.launch {
+        if (cashierStatusJob?.isActive == true) return
+        cashierStatusJob = viewModelScope.launch {
             runCatching { cashierRepository.fetchStatus() }
                 .onSuccess { status ->
                     _state.update {
@@ -126,7 +136,6 @@ class SetupViewModel(
     fun onScreenVisible() {
         refresh()
         syncPendingSales()
-        refreshCashierStatus()
     }
 
     fun syncPendingSales() {
@@ -316,6 +325,15 @@ class SetupViewModel(
 
     fun enrollManagerCard() {
         if (_state.value.waitingManagerCard) return
+        if (!_state.value.managerCardCanEdit) {
+            _state.update {
+                it.copy(
+                    error = it.managerCardOwnerLabel ?: "Cartão já criado em outro PDV",
+                    message = null,
+                )
+            }
+            return
+        }
         _state.update { it.copy(waitingManagerCard = true, error = null, message = null) }
         managerJob?.cancel()
         managerJob = viewModelScope.launch {
@@ -326,14 +344,38 @@ class SetupViewModel(
                 if (uid.isBlank()) {
                     throw IllegalStateException("Cartão sem identificação. Aproxime de novo.")
                 }
-                configStore.setManagerCardUid(uid)
-                _state.update {
-                    it.copy(
-                        waitingManagerCard = false,
-                        managerCardUid = uid.uppercase(),
-                        message = "Cartão do gerente gravado",
-                        error = null,
-                    )
+                when (val lookup = managerCardRepository.save(uid)) {
+                    ManagerCardRepository.Lookup.Unavailable -> {
+                        configStore.setManagerCard(uid, configStore.getDeviceId(), configStore.getDeviceName())
+                        publishManagerCard()
+                        _state.update {
+                            it.copy(
+                                waitingManagerCard = false,
+                                message = "Cartão do gerente gravado",
+                                error = null,
+                            )
+                        }
+                    }
+                    ManagerCardRepository.Lookup.Empty -> {
+                        _state.update {
+                            it.copy(
+                                waitingManagerCard = false,
+                                error = "Não foi possível gravar o cartão do gerente.",
+                            )
+                        }
+                    }
+                    is ManagerCardRepository.Lookup.Found -> {
+                        configStore.setManagerCard(lookup.card.uid, lookup.card.deviceId, lookup.card.deviceName)
+                        publishManagerCard()
+                        val taken = !configStore.isManagerCardOwnedHere()
+                        _state.update {
+                            it.copy(
+                                waitingManagerCard = false,
+                                message = if (taken) null else "Cartão do gerente gravado",
+                                error = if (taken) it.managerCardOwnerLabel else null,
+                            )
+                        }
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -356,13 +398,38 @@ class SetupViewModel(
     }
 
     fun clearManagerCard() {
-        if (_state.value.waitingManagerCard) return
-        configStore.clearManagerCardUid()
+        if (_state.value.waitingManagerCard || !_state.value.managerCardCanEdit) return
+        viewModelScope.launch {
+            runCatching { managerCardRepository.clear() }
+            configStore.clearManagerCardUid()
+            publishManagerCard()
+            _state.update {
+                it.copy(message = "Cartão do gerente removido", error = null)
+            }
+        }
+    }
+
+    private fun refreshManagerCard() {
+        if (managerSyncJob?.isActive == true) return
+        managerSyncJob = viewModelScope.launch {
+            runCatching { managerCardRepository.sync(configStore) }
+            publishManagerCard()
+        }
+    }
+
+    private fun publishManagerCard() {
+        val uid = configStore.getManagerCardUid()
+        val canEdit = uid.isNullOrBlank() || configStore.isManagerCardOwnedHere()
+        val owner = configStore.getManagerCardDeviceName()
         _state.update {
             it.copy(
-                managerCardUid = null,
-                message = "Cartão do gerente removido",
-                error = null,
+                managerCardUid = uid,
+                managerCardCanEdit = canEdit,
+                managerCardOwnerLabel = if (!uid.isNullOrBlank() && !canEdit) {
+                    if (owner.isNullOrBlank()) "Cartão já criado em outro PDV" else "Cartão já criado no PDV ($owner)"
+                } else {
+                    null
+                },
             )
         }
     }

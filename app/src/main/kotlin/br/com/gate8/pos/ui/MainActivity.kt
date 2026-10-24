@@ -1,7 +1,14 @@
 package br.com.gate8.pos.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -42,16 +49,31 @@ class MainActivity : ComponentActivity() {
     private val configStore: DeviceConfigStore by inject()
     private val sessionEvents: SessionEvents by inject()
     private val keepSystemSplash = AtomicBoolean(true)
+    private var askedPrintStorage = false
+    private val printStoragePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
+    override fun onResume() {
+        super.onResume()
+        // A tela de pagamento da Cielo devolve a activity com as faixas brancas de novo.
+        applyBlackSystemBars()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().setKeepOnScreenCondition { keepSystemSplash.get() }
         super.onCreate(savedInstanceState)
+        applyBlackSystemBars()
+        ensurePrintImagePermission()
         configStore.ensureDefaultBaseUrl()
 
         setContent {
             Gate8SplashHost(
                 onSplashVisible = { visible -> keepSystemSplash.set(visible) },
-                onSplashFinished = { setTheme(R.style.Theme_Gate8POS) },
+                onSplashFinished = {
+                    setTheme(R.style.Theme_Gate8POS)
+                    applyBlackSystemBars()
+                },
             ) {
                 Gate8Theme {
                     val nav = rememberNavController()
@@ -138,6 +160,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /** Logo, cabeçalho e QR do ingresso são arquivos que a impressora da Cielo lê fora do app. */
+    private fun ensurePrintImagePermission() {
+        if (askedPrintStorage) return
+        if (Build.VERSION.SDK_INT !in Build.VERSION_CODES.M..32) return
+        val permission = Manifest.permission.WRITE_EXTERNAL_STORAGE
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        askedPrintStorage = true
+        printStoragePermission.launch(permission)
+    }
+
+    private fun applyBlackSystemBars() {
+        window.statusBarColor = Color.BLACK
+        window.navigationBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
     }
 }
