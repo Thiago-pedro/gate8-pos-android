@@ -14,7 +14,6 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -101,8 +100,12 @@ class MainActivity : ComponentActivity() {
                                 composable(
                                     Routes.Login,
                                     exitTransition = {
-                                        fadeOut(tween(420)) +
-                                            slideOutVertically(tween(420)) { height -> -height / 12 }
+                                        if (targetState.destination.route == Routes.Home) {
+                                            fadeOut(tween(640))
+                                        } else {
+                                            fadeOut(tween(420)) +
+                                                slideOutVertically(tween(420)) { height -> -height / 12 }
+                                        }
                                     },
                                 ) {
                                     LoginScreen(
@@ -135,16 +138,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 composable(
                                     Routes.Home,
-                                    enterTransition = {
-                                        val fromLogin = initialState.destination.route == Routes.Login ||
-                                            initialState.destination.route == Routes.LoginPending
-                                        if (fromLogin) {
-                                            fadeIn(tween(460)) +
-                                                slideInVertically(tween(460)) { height -> height / 14 }
-                                        } else {
-                                            EnterTransition.None
-                                        }
-                                    },
+                                    enterTransition = { EnterTransition.None },
                                 ) {
                                     HomeScreen(
                                         onPdv = { nav.navigate(Routes.Pdv) },

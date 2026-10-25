@@ -30,6 +30,7 @@ data class LoginUiState(
     /** Sobe a cada falha para a animação de erro tocar de novo. */
     val errorTick: Int = 0,
     val producerToken: String = "",
+    val operatorName: String = "",
     val error: String? = null,
     val pendingDeviceName: String? = null,
     val disabledDeviceName: String? = null,
@@ -78,6 +79,37 @@ class LoginViewModel(
         val current = _state.value
         if (current.loading || current.confirmed || current.error == null) return
         _state.update { it.copy(producerToken = "") }
+    }
+
+    fun operatorRequired(): Boolean = !configStore.hasOperatorName()
+
+    fun onOperatorNameChange(value: String) {
+        val raw = value.take(48)
+        val prefix = "POS - "
+        val cleaned = if (raw.trimStart().startsWith(prefix, ignoreCase = true)) {
+            raw.trimStart().substring(prefix.length)
+        } else {
+            raw
+        }
+        _state.update { it.copy(operatorName = cleaned.take(40)) }
+    }
+
+    /** Grava "POS - nome", o mesmo formato do cadastro na home. */
+    fun confirmOperator(): Boolean {
+        val typed = stripOperatorPrefix(_state.value.operatorName)
+        if (typed.isBlank()) return false
+        configStore.setOperatorName("POS - $typed")
+        return true
+    }
+
+    private fun stripOperatorPrefix(value: String): String {
+        val trimmed = value.trim()
+        val prefix = "POS - "
+        return if (trimmed.startsWith(prefix, ignoreCase = true)) {
+            trimmed.substring(prefix.length).trim()
+        } else {
+            trimmed
+        }
     }
 
     fun login() {

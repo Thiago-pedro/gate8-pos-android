@@ -17,11 +17,13 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -85,6 +87,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -93,6 +97,7 @@ import androidx.compose.ui.unit.sp
 import br.com.gate8.pos.R
 import br.com.gate8.pos.ui.common.Gate8HeaderLogo
 import br.com.gate8.pos.ui.common.Gate8MenuButton
+import br.com.gate8.pos.ui.common.Gate8OutlinedTextField
 import br.com.gate8.pos.ui.common.Gate8ScreenBackground
 import br.com.gate8.pos.ui.theme.Gate8Colors
 import kotlin.math.abs
@@ -101,6 +106,8 @@ import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 private enum class TokenPhase { Idle, Checking, Success, Error, Done }
+
+private enum class LoginCard { Token, Operator }
 
 private const val TOKEN_ACCENT = 0xFF0000FE
 
@@ -123,6 +130,13 @@ fun LoginScreen(
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     var folded by remember { mutableStateOf(false) }
+    var cardMode by remember { mutableStateOf(LoginCard.Token) }
+    var fadeToBlack by remember { mutableStateOf(false) }
+    val blackAlpha by animateFloatAsState(
+        targetValue = if (fadeToBlack) 1f else 0f,
+        animationSpec = tween(560, easing = FastOutSlowInEasing),
+        label = "fadeToBlack",
+    )
     val phase = when {
         folded -> TokenPhase.Done
         state.confirmed -> TokenPhase.Success
@@ -166,6 +180,17 @@ fun LoginScreen(
         delay(650)
         folded = true
         delay(780)
+        if (vm.operatorRequired()) {
+            cardMode = LoginCard.Operator
+        } else {
+            fadeToBlack = true
+        }
+    }
+
+    LaunchedEffect(fadeToBlack) {
+        if (!fadeToBlack) return@LaunchedEffect
+        keyboard?.hide()
+        delay(580)
         onHome()
     }
 
@@ -213,7 +238,11 @@ fun LoginScreen(
         } else {
             18.dp
         }
-        val cardBlock = if (keyboardOpen) boxSize + 96.dp else cardHeight
+        val cardBlock = when {
+            cardMode == LoginCard.Operator && keyboardOpen -> boxSize + 210.dp
+            keyboardOpen -> boxSize + 96.dp
+            else -> cardHeight
+        }
         val topGap = if (!keyboardOpen) {
             screenHeight * 0.15f
         } else {
@@ -227,21 +256,66 @@ fun LoginScreen(
             Spacer(Modifier.height(topGap))
             LoginLogo(width = logoWidth)
             Spacer(Modifier.height(midGap))
-            LoginTokenCard(
-                cardWidth = cardWidth,
-                cardHeight = if (keyboardOpen) null else cardHeight,
-                cardRadius = cardRadius,
-                boxSize = boxSize,
-                boxGap = boxGap,
-                boxCorner = boxCorner,
-                phase = phase,
-                token = state.producerToken,
-                error = state.error,
-                errorTick = state.errorTick,
-                enabled = !state.loading && !state.confirmed,
-                onTokenChange = vm::onProducerTokenChange,
-            )
+            AnimatedContent(
+                targetState = cardMode,
+                modifier = Modifier.width(cardWidth),
+                contentAlignment = Alignment.TopCenter,
+                transitionSpec = {
+                    (
+                        fadeIn(tween(380)) + scaleIn(
+                            initialScale = 0.94f,
+                            animationSpec = tween(480, easing = FastOutSlowInEasing),
+                        )
+                        ).togetherWith(
+                        fadeOut(tween(240)) + scaleOut(
+                            targetScale = 0.94f,
+                            animationSpec = tween(320),
+                        ),
+                    ).using(
+                        SizeTransform(clip = false) { _, _ ->
+                            tween(520, easing = FastOutSlowInEasing)
+                        },
+                    )
+                },
+                label = "loginCardMorph",
+            ) { mode ->
+                if (mode == LoginCard.Token) {
+                    LoginTokenCard(
+                        cardWidth = cardWidth,
+                        cardHeight = if (keyboardOpen) null else cardHeight,
+                        cardRadius = cardRadius,
+                        boxSize = boxSize,
+                        boxGap = boxGap,
+                        boxCorner = boxCorner,
+                        phase = phase,
+                        token = state.producerToken,
+                        error = state.error,
+                        errorTick = state.errorTick,
+                        enabled = !state.loading && !state.confirmed,
+                        onTokenChange = vm::onProducerTokenChange,
+                    )
+                } else {
+                    LoginOperatorCard(
+                        cardWidth = cardWidth,
+                        cardRadius = cardRadius,
+                        name = state.operatorName,
+                        onNameChange = vm::onOperatorNameChange,
+                        onContinue = {
+                            if (!vm.confirmOperator()) return@LoginOperatorCard
+                            keyboard?.hide()
+                            fadeToBlack = true
+                        },
+                    )
+                }
+            }
             Spacer(Modifier.weight(1f))
+        }
+        if (blackAlpha > 0f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = blackAlpha)),
+            )
         }
     }
 }
@@ -368,6 +442,97 @@ private fun LoginTokenCard(
             Spacer(Modifier.weight(1f))
         } else {
             Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun LoginOperatorCard(
+    cardWidth: Dp,
+    cardRadius: Dp,
+    name: String,
+    onNameChange: (String) -> Unit,
+    onContinue: () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val shape = RoundedCornerShape(cardRadius)
+    val canContinue = name.isNotBlank()
+    LaunchedEffect(Unit) {
+        delay(460)
+        runCatching {
+            focus.requestFocus()
+            keyboard?.show()
+        }
+    }
+    Column(
+        Modifier
+            .width(cardWidth)
+            .drawBehind {
+                val radius = cardRadius.toPx()
+                val spread = 7.dp.toPx()
+                drawRoundRect(
+                    color = Color(0xFF087BFF).copy(alpha = 0.28f),
+                    topLeft = Offset(-spread, -spread),
+                    size = Size(size.width + spread * 2, size.height + spread * 2),
+                    cornerRadius = CornerRadius(radius + spread),
+                    style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round),
+                )
+            }
+            .background(Color(0xF2030D3D), shape)
+            .border(2.dp, Color(0xFF005BFF), shape)
+            .padding(horizontal = cardWidth * 0.05f, vertical = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "Operador",
+            color = Color(0xFFF4F6FF),
+            fontSize = 19.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Informe quem vai operar esta maquininha.",
+            color = Color(0xFF9AD4FF),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(16.dp))
+        Gate8OutlinedTextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = "Nome do operador",
+            prefix = "POS - ",
+            placeholder = "nome",
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus),
+            onDark = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { if (canContinue) onContinue() },
+            ),
+        )
+        Spacer(Modifier.height(18.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (canContinue) Color(0xFF0000FE) else Color(0xFF0000FE).copy(alpha = 0.35f))
+                .clickable(enabled = canContinue, onClick = onContinue),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Continuar",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
@@ -642,7 +807,7 @@ private fun VerifiedPill() {
         modifier = Modifier
             .height(48.dp)
             .clip(CircleShape)
-            .background(Color(0xFFF5F5F7))
+            .background(Color(TOKEN_ACCENT))
             .padding(start = 8.dp, end = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -650,20 +815,20 @@ private fun VerifiedPill() {
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(Color(TOKEN_ACCENT)),
+                .background(Color.White),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Filled.Check,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color(TOKEN_ACCENT),
                 modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(10.dp))
         Text(
             "Verificado",
-            color = Color(0xFF1D1D1F),
+            color = Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
