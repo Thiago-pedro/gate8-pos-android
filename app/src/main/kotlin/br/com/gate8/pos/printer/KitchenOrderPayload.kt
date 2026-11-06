@@ -12,3 +12,9 @@ data class KitchenOrderLine(
     val description: String,
     val quantity: Int,
 )
+
+/** Resultado de uma tentativa de ficha. message explica falha de papel, ocupada ou tempo. */
+data class KitchenPrintOutcome(
+    val ok: Boolean,
+    val message: String? = null,
+)

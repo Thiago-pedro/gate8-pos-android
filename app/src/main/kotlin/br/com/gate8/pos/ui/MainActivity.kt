@@ -29,6 +29,7 @@ import br.com.gate8.pos.ui.checkin.CheckinScreen
 import br.com.gate8.pos.ui.common.Gate8SplashHost
 import br.com.gate8.pos.ui.config.SetupScreen
 import br.com.gate8.pos.ui.home.HomeScreen
+import br.com.gate8.pos.kitchen.KitchenRuntime
 import br.com.gate8.pos.ui.kitchen.KitchenScreen
 import br.com.gate8.pos.ui.login.LoginPendingScreen
 import br.com.gate8.pos.ui.login.LoginScreen
@@ -63,6 +64,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // A tela de pagamento da Cielo devolve a activity com as faixas brancas de novo.
         applyBlackSystemBars()
+        if (configStore.isLoggedIn() && configStore.isKitchenMode()) {
+            KitchenRuntime.start(this)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,7 +153,11 @@ class MainActivity : ComponentActivity() {
                                         onReports = { nav.navigate(Routes.Reports) },
                                         onSetup = { nav.navigate(Routes.Setup) },
                                         onKitchen = {
-                                            nav.navigate(Routes.Kitchen) { launchSingleTop = true }
+                                            if (nav.currentDestination?.route != Routes.Kitchen) {
+                                                nav.navigate(Routes.Kitchen) {
+                                                    launchSingleTop = true
+                                                }
+                                            }
                                         },
                                     )
                                 }

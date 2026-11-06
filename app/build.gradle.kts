@@ -30,8 +30,8 @@ android {
         applicationId = "br.com.gate8.pos.terminal"
         minSdk = 23
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://gate8.club/\"")
         buildConfigField("String", "CIELO_CLIENT_ID", "\"\"")
         buildConfigField("String", "CIELO_ACCESS_TOKEN", "\"\"")

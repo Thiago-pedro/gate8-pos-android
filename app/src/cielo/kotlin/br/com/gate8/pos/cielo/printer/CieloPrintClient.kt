@@ -9,8 +9,11 @@ import br.com.gate8.pos.cielo.deeplink.CieloDeeplinkSession
 import br.com.gate8.pos.cielo.deeplink.CieloLioLauncher
 import br.com.gate8.pos.cielo.deeplink.CieloLioOp
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
+import br.com.gate8.pos.printer.KitchenPrintOutcome
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import org.json.JSONArray
 import org.json.JSONObject
@@ -28,6 +31,7 @@ internal object CieloPrintClient {
     private const val SIZE_ITEM_PRICE = 36
     private const val SIZE_ORDER = 48
     private const val SIZE_KITCHEN = 28
+    private const val KITCHEN_PRINT_TIMEOUT_MS = 20_000L
 
     /**
      * Relatório e resumo de caixa: imagem com rótulo à esquerda, valor à direita
@@ -111,55 +115,57 @@ internal object CieloPrintClient {
      * a próxima tentativa repetia só o cabeçalho.
      */
     suspend fun printKitchenFicha(
-        logoPath: String?,
         producerName: String?,
         dateTime: String,
         terminalName: String,
         orderNumber: Int,
         items: List<Pair<Int, String>>,
         note: String? = null,
-    ): Boolean = suspendCancellableCoroutine { cont ->
+    ): KitchenPrintOutcome = suspendCancellableCoroutine { cont ->
         val task = worker.submit {
-            val ok = try {
+            val outcome = try {
                 runBlocking {
-                    if (!logoPath.isNullOrBlank()) {
-                        runCatching { printImageOrThrow(logoPath) }
-                            .onFailure { Log.w(TAG, "Logo da ficha ignorada", it) }
-                    }
-                    val ticket = buildString {
-                        producerName?.takeIf { it.isNotBlank() }?.let {
-                            append(it.trim().uppercase(brLocale))
+                    withTimeout(KITCHEN_PRINT_TIMEOUT_MS) {
+                        // Uma chamada só. A logo abria outro lio://print e a próxima ficha
+                        // ficava parada até esse callback voltar.
+                        val ticket = buildString {
+                            producerName?.takeIf { it.isNotBlank() }?.let {
+                                append(it.trim().uppercase(brLocale))
+                                append('\n')
+                            }
+                            append(dateTime)
                             append('\n')
-                        }
-                        append(dateTime)
-                        append('\n')
-                        append(terminalName)
-                        append("\n\nPEDIDO ")
-                        append(orderNumber)
-                        append("\n\n")
-                        note?.trim()?.takeIf { it.isNotBlank() }?.let {
-                            append(it.uppercase(brLocale))
+                            append(terminalName.ifBlank { "PDV" })
+                            append("\n\nPEDIDO ")
+                            append(orderNumber)
                             append("\n\n")
-                        }
-                        items.forEach { (qty, desc) ->
-                            append(qty)
-                            append("x ")
-                            append(desc.trim().uppercase(brLocale))
+                            note?.trim()?.takeIf { it.isNotBlank() }?.let {
+                                append(it.uppercase(brLocale))
+                                append("\n\n")
+                            }
+                            items.forEach { (qty, desc) ->
+                                append(qty)
+                                append("x ")
+                                append(desc.trim().uppercase(brLocale))
+                                append('\n')
+                            }
                             append('\n')
+                            append(".".repeat(32))
+                            // ~0,5 cm depois do item, para o corte não cair em cima do texto.
+                            append("\n\n\n")
                         }
-                        append('\n')
-                        append(".".repeat(32))
-                        // ~0,5 cm depois do item, para o corte não cair em cima do texto.
-                        append("\n\n\n")
+                        printTextOrThrow(ticket, ALIGN_CENTER, SIZE_KITCHEN, formFeed = true)
                     }
-                    printTextOrThrow(ticket, ALIGN_CENTER, SIZE_KITCHEN, formFeed = true)
                 }
-                true
+                KitchenPrintOutcome(ok = true)
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Ficha da cozinha estourou o tempo", e)
+                KitchenPrintOutcome(ok = false, message = "timeout")
             } catch (e: Exception) {
                 Log.e(TAG, "Ficha da cozinha não imprimiu", e)
-                false
+                KitchenPrintOutcome(ok = false, message = e.message)
             }
-            if (cont.isActive) cont.resume(ok)
+            if (cont.isActive) cont.resume(outcome)
         }
         cont.invokeOnCancellation { task.cancel(false) }
     }
@@ -273,23 +279,6 @@ internal object CieloPrintClient {
                 ),
             )
             put("value", JSONArray().put(text))
-        }
-        dispatchOrThrow(body)
-    }
-
-    private suspend fun printImageOrThrow(imagePath: String) {
-        val body = baseBody().apply {
-            put("operation", "PRINT_IMAGE")
-            put(
-                "styles",
-                JSONArray().put(
-                    JSONObject().apply {
-                        put("key_attributes_align", ALIGN_CENTER)
-                        put("form_feed", 0)
-                    },
-                ),
-            )
-            put("value", JSONArray().put(imagePath))
         }
         dispatchOrThrow(body)
     }

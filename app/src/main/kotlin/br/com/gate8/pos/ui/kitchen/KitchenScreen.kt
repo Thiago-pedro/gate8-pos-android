@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,7 +68,7 @@ fun KitchenScreen(
     }
 
     LaunchedEffect(state.kitchenMode) {
-        if (!state.kitchenMode) onHome()
+        if (!state.kitchenMode && !vm.isKitchenEnabled()) onHome()
     }
 
     BackHandler {
@@ -116,6 +117,27 @@ fun KitchenScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Text(
+                    state.lastPollAtMillis?.let { "Última busca ${formatKitchenClock(it)}" }
+                        ?: "Última busca —",
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                state.printerWarning?.let { warning ->
+                    Text(
+                        warning,
+                        color = Gate8Colors.Error,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                    )
+                }
 
                 state.error?.let {
                     Text(
@@ -146,9 +168,14 @@ fun KitchenScreen(
                         fontSize = 13.sp,
                     )
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        state.recentOrders.asReversed().forEach { order ->
-                            RecentKitchenCard(order)
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        state.recentOrders.forEach { order ->
+                            RecentKitchenCard(order, Modifier.weight(1f))
                         }
                     }
                 }
@@ -167,12 +194,13 @@ fun KitchenScreen(
 }
 
 @Composable
-private fun RecentKitchenCard(order: KitchenOrder) {
+private fun RecentKitchenCard(order: KitchenOrder, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(12.dp)
     val items = order.items.joinToString(" · ") { "${it.quantity}x ${it.description}" }
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
+            .fillMaxHeight()
             .clip(shape)
             .background(Color(0xFF0D2046))
             .border(1.dp, Color(0xFF0000FE).copy(alpha = 0.75f), shape)
@@ -214,7 +242,8 @@ private fun RecentKitchenCard(order: KitchenOrder) {
                 color = Color.White,
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
-                maxLines = 2,
+                maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -225,6 +254,7 @@ private fun RecentKitchenCard(order: KitchenOrder) {
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -232,11 +262,18 @@ private fun RecentKitchenCard(order: KitchenOrder) {
 }
 
 private fun formatKitchenTime(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(kitchenZone).format(kitchenTimeFmt)
+    runCatching { Instant.ofEpochMilli(millis).atZone(kitchenZone).format(kitchenTimeFmt) }
+        .getOrDefault("--")
+
+private fun formatKitchenClock(millis: Long): String =
+    runCatching { Instant.ofEpochMilli(millis).atZone(kitchenZone).format(kitchenClockFmt) }
+        .getOrDefault("--")
 
 private val kitchenZone: ZoneId = ZoneId.systemDefault()
 private val kitchenTimeFmt: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM HH:mm", Locale("pt", "BR"))
+private val kitchenClockFmt: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm:ss", Locale("pt", "BR"))
 
 @Composable
 private fun KitchenTopBar(onSetup: () -> Unit) {

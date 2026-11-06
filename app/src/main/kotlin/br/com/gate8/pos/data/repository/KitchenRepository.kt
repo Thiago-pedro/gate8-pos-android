@@ -3,7 +3,6 @@ package br.com.gate8.pos.data.repository
 import android.util.Log
 import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.remote.api.PosApiService
-import br.com.gate8.pos.data.remote.dto.KitchenOrderDto
 import br.com.gate8.pos.data.remote.dto.KitchenOrderItemDto
 import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderRequestDto
 import br.com.gate8.pos.domain.model.CartLine
@@ -11,6 +10,8 @@ import br.com.gate8.pos.domain.model.KitchenCategory
 import br.com.gate8.pos.domain.model.KitchenOrder
 import br.com.gate8.pos.domain.model.KitchenOrderItem
 import br.com.gate8.pos.domain.model.KitchenPollResult
+import br.com.gate8.pos.kitchen.KitchenOrderParser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
@@ -102,17 +103,20 @@ class KitchenRepository(
         }
     }
 
-    suspend fun pollPending(): KitchenPollResult = queueLock.withLock {
+    suspend fun pollPending(): KitchenPollResult {
         var apiAvailable = false
         val remote = runCatching {
             val response = api.getKitchenOrders()
             when {
                 response.isSuccessful -> {
                     apiAvailable = true
-                    val body = response.body()
-                    (body?.orders.orEmpty() + body?.pending.orEmpty())
-                        .distinctBy { it.id }
-                        .map { it.toDomain() }
+                    val text = response.body()?.string().orEmpty()
+                    val batch = KitchenOrderParser.parseList(text)
+                    if (batch.errors.isNotEmpty()) {
+                        Log.e(TAG, "Formato de pedido da cozinha: ${batch.errors.joinToString(" | ")}")
+                    }
+                    Log.i(TAG, "GET kitchen/orders ${batch.orders.size} pendente(s)")
+                    batch.orders
                 }
                 response.code() == 404 -> emptyList()
                 else -> {
@@ -120,37 +124,46 @@ class KitchenRepository(
                     emptyList()
                 }
             }
-        }.onFailure {
-            Log.i(TAG, "GET kitchen/orders indisponível — fila local", it)
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+            Log.e(TAG, "GET kitchen/orders indisponível — fila local", error)
         }.getOrDefault(emptyList())
 
+        // Só a fila do servidor. As conveniências 1.0.8 é que fazem o POST;
+        // o número do pedido pode repetir entre caixas, então a identidade é o id.
         val printed = configStore.getKitchenPrintedIds()
-        val local = loadPending()
-        val remoteNumbers = remote.map { it.orderNumber }.filter { it > 0 }.toSet()
-        val localKeep = local.filter { order ->
-            !order.synced || order.orderNumber !in remoteNumbers
-        }
-        val merged = (remote + localKeep)
+        val orders = remote
             .distinctBy { it.id }
-            .distinctBy { if (it.orderNumber > 0) "n:${it.orderNumber}" else it.id }
-            .filter { it.id !in printed && printedNumber(it.orderNumber) !in printed && it.items.isNotEmpty() }
-        KitchenPollResult(merged, apiAvailable)
+            .filter { order ->
+                order.id !in printed && (order.items.isNotEmpty() || !order.note.isNullOrBlank())
+            }
+        return KitchenPollResult(orders, apiAvailable)
     }
 
-    suspend fun markPrinted(order: KitchenOrder) = queueLock.withLock {
-        configStore.addKitchenPrintedId(order.id)
-        if (order.orderNumber > 0) {
-            configStore.addKitchenPrintedId(printedNumber(order.orderNumber))
-        }
-        savePending(loadPending().filterNot { it.id == order.id || (order.orderNumber > 0 && it.orderNumber == order.orderNumber) })
-        runCatching {
+    /**
+     * Confirma no painel que a ficha saiu. O id local só é gravado quando o POST
+     * responde sucesso, para poder tentar de novo sem reimprimir.
+     */
+    suspend fun confirmPrinted(order: KitchenOrder): Boolean {
+        val accepted = runCatching {
             val response = api.markKitchenOrderPrinted(order.id)
             if (!response.isSuccessful) {
-                Log.i(TAG, "POST kitchen/orders/${order.id}/printed ${response.code()}")
+                Log.w(TAG, "POST kitchen/orders/${order.id}/printed ${response.code()}")
+                false
+            } else {
+                true
             }
-        }.onFailure {
-            Log.i(TAG, "POST kitchen/orders/${order.id}/printed indisponível", it)
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            Log.w(TAG, "POST kitchen/orders/${order.id}/printed indisponível", error)
+            false
         }
+        if (!accepted) return false
+        queueLock.withLock {
+            configStore.addKitchenPrintedId(order.id)
+            savePending(loadPending().filterNot { it.id == order.id })
+        }
+        return true
     }
 
     private suspend fun upload(
@@ -161,7 +174,7 @@ class KitchenRepository(
         val wireItems = if (order.note.isNullOrBlank()) {
             order.items
         } else {
-            order.items + KitchenOrderItem(noteLine(order.note), 1)
+            order.items + KitchenOrderItem(KitchenOrderParser.noteLine(order.note), 1)
         }
         return runCatching {
             val response = api.submitKitchenOrder(
@@ -196,7 +209,12 @@ class KitchenRepository(
 
     /** Guarda os 4 pedidos de cozinha mais recentes, o mais novo primeiro. */
     fun rememberPrinted(order: KitchenOrder) {
-        val next = (listOf(order) + recentOrders().filterNot { it.id == order.id }).take(4)
+        rememberSeen(listOf(order))
+    }
+
+    fun rememberSeen(orders: List<KitchenOrder>) {
+        if (orders.isEmpty()) return
+        val next = mergeRecentOrders(recentOrders(), orders)
         configStore.setKitchenRecentJson(
             json.encodeToString(ListSerializer(KitchenOrder.serializer()), next),
         )
@@ -228,45 +246,20 @@ class KitchenRepository(
         )
     }
 
-    private fun KitchenOrderDto.toDomain(): KitchenOrder {
-        val parsed = items.map { KitchenOrderItem(it.description, it.quantity.coerceAtLeast(1)) }
-        val (food, embeddedNote) = splitKitchenNote(parsed)
-        val note = note?.trim()?.takeIf { it.isNotBlank() } ?: embeddedNote
-        return KitchenOrder(
-            id = id,
-            orderNumber = orderNumber ?: 0,
-            terminalName = terminalName?.takeIf { it.isNotBlank() } ?: "PDV",
-            soldAtMillis = parseSoldAt(soldAt),
-            items = food,
-            note = note,
-        )
-    }
-
-    private fun splitKitchenNote(
-        items: List<KitchenOrderItem>,
-    ): Pair<List<KitchenOrderItem>, String?> {
-        val note = items.firstOrNull { it.description.startsWith(NOTE_PREFIX) }
-            ?.description
-            ?.removePrefix(NOTE_PREFIX)
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-        return items.filterNot { it.description.startsWith(NOTE_PREFIX) } to note
-    }
-
-    private fun parseSoldAt(value: String?): Long {
-        if (value.isNullOrBlank()) return System.currentTimeMillis()
-        value.toLongOrNull()?.let { millis ->
-            return if (millis < 10_000_000_000L) millis * 1000 else millis
-        }
-        return System.currentTimeMillis()
-    }
-
     companion object {
         private const val TAG = "Gate8Kitchen"
-
-        private fun printedNumber(orderNumber: Int) = "n:$orderNumber"
-        private const val NOTE_PREFIX = "OBS: "
-
-        private fun noteLine(note: String) = NOTE_PREFIX + note
     }
 }
+
+/** Mais novo primeiro. O mesmo id não entra duas vezes. */
+internal fun mergeRecentOrders(
+    current: List<KitchenOrder>,
+    incoming: List<KitchenOrder>,
+): List<KitchenOrder> =
+    (incoming + current)
+        .distinctBy { it.id }
+        .sortedWith(
+            compareByDescending<KitchenOrder> { it.soldAtMillis }
+                .thenByDescending { it.orderNumber },
+        )
+        .take(4)

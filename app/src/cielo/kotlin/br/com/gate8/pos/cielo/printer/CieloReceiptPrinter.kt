@@ -8,6 +8,7 @@ import br.com.gate8.pos.printer.CashierPrintPayload
 import br.com.gate8.pos.printer.CashlessStatementPayload
 import br.com.gate8.pos.printer.Gate8ReceiptTextBuilder
 import br.com.gate8.pos.printer.KitchenOrderPayload
+import br.com.gate8.pos.printer.KitchenPrintOutcome
 import br.com.gate8.pos.printer.ReceiptPrinter
 import br.com.gate8.pos.printer.ReportPrintPayload
 import br.com.gate8.pos.printer.TicketPrintPayload
@@ -195,16 +196,27 @@ class CieloReceiptPrinter(
         }.onFailure { Log.e(TAG, "printCashlessStatement falhou", it) }
     }
 
-    override suspend fun printKitchenOrder(payload: KitchenOrderPayload): Boolean =
-        CieloPrintClient.printKitchenFicha(
-            logoPath = CieloLogoBitmap.prepareLogoPath(appContext),
-            producerName = configStore.getEstablishmentName(),
-            dateTime = timeFormat.format(Date(payload.soldAtMillis)),
-            terminalName = payload.terminalName,
-            orderNumber = payload.orderNumber,
-            items = payload.items.map { it.quantity to it.description },
-            note = payload.note,
-        )
+    override suspend fun printKitchenOrder(payload: KitchenOrderPayload): KitchenPrintOutcome {
+        val dateTime = try {
+            timeFormat.format(Date(payload.soldAtMillis))
+        } catch (e: Exception) {
+            Log.e(TAG, "Data do pedido ${payload.orderNumber} inválida", e)
+            timeFormat.format(Date())
+        }
+        return try {
+            CieloPrintClient.printKitchenFicha(
+                producerName = configStore.getEstablishmentName(),
+                dateTime = dateTime,
+                terminalName = payload.terminalName.ifBlank { "PDV" },
+                orderNumber = payload.orderNumber,
+                items = payload.items.map { it.quantity to it.description },
+                note = payload.note,
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "printKitchenOrder falhou", e)
+            KitchenPrintOutcome(ok = false, message = e.message)
+        }
+    }
 
     override fun printConvenienceTickets(
         lines: List<CartLine>,

@@ -14,6 +14,7 @@ import br.com.gate8.pos.data.prefs.DeviceConfigStore
 import br.com.gate8.pos.data.repository.CatalogRepository
 import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.ManagerCardRepository
+import br.com.gate8.pos.kitchen.KitchenStation
 import br.com.gate8.pos.data.repository.SaleRepository
 import br.com.gate8.pos.domain.model.LastSaleRecord
 import br.com.gate8.pos.device.PosHardwareInfo
@@ -77,6 +78,7 @@ class SetupViewModel(
     private val catalogRepository: CatalogRepository,
     private val cashlessCard: CashlessCardGateway,
     private val managerCardRepository: ManagerCardRepository,
+    private val kitchenStation: KitchenStation,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -307,6 +309,7 @@ class SetupViewModel(
 
     fun setKitchenMode(enabled: Boolean) {
         configStore.setKitchenMode(enabled)
+        if (enabled) kitchenStation.markListening() else kitchenStation.requestStop()
         _state.update {
             it.copy(
                 kitchenMode = enabled,
@@ -460,6 +463,7 @@ class SetupViewModel(
             runCatching {
                 catalogRepository.clear()
             }
+            kitchenStation.requestStop()
             withContext(Dispatchers.IO) {
                 configStore.setKitchenMode(false)
                 configStore.logout()

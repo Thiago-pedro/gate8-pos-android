@@ -63,6 +63,24 @@ class CieloCallbackParserTest {
     }
 
     @Test
+    fun printCallbackWithoutPaymentFieldsIsSuccess() {
+        val parsed = CieloCallbackParser.parsePrint("""{"status":"success"}""", uriResponseCode = 0)
+        assertTrue(parsed is CieloParsedCallback.Approved)
+    }
+
+    @Test
+    fun printCallbackThatLooksLikeGenericFailureStillPrinted() {
+        val parsed = CieloCallbackParser.parsePrint("{}", uriResponseCode = 0)
+        assertTrue(parsed is CieloParsedCallback.Approved)
+    }
+
+    @Test
+    fun printWithoutPaperIsRejected() {
+        val parsed = CieloCallbackParser.parsePrint("""{"code":1,"reason":"Sem papel"}""")
+        assertTrue(parsed is CieloParsedCallback.Rejected)
+    }
+
+    @Test
     fun draftOrderWithNotFinishedReasonIsNotTreatedAsPaid() {
         val raw = """{"id":"draft-1","code":0,"reason":"Operação não finalizada"}"""
         val parsed = CieloCallbackParser.parseJson(raw)

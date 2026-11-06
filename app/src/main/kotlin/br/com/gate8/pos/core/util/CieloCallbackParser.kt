@@ -43,6 +43,33 @@ object CieloCallbackParser {
         )
     }
 
+    /**
+     * Impressão não traz statusCode nem paidAmount. Tratar como pagamento
+     * recusa a ficha mesmo com a bobina já impressa.
+     */
+    fun parsePrint(raw: String, uriResponseCode: Int? = null): CieloParsedCallback {
+        val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
+        val reason = CieloUserText.repair(
+            json.optString("reason", "").ifBlank { json.optString("message", "") },
+        )
+        val envelopeCode = if (json.has("code") && !json.isNull("code")) json.optInt("code") else null
+        val failedCode = when {
+            uriResponseCode != null && uriResponseCode != 0 -> uriResponseCode
+            envelopeCode != null && envelopeCode != 0 -> envelopeCode
+            else -> null
+        }
+        val folded = reason.lowercase()
+        val printerBlocked = folded.contains("papel") || folded.contains("paper") ||
+            folded.contains("bobina") || folded.contains("ocup") || folded.contains("busy")
+        if (printerBlocked || failedCode != null) {
+            return CieloParsedCallback.Rejected(
+                code = failedCode ?: -1,
+                reason = reason.ifBlank { "Falha na impressora" },
+            )
+        }
+        return CieloParsedCallback.Approved(json)
+    }
+
     private fun isApproved(
         statusCode: Int?,
         paidAmount: Long,

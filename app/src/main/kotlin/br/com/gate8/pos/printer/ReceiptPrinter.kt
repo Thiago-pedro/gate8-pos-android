@@ -69,9 +69,9 @@ interface ReceiptPrinter {
     fun printCashlessStatement(payload: CashlessStatementPayload)
 
     /**
-     * Pedido da cozinha. Retorna true só quando a ficha foi aceita pela impressora.
+     * Pedido da cozinha. ok só quando a ficha foi aceita pela impressora.
      */
-    suspend fun printKitchenOrder(payload: KitchenOrderPayload): Boolean
+    suspend fun printKitchenOrder(payload: KitchenOrderPayload): KitchenPrintOutcome
 
     /**
      * Modo ficha: imprime uma ficha separada para cada unidade de cada item
@@ -138,7 +138,8 @@ class NoOpReceiptPrinter : ReceiptPrinter {
 
     override fun printCashlessStatement(payload: CashlessStatementPayload) = Unit
 
-    override suspend fun printKitchenOrder(payload: KitchenOrderPayload): Boolean = true
+    override suspend fun printKitchenOrder(payload: KitchenOrderPayload): KitchenPrintOutcome =
+        KitchenPrintOutcome(ok = true)
 
     override fun printConvenienceTickets(
         lines: List<CartLine>,

@@ -24,10 +24,10 @@ import br.com.gate8.pos.data.remote.dto.CashlessCloseResponseDto
 import br.com.gate8.pos.data.remote.dto.CashlessRegisterRequestDto
 import br.com.gate8.pos.data.remote.dto.ManagerCardRequestDto
 import br.com.gate8.pos.data.remote.dto.ManagerCardResponseDto
-import br.com.gate8.pos.data.remote.dto.KitchenOrdersResponseDto
 import br.com.gate8.pos.data.remote.dto.KitchenPrintedResponseDto
 import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderRequestDto
 import br.com.gate8.pos.data.remote.dto.SubmitKitchenOrderResponseDto
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -51,7 +51,7 @@ interface PosApiService {
 
     @GET("api/public/pos/kitchen/orders")
     @Headers("Cache-Control: no-cache")
-    suspend fun getKitchenOrders(): Response<KitchenOrdersResponseDto>
+    suspend fun getKitchenOrders(): Response<ResponseBody>
 
     @POST("api/public/pos/kitchen/orders")
     suspend fun submitKitchenOrder(

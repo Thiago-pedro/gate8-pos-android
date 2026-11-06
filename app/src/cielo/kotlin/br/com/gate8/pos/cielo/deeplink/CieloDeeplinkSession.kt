@@ -166,7 +166,12 @@ object CieloDeeplinkSession {
         return try {
             val raw = decodeCallback(base64)
             Log.i(TAG, "Callback JSON: ${raw.take(800)} uriResponseCode=$uriResponseCode")
-            when (val parsed = CieloCallbackParser.parseJson(raw, uriResponseCode)) {
+            val parsed = if (pendingOp.get() == CieloLioOp.PRINT) {
+                CieloCallbackParser.parsePrint(raw, uriResponseCode)
+            } else {
+                CieloCallbackParser.parseJson(raw, uriResponseCode)
+            }
+            when (parsed) {
                 is CieloParsedCallback.Approved -> CieloDeeplinkResponse.Success(parsed.json)
                 is CieloParsedCallback.Rejected -> CieloDeeplinkResponse.Error(parsed.code, parsed.reason)
             }

@@ -21,6 +21,8 @@ import br.com.gate8.pos.data.repository.CashierRepository
 import br.com.gate8.pos.data.repository.CashlessAccountRepository
 import br.com.gate8.pos.data.repository.KitchenRepository
 import br.com.gate8.pos.data.repository.KitchenUploadRetry
+import br.com.gate8.pos.kitchen.KitchenPrintQueue
+import br.com.gate8.pos.kitchen.KitchenStation
 import br.com.gate8.pos.data.repository.ReportsRepository
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -116,9 +118,11 @@ val appModule = module {
     single { ManagerCardRepository(get(), get()) }
     single { CashlessAccountRepository(get(), get(), get(), get()) }
     single { KitchenRepository(get(), get(), get()) }
+    single { KitchenPrintQueue() }
+    single { KitchenStation(get(), get(), get(), get()) }
 
     viewModel { LoginViewModel(androidApplication(), get(), get(), get(), get()) }
-    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { SetupViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { RefundViewModel(get(), get(), get(), get()) }
     viewModel { ReportsViewModel(get(), get(), get(), get(), get()) }
     viewModel { CashierViewModel(get(), get(), get(), get()) }
@@ -135,5 +139,5 @@ val appModule = module {
     }
     viewModel { CheckinViewModel(get()) }
     viewModel { PendingViewModel(get()) }
-    viewModel { KitchenViewModel(get(), get(), get()) }
+    viewModel { KitchenViewModel(androidApplication(), get(), get()) }
 }
